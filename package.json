@@ -1,0 +1,73 @@
+{
+  "name": "hamster-studio",
+  "version": "0.1.0",
+  "description": "A local desktop chat and image client for custom OpenAI Compatible providers",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build:renderer": "vite build",
+    "build": "npm run typecheck && npm run test && vite build && electron-builder --mac dmg",
+    "build:dir": "vite build && electron-builder --mac dir"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xrdavies/hamster-studio.git"
+  },
+  "keywords": [],
+  "author": "Frozen",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/xrdavies/hamster-studio/issues"
+  },
+  "homepage": "https://github.com/xrdavies/hamster-studio#readme",
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "lucide-react": "^1.47.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vite-plugin-electron": "^1.1.2",
+    "vitest": "^5.0.1"
+  },
+  "private": true,
+  "build": {
+    "appId": "com.hamster.studio",
+    "productName": "Hamster Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg"
+      ],
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    }
+  }
+}
