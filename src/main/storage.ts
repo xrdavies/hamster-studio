@@ -51,6 +51,13 @@ export class Store {
   }
 
   saveProvider(input: ProviderInput): string {
+    const name = typeof input.name === 'string' ? input.name.trim() : ''
+    const baseUrl = typeof input.baseUrl === 'string' ? input.baseUrl.trim().replace(/\/+$/, '') : ''
+    const chatModels = Array.isArray(input.chatModels) ? input.chatModels.filter((model): model is string => typeof model === 'string').map(model => model.trim()).filter(Boolean) : []
+    const imageModels = Array.isArray(input.imageModels) ? input.imageModels.filter((model): model is string => typeof model === 'string').map(normalizeImageModel).map(model => model.trim()).filter(Boolean) : []
+    if (!name) throw new Error('Provider 名称不能为空')
+    if (!baseUrl) throw new Error('Base URL 不能为空')
+    if (!chatModels.length) throw new Error('至少配置一个聊天模型')
     const id = input.id || randomUUID()
     const existing = this.db.prepare('SELECT apiKey FROM providers WHERE id = ?').get(id) as { apiKey: Buffer | null } | undefined
     const key = input.apiKey?.trim() ? this.encrypt(input.apiKey.trim()) : existing?.apiKey || null
@@ -58,8 +65,8 @@ export class Store {
       VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
       name=excluded.name,baseUrl=excluded.baseUrl,chatModels=excluded.chatModels,
       imageModels=excluded.imageModels,apiKey=excluded.apiKey`).run(
-      id, input.name.trim(), input.baseUrl.trim().replace(/\/+$/, ''),
-      JSON.stringify(input.chatModels), JSON.stringify(input.imageModels.map(normalizeImageModel)), key
+      id, name, baseUrl,
+      JSON.stringify(chatModels), JSON.stringify(imageModels), key
     )
     return id
   }
@@ -75,9 +82,11 @@ export class Store {
   }
 
   saveSession(input: Partial<StudioSession> & Pick<StudioSession, 'providerId' | 'chatModel'>): string {
+    if (!input.chatModel.trim()) throw new Error('请先配置聊天模型')
     const id = input.id || randomUUID()
     const now = Date.now()
     const existing = this.db.prepare('SELECT createdAt FROM sessions WHERE id = ?').get(id) as { createdAt: number } | undefined
+    if (!existing && !this.db.prepare('SELECT 1 FROM providers WHERE id = ?').get(input.providerId)) throw new Error('Provider 不存在')
     this.db.prepare(`INSERT INTO sessions (id,title,providerId,chatModel,imageModel,systemPrompt,createdAt,updatedAt)
       VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
       title=excluded.title,providerId=excluded.providerId,chatModel=excluded.chatModel,

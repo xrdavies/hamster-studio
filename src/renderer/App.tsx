@@ -20,8 +20,9 @@ export default function App() {
   const [search, setSearch] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
+  const previousSessionRef = useRef('')
 
-  useEffect(() => { window.studio.load().then(next => { setData(next); setSessionId(next.sessions[0]?.id || '') }) }, [])
+  useEffect(() => { window.studio.load().then(next => { setData(next); setSessionId(next.sessions[0]?.id || '') }).catch(error => setError(error instanceof Error ? error.message : '无法读取本地数据')) }, [])
   useEffect(() => window.studio.onMessage(message => setData(current => ({ ...current, messages: [...current.messages.filter(item => item.id !== message.id), message] }))), [])
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -34,14 +35,24 @@ export default function App() {
   })
   const session = data.sessions.find(item => item.id === sessionId) || data.sessions[0]
   const provider = data.providers.find(item => item.id === session?.providerId)
+  const canGenerateImage = Boolean(provider?.imageModels.length && session?.imageModel)
   const messages = data.messages.filter(item => item.sessionId === session?.id).sort((a, b) => a.createdAt - b.createdAt)
+  useEffect(() => { if (!canGenerateImage) setImageMode(false) }, [canGenerateImage])
   useEffect(() => {
-    requestAnimationFrame(() => { if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight })
+    requestAnimationFrame(() => {
+      const container = messagesRef.current
+      if (!container) return
+      const sessionChanged = previousSessionRef.current !== (session?.id || '')
+      const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100
+      if (sessionChanged || nearBottom) container.scrollTop = container.scrollHeight
+      previousSessionRef.current = session?.id || ''
+    })
   }, [session?.id, messages.length, messages.at(-1)?.content])
 
   async function createSession() {
     const p = data.providers[0]
     if (!p) { setSettings(true); setEditing({ ...emptyInput }); return }
+    if (!p.chatModels.length) { setSettings(true); setEditing({ ...p }); setError('请先为 Provider 配置聊天模型'); return }
     const next: StudioSession = { id: newId(), title: '新对话', providerId: p.id, chatModel: p.chatModels[0] || '', imageModel: p.imageModels[0] || '', systemPrompt: '', createdAt: Date.now(), updatedAt: Date.now() }
     const nextData = await window.studio.saveSession(next); setData(nextData); setSessionId(next.id)
   }
@@ -88,14 +99,15 @@ export default function App() {
         <header className="topbar">
           <div className="title-block"><input className="title-input" value={session.title} onChange={e => updateSession({ title: e.target.value })} /><div className="subtitle">本地会话 · 不同步到云端</div></div>
           <div className="selectors">
-            <div className="selector-wrap"><span className="selector-label">Provider</span><select value={session.providerId} onChange={e => { const p = data.providers.find(item => item.id === e.target.value); updateSession({ providerId: e.target.value, chatModel: p?.chatModels[0] || '', imageModel: p?.imageModels[0] || '' }) }}>{data.providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-            <div className="selector-wrap"><span className="selector-label">聊天模型</span><select value={session.chatModel} onChange={e => updateSession({ chatModel: e.target.value })}>{(provider?.chatModels || []).map(model => <option key={model}>{model}</option>)}</select></div>
+            <div className="selector-wrap"><span className="selector-label">Provider</span><select value={session.providerId} onChange={e => { const p = data.providers.find(item => item.id === e.target.value); updateSession({ providerId: e.target.value, chatModel: p?.chatModels[0] || '', imageModel: p?.imageModels[0] || '' }) }}>{!provider && <option value={session.providerId}>Provider 已删除</option>}{data.providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+            <div className="selector-wrap"><span className="selector-label">聊天模型</span><select value={session.chatModel} disabled={!provider} onChange={e => updateSession({ chatModel: e.target.value })}>{!provider && <option value={session.chatModel}>请先选择 Provider</option>}{(provider?.chatModels || []).map(model => <option key={model}>{model}</option>)}</select></div>
             {(provider?.imageModels || []).length > 0 && <div className="selector-wrap"><span className="selector-label">图片模型</span><select value={session.imageModel} onChange={e => updateSession({ imageModel: e.target.value })}>{provider?.imageModels.map(model => <option key={model}>{model}</option>)}</select></div>}
           </div>
         </header>
+        {!provider && <div className="missing-provider">当前会话的 Provider 已删除，历史消息仍保留。请选择新的 Provider 后继续。</div>}
         <div ref={messagesRef} className="messages">{messages.length === 0 ? <Welcome provider={provider} onPrompt={setText} /> : messages.map(item => <MessageBubble key={item.id} message={item} onRetry={retry} />)}{error && <div className="error-banner">{error}</div>}</div>
         <div className="composer-wrap"><div className="composer">
-          <button className={imageMode ? 'mode active' : 'mode'} onClick={() => setImageMode(!imageMode)} title="图片生成"><Image size={18} /></button>
+          <button className={imageMode ? 'mode active' : 'mode'} disabled={!canGenerateImage} onClick={() => setImageMode(!imageMode)} title={canGenerateImage ? '图片生成' : '请先配置图片模型'}><Image size={18} /></button>
           <textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }} placeholder={imageMode ? '描述你想生成的图片…' : '给 Hamster Studio 发消息…'} disabled={busy} />
           <button className="send" onClick={() => busy ? window.studio.stopChat(session.id) : submit()} disabled={!busy && !text.trim()}>{busy ? <span className="spinner" /> : <Send size={18} />}</button>
         </div><div className="hint">{imageMode ? '图片模型：' + (session.imageModel || '未配置') : 'Enter 发送 · Shift + Enter 换行'}</div></div>
@@ -112,6 +124,6 @@ function MessageBubble({ message, onRetry }: { message: Message; onRetry: (messa
 function SettingsPanel({ data, editing, setEditing, close, refresh }: { data: StudioData; editing: ProviderInput | null; setEditing: (value: ProviderInput | null) => void; close: () => void; refresh: (data: StudioData) => void }) {
   const current = editing
   const models = useMemo(() => current?.chatModels.join(', ') || '', [current])
-  if (!current) return <div className="settings-backdrop"><section className="settings"><div className="settings-head"><h2>设置</h2><button onClick={close}><X /></button></div><div className="settings-content"><div className="settings-title"><div><h3>Providers</h3><p>使用自定义 OpenAI Compatible 中转站。</p></div><button onClick={() => setEditing({ ...emptyInput })}><Plus size={16} /> 添加</button></div><div className="config-actions"><button onClick={() => window.studio.exportProviders()}>导出配置</button><button onClick={async () => { const next = await window.studio.importProviders(); if (next) refresh(next) }}>导入配置</button></div>{data.providers.length === 0 && <div className="settings-empty">还没有 Provider</div>}{data.providers.map(p => <div className="provider-row" key={p.id}><div><strong>{p.name}</strong><small>{p.baseUrl} · {p.hasKey ? '已配置 Key' : '未配置 Key'}</small></div><button onClick={() => setEditing({ ...p })}>编辑</button></div>)}</div></section></div>
+  if (!current) return <div className="settings-backdrop"><section className="settings"><div className="settings-head"><h2>设置</h2><button onClick={close}><X /></button></div><div className="settings-content"><div className="settings-title"><div><h3>Providers</h3><p>使用自定义 OpenAI Compatible 中转站。</p></div><button onClick={() => setEditing({ ...emptyInput })}><Plus size={16} /> 添加</button></div><div className="config-actions"><button onClick={() => window.studio.exportProviders()}>导出配置</button><button onClick={async () => { try { const next = await window.studio.importProviders(); if (next) refresh(next) } catch (e) { alert(e instanceof Error ? e.message : '导入失败') } }}>导入配置</button></div>{data.providers.length === 0 && <div className="settings-empty">还没有 Provider</div>}{data.providers.map(p => <div className="provider-row" key={p.id}><div><strong>{p.name}</strong><small>{p.baseUrl} · {p.hasKey ? '已配置 Key' : '未配置 Key'}</small></div><button onClick={() => setEditing({ ...p })}>编辑</button></div>)}</div></section></div>
   return <div className="settings-backdrop"><section className="settings"><div className="settings-head"><h2>{current.id ? '编辑 Provider' : '添加 Provider'}</h2><button onClick={() => setEditing(null)}><X /></button></div><form className="provider-form" onSubmit={async e => { e.preventDefault(); await window.studio.saveProvider({ ...current, chatModels: models.split(',').map(x => x.trim()).filter(Boolean), imageModels: (current.imageModels || []).filter(Boolean) }); refresh(await window.studio.load()); setEditing(null) }}><label>名称<input required value={current.name} onChange={e => setEditing({ ...current, name: e.target.value })} placeholder="我的中转站" /></label><label>Base URL<input required type="url" value={current.baseUrl} onChange={e => setEditing({ ...current, baseUrl: e.target.value })} placeholder="https://api.example.com/v1" /></label><label>API Key<input type="password" value={current.apiKey || ''} onChange={e => setEditing({ ...current, apiKey: e.target.value })} placeholder={current.id ? '留空则保留原 Key' : 'sk-…'} /></label><label>聊天模型<input required value={models} onChange={e => setEditing({ ...current, chatModels: e.target.value.split(',').map(x => x.trim()) })} placeholder="gpt-5.6" /><small>多个模型使用英文逗号分隔。</small></label><label>图片模型<input value={(current.imageModels || []).join(', ')} onChange={e => setEditing({ ...current, imageModels: e.target.value.split(',').map(x => x.trim()).filter(Boolean) })} placeholder="gpt-image-2" /></label><div className="form-actions"><button type="button" className="secondary" onClick={async () => { try { await window.studio.testProvider(current); alert('连接成功') } catch (e) { alert(e instanceof Error ? e.message : '连接失败') } }}>测试连接</button><button type="submit">保存 Provider</button></div></form>{current.id && <button className="danger-link" onClick={async () => { if (!window.confirm('删除这个 Provider？')) return; await window.studio.deleteProvider(current.id!); refresh(await window.studio.load()); setEditing(null) }}><Trash2 size={14} /> 删除 Provider</button>}</section></div>
 }

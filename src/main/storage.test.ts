@@ -28,4 +28,23 @@ describe('Store', () => {
     expect(store.data().providers[0].imageModels).toEqual(['gpt-image-2', 'gpt-image-2'])
     store.close()
   })
+
+  it('keeps sessions when their provider is deleted', () => {
+    const file = '/tmp/hamster-studio-' + randomUUID() + '.db'; files.push(file)
+    const store = new Store(file, value => Buffer.from(value), value => value.toString())
+    const providerId = store.saveProvider({ name: 'Relay', baseUrl: 'https://example.com', chatModels: ['gpt-5.6'], imageModels: [], apiKey: 'secret' })
+    store.saveSession({ providerId, chatModel: 'gpt-5.6' })
+    store.deleteProvider(providerId)
+    expect(store.data().sessions).toHaveLength(1)
+    const session = store.data().sessions[0]
+    expect(() => store.saveSession({ ...session, title: '保留历史' })).not.toThrow()
+    store.close()
+  })
+
+  it('rejects providers without a chat model', () => {
+    const file = '/tmp/hamster-studio-' + randomUUID() + '.db'; files.push(file)
+    const store = new Store(file, value => Buffer.from(value), value => value.toString())
+    expect(() => store.saveProvider({ name: 'Relay', baseUrl: 'https://example.com', chatModels: [], imageModels: [], apiKey: 'secret' })).toThrow('聊天模型')
+    store.close()
+  })
 })

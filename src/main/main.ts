@@ -5,20 +5,20 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { Store } from './storage'
 import { autoUpdater } from 'electron-updater'
+import { providerUrl } from './provider'
 import type { Message, ProviderInput, StudioSession } from '../shared/types'
 
 let win: BrowserWindow
 let store: Store
 const activeChats = new Map<string, AbortController>()
 const currentDir = __dirname
-const url = (base: string, path: string) => `${base.replace(/\/+$/, '')}${base.endsWith('/v1') ? '' : '/v1'}${path}`
 
 function message(sessionId: string, role: Message['role'], content: string, model: string, providerName: string, status: Message['status'] = 'done', kind: Message['kind'] = 'chat'): Message {
   return { id: randomUUID(), sessionId, role, kind, content, imageFiles: [], providerName, model, createdAt: Date.now(), status, error: '' }
 }
 
 async function jsonRequest(baseUrl: string, key: string, path: string, body: unknown) {
-  const response = await fetch(url(baseUrl, path), {
+  const response = await fetch(providerUrl(baseUrl, path), {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify(body)
   })
   if (!response.ok) throw new Error(`Provider 请求失败（${response.status}）: ${await response.text()}`)
@@ -37,7 +37,7 @@ async function streamChat(sessionId: string, text: string) {
   store.saveMessage(assistant); win.webContents.send('message', assistant)
   const controller = new AbortController()
   activeChats.set(sessionId, controller)
-  const response = await fetch(url(provider.baseUrl, '/chat/completions'), {
+  const response = await fetch(providerUrl(provider.baseUrl, '/chat/completions'), {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({ model: session.chatModel, stream: true, messages: [...(session.systemPrompt ? [{ role: 'system', content: session.systemPrompt }] : []), ...history, { role: 'user', content: text }] }),
     signal: controller.signal
@@ -71,7 +71,9 @@ async function generateImage(sessionId: string, prompt: string) {
   if (!session.imageModel) throw new Error('当前 Session 没有配置图片模型')
   const result = await jsonRequest(provider.baseUrl, key, '/images/generations', { model: session.imageModel, prompt, n: 1, response_format: 'b64_json' })
   const data = result.data?.[0]; if (!data) throw new Error('Provider 未返回图片')
-  const bytes = Buffer.from(data.b64_json, 'base64'); const dir = join(app.getPath('userData'), 'images'); await mkdir(dir, { recursive: true })
+  const bytes = data.b64_json ? Buffer.from(data.b64_json, 'base64') : data.url ? Buffer.from(await (await fetch(data.url)).arrayBuffer()) : null
+  if (!bytes) throw new Error('Provider 返回的图片格式不支持')
+  const dir = join(app.getPath('userData'), 'images'); await mkdir(dir, { recursive: true })
   const file = join(dir, `${randomUUID()}.png`); await writeFile(file, bytes)
   const image = message(sessionId, 'assistant', prompt, session.imageModel, provider.name, 'done', 'image'); image.imageFiles = [file]
   store.saveMessage(image); win.webContents.send('message', image); return image
@@ -91,7 +93,7 @@ function registerIpc() {
   ipcMain.handle('image:generate', async (_e, id: string, prompt: string) => { await generateImage(id, prompt.trim()); return store.data() })
   ipcMain.handle('provider:test', async (_e, input: ProviderInput) => {
     if (!input.apiKey) throw new Error('请填写 API Key')
-    const result = await fetch(url(input.baseUrl, '/models'), { headers: { Authorization: `Bearer ${input.apiKey}` } })
+    const result = await fetch(providerUrl(input.baseUrl, '/models'), { headers: { Authorization: `Bearer ${input.apiKey}` } })
     if (!result.ok) throw new Error(`连接失败（${result.status}）`)
     return true
   })
@@ -104,7 +106,8 @@ function registerIpc() {
     const result = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] })
     if (result.canceled || !result.filePaths[0]) return null
     const imported = JSON.parse(await readFile(result.filePaths[0], 'utf8')) as { providers?: ProviderInput[] }
-    for (const provider of imported.providers || []) store.saveProvider(provider)
+    if (!Array.isArray(imported.providers)) throw new Error('配置文件格式不正确')
+    for (const provider of imported.providers) store.saveProvider(provider)
     return store.data()
   })
 }
