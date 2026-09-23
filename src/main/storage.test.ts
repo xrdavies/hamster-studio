@@ -10,8 +10,8 @@ describe('Store', () => {
   it('persists providers, sessions and messages without exposing API keys', () => {
     const file = '/tmp/hamster-studio-' + randomUUID() + '.db'; files.push(file)
     const store = new Store(file, value => Buffer.from('encrypted:' + value), value => value.toString().replace('encrypted:', ''))
-    const providerId = store.saveProvider({ name: 'Relay', baseUrl: 'https://example.com/v1', chatModels: ['gpt-5.6'], imageModels: ['image2'], apiKey: 'secret' })
-    const sessionId = store.saveSession({ providerId, chatModel: 'gpt-5.6', imageModel: 'image2', title: '测试' })
+    const providerId = store.saveProvider({ name: 'Relay', baseUrl: 'https://example.com/v1', chatModels: ['gpt-5.6'], imageModels: ['gpt-image-2'], apiKey: 'secret' })
+    const sessionId = store.saveSession({ providerId, chatModel: 'gpt-5.6', imageModel: 'gpt-image-2', title: '测试' })
     store.saveMessage({ id: randomUUID(), sessionId, role: 'user', kind: 'chat', content: '你好', imageFiles: [], providerName: 'Relay', model: 'gpt-5.6', createdAt: Date.now(), status: 'done', error: '' })
     expect(store.data().providers[0]).toMatchObject({ name: 'Relay', hasKey: true })
     expect(store.data().providers[0]).not.toHaveProperty('apiKey')

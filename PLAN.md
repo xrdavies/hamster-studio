@@ -132,7 +132,7 @@ src/
 
 1. Electron 壳、自定义 OpenAI Compatible Provider、API Key / Base URL、单 Session、流式聊天和本地历史。
 2. 多 Provider、多 Session、创建时选择 Provider / 模型、Session 内切换、连接测试和编辑删除。
-3. 图片模型、图片生成、本地保存、图片消息、重新生成和保存。
+3. 图片模型（默认 `gpt-image-2`）、图片生成、本地保存、图片消息、重新生成和保存。
 4. 搜索、配置导入导出、Markdown、复制、重试、中断、失败恢复和自动更新。
 
 ## 项目边界

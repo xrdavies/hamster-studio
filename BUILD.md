@@ -36,6 +36,6 @@ Provider 配置只保存于本机。API Key 不写入代码、`.env`、Git 或 G
 - Base URL：`https://buyonce.xyz`
 - API Key：用户自己的测试 Key
 - 聊天模型：`gpt-5.6`
-- 图片模型：`image2`
+- 图片模型：`gpt-image-2`
 
 测试 Key 只用于本地验证，验证完成后应删除或更换。
