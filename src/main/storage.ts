@@ -33,6 +33,8 @@ export class Store {
       CREATE INDEX IF NOT EXISTS messages_session ON messages(sessionId, createdAt);
     `)
     this.db.prepare("UPDATE messages SET status = 'error', error = '上次生成中断' WHERE status = 'streaming'").run()
+    this.db.prepare("UPDATE providers SET imageModels = REPLACE(REPLACE(imageModels, 'image2', 'gpt-image-2'), 'image-2', 'gpt-image-2')").run()
+    this.db.prepare("UPDATE sessions SET imageModel = 'gpt-image-2' WHERE imageModel IN ('image2', 'image-2')").run()
   }
 
   close() { this.db.close() }
