@@ -113,4 +113,8 @@ export class Store {
   history(sessionId: string): Message[] {
     return this.data().messages.filter(message => message.sessionId === sessionId && message.kind === 'chat' && message.status === 'done')
   }
+
+  failStreaming(sessionId: string, error: string) {
+    this.db.prepare("UPDATE messages SET status = 'error', error = ? WHERE sessionId = ? AND status = 'streaming'").run(error, sessionId)
+  }
 }

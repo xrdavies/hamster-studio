@@ -8,7 +8,10 @@ contextBridge.exposeInMainWorld('studio', {
   saveSession: (session: Partial<StudioSession> & Pick<StudioSession, 'providerId' | 'chatModel'>) => ipcRenderer.invoke('session:save', session),
   deleteSession: (id: string) => ipcRenderer.invoke('session:delete', id),
   sendChat: (sessionId: string, text: string) => ipcRenderer.invoke('chat:send', sessionId, text),
+  stopChat: (sessionId: string) => ipcRenderer.invoke('chat:stop', sessionId),
   generateImage: (sessionId: string, prompt: string) => ipcRenderer.invoke('image:generate', sessionId, prompt),
+  exportProviders: () => ipcRenderer.invoke('provider:export'),
+  importProviders: () => ipcRenderer.invoke('provider:import'),
   testProvider: (input: ProviderInput) => ipcRenderer.invoke('provider:test', input),
   onMessage: (callback: (message: Message) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, message: Message) => callback(message)

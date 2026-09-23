@@ -1,12 +1,15 @@
-import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { Store } from './storage'
+import { autoUpdater } from 'electron-updater'
 import type { Message, ProviderInput, StudioSession } from '../shared/types'
 
 let win: BrowserWindow
 let store: Store
+const activeChats = new Map<string, AbortController>()
 const currentDir = __dirname
 const url = (base: string, path: string) => `${base.replace(/\/+$/, '')}${base.endsWith('/v1') ? '' : '/v1'}${path}`
 
@@ -32,9 +35,12 @@ async function streamChat(sessionId: string, text: string) {
   store.saveMessage(user); win.webContents.send('message', user)
   const assistant = message(sessionId, 'assistant', '', session.chatModel, provider.name, 'streaming')
   store.saveMessage(assistant); win.webContents.send('message', assistant)
+  const controller = new AbortController()
+  activeChats.set(sessionId, controller)
   const response = await fetch(url(provider.baseUrl, '/chat/completions'), {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model: session.chatModel, stream: true, messages: [...(session.systemPrompt ? [{ role: 'system', content: session.systemPrompt }] : []), ...history, { role: 'user', content: text }] })
+    body: JSON.stringify({ model: session.chatModel, stream: true, messages: [...(session.systemPrompt ? [{ role: 'system', content: session.systemPrompt }] : []), ...history, { role: 'user', content: text }] }),
+    signal: controller.signal
   })
   if (!response.ok || !response.body) throw new Error(`聊天请求失败（${response.status}）: ${await response.text()}`)
   const reader = response.body.getReader()
@@ -56,6 +62,7 @@ async function streamChat(sessionId: string, text: string) {
     }
   }
   assistant.status = 'done'; store.saveMessage(assistant); win.webContents.send('message', assistant)
+  activeChats.delete(sessionId)
 }
 
 async function generateImage(sessionId: string, prompt: string) {
@@ -76,13 +83,29 @@ function registerIpc() {
   ipcMain.handle('provider:delete', (_e, id: string) => store.deleteProvider(id))
   ipcMain.handle('session:save', (_e, session: Partial<StudioSession> & Pick<StudioSession, 'providerId' | 'chatModel'>) => { store.saveSession(session); return store.data() })
   ipcMain.handle('session:delete', (_e, id: string) => { store.deleteSession(id); return store.data() })
-  ipcMain.handle('chat:send', async (_e, id: string, text: string) => { await streamChat(id, text.trim()); return store.data() })
+  ipcMain.handle('chat:send', async (_e, id: string, text: string) => {
+    try { await streamChat(id, text.trim()) } catch (error) { activeChats.delete(id); store.failStreaming(id, error instanceof Error && error.name === 'AbortError' ? '已停止生成' : (error instanceof Error ? error.message : '请求失败')); throw error }
+    return store.data()
+  })
+  ipcMain.handle('chat:stop', (_e, id: string) => activeChats.get(id)?.abort())
   ipcMain.handle('image:generate', async (_e, id: string, prompt: string) => { await generateImage(id, prompt.trim()); return store.data() })
   ipcMain.handle('provider:test', async (_e, input: ProviderInput) => {
     if (!input.apiKey) throw new Error('请填写 API Key')
     const result = await fetch(url(input.baseUrl, '/models'), { headers: { Authorization: `Bearer ${input.apiKey}` } })
     if (!result.ok) throw new Error(`连接失败（${result.status}）`)
     return true
+  })
+  ipcMain.handle('provider:export', async () => {
+    const result = await dialog.showSaveDialog(win, { defaultPath: 'hamster-studio-providers.json', filters: [{ name: 'JSON', extensions: ['json'] }] })
+    if (result.canceled || !result.filePath) return
+    await writeFile(result.filePath, JSON.stringify({ providers: store.data().providers.map(({ hasKey, ...provider }) => provider) }, null, 2))
+  })
+  ipcMain.handle('provider:import', async () => {
+    const result = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] })
+    if (result.canceled || !result.filePaths[0]) return null
+    const imported = JSON.parse(await readFile(result.filePaths[0], 'utf8')) as { providers?: ProviderInput[] }
+    for (const provider of imported.providers || []) store.saveProvider(provider)
+    return store.data()
   })
 }
 
@@ -98,5 +121,6 @@ app.whenReady().then(() => {
   const decrypt = (value: Buffer) => safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(value) : value.toString()
   store = new Store(join(app.getPath('userData'), 'studio.db'), encrypt, decrypt)
   registerIpc(); createWindow()
+  if (app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml'))) autoUpdater.checkForUpdatesAndNotify().catch(() => {})
 })
 app.on('window-all-closed', () => { store?.close(); if (process.platform !== 'darwin') app.quit() })

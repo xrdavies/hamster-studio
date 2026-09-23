@@ -25,6 +25,7 @@
   "homepage": "https://github.com/xrdavies/hamster-studio#readme",
   "dependencies": {
     "better-sqlite3": "^13.0.3",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^1.47.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -60,6 +61,11 @@
     "asarUnpack": [
       "**/node_modules/better-sqlite3/**"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "xrdavies",
+      "repo": "hamster-studio"
+    },
     "mac": {
       "category": "public.app-category.productivity",
       "target": [
