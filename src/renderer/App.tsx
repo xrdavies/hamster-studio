@@ -33,6 +33,11 @@ export default function App() {
     if (!session) return
     setData(await window.studio.saveSession({ ...session, ...values }))
   }
+  async function deleteSession(target: StudioSession) {
+    const next = await window.studio.deleteSession(target.id)
+    setData(next)
+    if (target.id === sessionId) setSessionId(next.sessions[0]?.id || '')
+  }
   async function submit() {
     if (!session || !text.trim() || busy) return
     const prompt = text.trim(); setText(''); setBusy(true); setError('')
@@ -46,7 +51,7 @@ export default function App() {
       <div className="brand"><div className="brand-mark">H</div><span>Hamster Studio</span><PanelLeftClose size={16} className="muted" /></div>
       <button className="new-chat" onClick={createSession}><MessageSquarePlus size={17} /> 新建对话 <span>⌘ N</span></button>
       <div className="section-label">最近对话</div>
-      <div className="session-list">{data.sessions.map(item => <button key={item.id} className={item.id === session?.id ? 'session active' : 'session'} onClick={() => setSessionId(item.id)}><span>{item.title}</span><MoreHorizontal size={15} /></button>)}</div>
+      <div className="session-list">{data.sessions.map(item => <button key={item.id} className={item.id === session?.id ? 'session active' : 'session'} onClick={() => setSessionId(item.id)}><span>{item.title}</span><span className="session-actions"><MoreHorizontal size={15} /><Trash2 size={14} onClick={e => { e.stopPropagation(); deleteSession(item) }} /></span></button>)}</div>
       <div className="sidebar-bottom"><button onClick={() => setSettings(true)}><Settings size={17} /> 设置</button></div>
     </aside>
     <main className="main">
@@ -56,6 +61,7 @@ export default function App() {
           <div className="selectors">
             <select value={session.providerId} onChange={e => { const p = data.providers.find(item => item.id === e.target.value); updateSession({ providerId: e.target.value, chatModel: p?.chatModels[0] || '', imageModel: p?.imageModels[0] || '' }) }}>{data.providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
             <select value={session.chatModel} onChange={e => updateSession({ chatModel: e.target.value })}>{(provider?.chatModels || []).map(model => <option key={model}>{model}</option>)}</select>
+            {(provider?.imageModels || []).length > 0 && <select value={session.imageModel} onChange={e => updateSession({ imageModel: e.target.value })}>{provider?.imageModels.map(model => <option key={model}>{model}</option>)}</select>}
           </div>
         </header>
         <div className="messages">{messages.length === 0 ? <Welcome provider={provider} /> : messages.map(item => <MessageBubble key={item.id} message={item} />)}{error && <div className="error-banner">{error}</div>}</div>
