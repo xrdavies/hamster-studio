@@ -9,6 +9,11 @@ export type Provider = {
 
 export type ProviderInput = Omit<Provider, 'id' | 'hasKey'> & { id?: string; apiKey?: string }
 
+export type ProviderModels = {
+  chatModels: string[]
+  imageModels: string[]
+}
+
 export type StudioSession = {
   id: string
   title: string
@@ -18,6 +23,8 @@ export type StudioSession = {
   systemPrompt: string
   createdAt: number
   updatedAt: number
+  pinned?: boolean
+  archived?: boolean
 }
 
 export type Message = {

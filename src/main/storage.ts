@@ -33,6 +33,9 @@ export class Store {
       );
       CREATE INDEX IF NOT EXISTS messages_session ON messages(sessionId, createdAt);
     `)
+    for (const column of ['pinned', 'archived']) {
+      try { this.db.exec('ALTER TABLE sessions ADD COLUMN ' + column + ' INTEGER NOT NULL DEFAULT 0') } catch {}
+    }
     this.db.prepare("UPDATE messages SET status = 'error', error = '上次生成中断' WHERE status = 'streaming'").run()
     this.db.prepare(`UPDATE providers SET imageModels = REPLACE(REPLACE(REPLACE(imageModels, '"gpt-gpt-image-2"', '"gpt-image-2"'), '"image-2"', '"gpt-image-2"'), '"image2"', '"gpt-image-2"')`).run()
     this.db.prepare("UPDATE sessions SET imageModel = 'gpt-image-2' WHERE imageModel IN ('image2', 'image-2', 'gpt-gpt-image-2')").run()
@@ -44,7 +47,8 @@ export class Store {
     const providers = (this.db.prepare('SELECT * FROM providers ORDER BY rowid').all() as ProviderRow[]).map(({ apiKey, ...row }) => ({
       ...row, chatModels: JSON.parse(row.chatModels), imageModels: JSON.parse(row.imageModels), hasKey: !!apiKey
     }))
-    const sessions = this.db.prepare('SELECT * FROM sessions ORDER BY updatedAt DESC') .all() as StudioSession[]
+    const sessions = (this.db.prepare('SELECT * FROM sessions ORDER BY pinned DESC, updatedAt DESC').all() as (Omit<StudioSession, 'pinned' | 'archived'> & { pinned: number; archived: number })[])
+      .map(session => ({ ...session, pinned: Boolean(session.pinned), archived: Boolean(session.archived) }))
     const messages = (this.db.prepare('SELECT * FROM messages ORDER BY createdAt, rowid').all() as (Omit<Message, 'imageFiles'> & { imageFiles: string })[])
       .map(row => ({ ...row, imageFiles: JSON.parse(row.imageFiles) }))
     return { providers, sessions, messages }
@@ -87,12 +91,14 @@ export class Store {
     const now = Date.now()
     const existing = this.db.prepare('SELECT createdAt FROM sessions WHERE id = ?').get(id) as { createdAt: number } | undefined
     if (!existing && !this.db.prepare('SELECT 1 FROM providers WHERE id = ?').get(input.providerId)) throw new Error('Provider 不存在')
-    this.db.prepare(`INSERT INTO sessions (id,title,providerId,chatModel,imageModel,systemPrompt,createdAt,updatedAt)
-      VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+    this.db.prepare(`INSERT INTO sessions (id,title,providerId,chatModel,imageModel,systemPrompt,createdAt,updatedAt,pinned,archived)
+      VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
       title=excluded.title,providerId=excluded.providerId,chatModel=excluded.chatModel,
-      imageModel=excluded.imageModel,systemPrompt=excluded.systemPrompt,updatedAt=excluded.updatedAt`).run(
+      imageModel=excluded.imageModel,systemPrompt=excluded.systemPrompt,updatedAt=excluded.updatedAt,
+      pinned=excluded.pinned,archived=excluded.archived`).run(
       id, input.title || '新对话', input.providerId, input.chatModel,
-      input.imageModel || '', input.systemPrompt || '', existing?.createdAt || now, now
+      input.imageModel || '', input.systemPrompt || '', existing?.createdAt || now, now,
+      input.pinned ? 1 : 0, input.archived ? 1 : 0
     )
     return id
   }

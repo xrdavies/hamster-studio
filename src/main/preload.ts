@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Message, ProviderInput, StudioData, StudioSession } from '../shared/types'
+import type { Message, ProviderInput, ProviderModels, StudioData, StudioSession } from '../shared/types'
 
 contextBridge.exposeInMainWorld('studio', {
   load: (): Promise<StudioData> => ipcRenderer.invoke('data'),
@@ -10,8 +10,7 @@ contextBridge.exposeInMainWorld('studio', {
   sendChat: (sessionId: string, text: string) => ipcRenderer.invoke('chat:send', sessionId, text),
   stopChat: (sessionId: string) => ipcRenderer.invoke('chat:stop', sessionId),
   generateImage: (sessionId: string, prompt: string) => ipcRenderer.invoke('image:generate', sessionId, prompt),
-  exportProviders: () => ipcRenderer.invoke('provider:export'),
-  importProviders: () => ipcRenderer.invoke('provider:import'),
+  fetchModels: (input: ProviderInput) => ipcRenderer.invoke('provider:models', input) as Promise<ProviderModels>,
   testProvider: (input: ProviderInput) => ipcRenderer.invoke('provider:test', input),
   onMessage: (callback: (message: Message) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, message: Message) => callback(message)

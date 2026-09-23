@@ -39,3 +39,13 @@ Provider 配置只保存于本机。API Key 不写入代码、`.env`、Git 或 G
 - 图片模型：`gpt-image-2`
 
 测试 Key 只用于本地验证，验证完成后应删除或更换。
+
+正式发布前，在 GitHub 仓库配置以下 Actions Secrets：
+
+- `MAC_CERTIFICATE_BASE64`：Developer ID Application `.p12` 的 Base64
+- `MAC_CERTIFICATE_PASSWORD`：证书密码
+- `APPLE_ID`：Apple Developer 账号
+- `APPLE_APP_SPECIFIC_PASSWORD`：公证专用密码
+- `APPLE_TEAM_ID`：Apple Team ID
+
+workflow 会自动使用这些变量完成签名和公证。自动更新只有在 Release 包含 `app-update.yml` 和签名产物时才会启用。应用图标位于 `build/icon.icns`。

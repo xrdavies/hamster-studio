@@ -47,4 +47,13 @@ describe('Store', () => {
     expect(() => store.saveProvider({ name: 'Relay', baseUrl: 'https://example.com', chatModels: [], imageModels: [], apiKey: 'secret' })).toThrow('聊天模型')
     store.close()
   })
+
+  it('persists pinned and archived session state', () => {
+    const file = '/tmp/hamster-studio-' + randomUUID() + '.db'; files.push(file)
+    const store = new Store(file, value => Buffer.from(value), value => value.toString())
+    const providerId = store.saveProvider({ name: 'Relay', baseUrl: 'https://example.com', chatModels: ['gpt-5.6'], imageModels: [], apiKey: 'secret' })
+    const sessionId = store.saveSession({ providerId, chatModel: 'gpt-5.6', pinned: true, archived: true })
+    expect(store.data().sessions.find(session => session.id === sessionId)).toMatchObject({ pinned: true, archived: true })
+    store.close()
+  })
 })

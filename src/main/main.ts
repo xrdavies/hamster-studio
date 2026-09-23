@@ -1,12 +1,13 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { Store } from './storage'
 import { autoUpdater } from 'electron-updater'
-import { providerUrl } from './provider'
-import type { Message, ProviderInput, StudioSession } from '../shared/types'
+import { classifyProviderModels, providerUrl } from './provider'
+import type { Message, ProviderInput, ProviderModels, StudioSession } from '../shared/types'
 
 let win: BrowserWindow
 let store: Store
@@ -23,6 +24,14 @@ async function jsonRequest(baseUrl: string, key: string, path: string, body: unk
   })
   if (!response.ok) throw new Error(`Provider 请求失败（${response.status}）: ${await response.text()}`)
   return response.json()
+}
+
+async function fetchProviderModels(input: ProviderInput): Promise<ProviderModels> {
+  const key = input.id ? store.providerKey(input.id) : input.apiKey?.trim()
+  if (!key) throw new Error('请先填写 API Key')
+  const response = await fetch(providerUrl(input.baseUrl, '/models'), { headers: { Authorization: 'Bearer ' + key } })
+  if (!response.ok) throw new Error('模型列表请求失败（' + response.status + '）: ' + await response.text())
+  return classifyProviderModels(await response.json())
 }
 
 async function streamChat(sessionId: string, text: string) {
@@ -69,13 +78,17 @@ async function generateImage(sessionId: string, prompt: string) {
   const session = store.session(sessionId); const provider = store.provider(session.providerId); const key = store.providerKey(provider.id)
   if (!key) throw new Error('请先在设置中填写 API Key')
   if (!session.imageModel) throw new Error('当前 Session 没有配置图片模型')
+  const user = message(sessionId, 'user', prompt, session.imageModel, provider.name, 'done', 'image')
+  store.saveMessage(user); win.webContents.send('message', user)
+  const image = message(sessionId, 'assistant', '', session.imageModel, provider.name, 'streaming', 'image')
+  store.saveMessage(image); win.webContents.send('message', image)
   const result = await jsonRequest(provider.baseUrl, key, '/images/generations', { model: session.imageModel, prompt, n: 1, response_format: 'b64_json' })
   const data = result.data?.[0]; if (!data) throw new Error('Provider 未返回图片')
   const bytes = data.b64_json ? Buffer.from(data.b64_json, 'base64') : data.url ? Buffer.from(await (await fetch(data.url)).arrayBuffer()) : null
   if (!bytes) throw new Error('Provider 返回的图片格式不支持')
   const dir = join(app.getPath('userData'), 'images'); await mkdir(dir, { recursive: true })
   const file = join(dir, `${randomUUID()}.png`); await writeFile(file, bytes)
-  const image = message(sessionId, 'assistant', prompt, session.imageModel, provider.name, 'done', 'image'); image.imageFiles = [file]
+  image.status = 'done'; image.imageFiles = [pathToFileURL(file).href]
   store.saveMessage(image); win.webContents.send('message', image); return image
 }
 
@@ -90,26 +103,21 @@ function registerIpc() {
     return store.data()
   })
   ipcMain.handle('chat:stop', (_e, id: string) => activeChats.get(id)?.abort())
-  ipcMain.handle('image:generate', async (_e, id: string, prompt: string) => { await generateImage(id, prompt.trim()); return store.data() })
+  ipcMain.handle('image:generate', async (_e, id: string, prompt: string) => {
+    try { await generateImage(id, prompt.trim()) } catch (error) {
+      store.failStreaming(id, error instanceof Error ? error.message : '图片生成失败')
+      throw error
+    }
+    return store.data()
+  })
   ipcMain.handle('provider:test', async (_e, input: ProviderInput) => {
-    if (!input.apiKey) throw new Error('请填写 API Key')
-    const result = await fetch(providerUrl(input.baseUrl, '/models'), { headers: { Authorization: `Bearer ${input.apiKey}` } })
+    const key = input.id ? store.providerKey(input.id) : input.apiKey?.trim()
+    if (!key) throw new Error('请填写 API Key')
+    const result = await fetch(providerUrl(input.baseUrl, '/models'), { headers: { Authorization: 'Bearer ' + key } })
     if (!result.ok) throw new Error(`连接失败（${result.status}）`)
     return true
   })
-  ipcMain.handle('provider:export', async () => {
-    const result = await dialog.showSaveDialog(win, { defaultPath: 'hamster-studio-providers.json', filters: [{ name: 'JSON', extensions: ['json'] }] })
-    if (result.canceled || !result.filePath) return
-    await writeFile(result.filePath, JSON.stringify({ providers: store.data().providers.map(({ hasKey, ...provider }) => provider) }, null, 2))
-  })
-  ipcMain.handle('provider:import', async () => {
-    const result = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] })
-    if (result.canceled || !result.filePaths[0]) return null
-    const imported = JSON.parse(await readFile(result.filePaths[0], 'utf8')) as { providers?: ProviderInput[] }
-    if (!Array.isArray(imported.providers)) throw new Error('配置文件格式不正确')
-    for (const provider of imported.providers) store.saveProvider(provider)
-    return store.data()
-  })
+  ipcMain.handle('provider:models', (_e, input: ProviderInput) => fetchProviderModels(input))
 }
 
 async function createWindow() {
@@ -124,6 +132,7 @@ app.whenReady().then(() => {
   const decrypt = (value: Buffer) => safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(value) : value.toString()
   store = new Store(join(app.getPath('userData'), 'studio.db'), encrypt, decrypt)
   registerIpc(); createWindow()
+  autoUpdater.on('error', () => {})
   if (app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml'))) autoUpdater.checkForUpdatesAndNotify().catch(() => {})
 })
 app.on('window-all-closed', () => { store?.close(); if (process.platform !== 'darwin') app.quit() })
