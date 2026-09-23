@@ -20,4 +20,12 @@ describe('Store', () => {
     expect(store.history(sessionId)).toHaveLength(1)
     store.close()
   })
+
+  it('normalizes legacy image model names once', () => {
+    const file = '/tmp/hamster-studio-' + randomUUID() + '.db'; files.push(file)
+    const store = new Store(file, value => Buffer.from(value), value => value.toString())
+    store.saveProvider({ name: 'Relay', baseUrl: 'https://example.com/v1', chatModels: ['gpt-5.6'], imageModels: ['image-2', 'gpt-image-2'], apiKey: 'secret' })
+    expect(store.data().providers[0].imageModels).toEqual(['gpt-image-2', 'gpt-image-2'])
+    store.close()
+  })
 })
