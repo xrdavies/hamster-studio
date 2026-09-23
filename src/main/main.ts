@@ -1,15 +1,13 @@
 import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { Store } from './storage'
 import type { Message, ProviderInput, StudioSession } from '../shared/types'
 
 let win: BrowserWindow
 let store: Store
-const currentDir = dirname(fileURLToPath(import.meta.url))
+const currentDir = __dirname
 const url = (base: string, path: string) => `${base.replace(/\/+$/, '')}${base.endsWith('/v1') ? '' : '/v1'}${path}`
 
 function message(sessionId: string, role: Message['role'], content: string, model: string, providerName: string, status: Message['status'] = 'done', kind: Message['kind'] = 'chat'): Message {
