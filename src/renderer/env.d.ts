@@ -2,6 +2,8 @@ import type { Message, ProviderInput, StudioData, StudioSession } from '../share
 declare global {
   interface Window {
     studio: {
+      version(): Promise<string>
+      checkUpdates(): Promise<string>
       load(): Promise<StudioData>; saveProvider(input: ProviderInput): Promise<unknown>; deleteProvider(id: string): Promise<void>
       saveSession(session: Partial<StudioSession> & Pick<StudioSession, 'providerId' | 'chatModel'>): Promise<StudioData>
       deleteSession(id: string): Promise<StudioData>; sendChat(sessionId: string, text: string): Promise<StudioData>

@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { Message, ProviderInput, ProviderModels, StudioData, StudioSession } from '../shared/types'
 
 contextBridge.exposeInMainWorld('studio', {
+  version: () => ipcRenderer.invoke('app:version') as Promise<string>,
+  checkUpdates: () => ipcRenderer.invoke('app:updates') as Promise<string>,
   load: (): Promise<StudioData> => ipcRenderer.invoke('data'),
   saveProvider: (input: ProviderInput) => ipcRenderer.invoke('provider:save', input),
   deleteProvider: (id: string) => ipcRenderer.invoke('provider:delete', id),

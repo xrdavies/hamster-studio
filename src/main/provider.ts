@@ -1,4 +1,5 @@
 import type { ProviderModels } from '../shared/types'
+import { modelKind } from '../shared/model-capabilities'
 
 export function providerUrl(baseUrl: string, path: string): string {
   const base = baseUrl.trim().replace(/\/+$/, '')
@@ -12,7 +13,7 @@ export function classifyProviderModels(payload: unknown): ProviderModels {
   for (const row of rows) {
     const item = typeof row === 'string' ? { id: row } : row as { id?: unknown; type?: unknown; capabilities?: { image_generation?: unknown } }
     if (typeof item.id !== 'string' || !item.id.trim()) continue
-    const image = item.type === 'image' || item.capabilities?.image_generation === true || /image|dall[-_ ]?e|imagen|flux|sdxl/i.test(item.id)
+    const image = item.type === 'image' || item.capabilities?.image_generation === true || modelKind(item.id) === 'image'
     ;(image ? imageModels : chatModels).push(item.id)
   }
   return { chatModels, imageModels }

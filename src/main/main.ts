@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage } from 'electron'
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -93,6 +93,13 @@ async function generateImage(sessionId: string, prompt: string) {
 }
 
 function registerIpc() {
+  ipcMain.handle('app:version', () => app.getVersion())
+  ipcMain.handle('app:updates', async () => {
+    if (!app.isPackaged) return '开发版本不支持自动更新，请使用安装版检查更新。'
+    const result = await autoUpdater.checkForUpdates()
+    if (!result) return '更新服务暂不可用'
+    return result.updateInfo.version === app.getVersion() ? '当前已是最新版本' : `发现新版本 ${result.updateInfo.version}，正在后台下载。下载后重启应用安装。`
+  })
   ipcMain.handle('data', () => store.data())
   ipcMain.handle('provider:save', (_e, input: ProviderInput) => { const id = store.saveProvider(input); return store.data().providers.find(p => p.id === id) })
   ipcMain.handle('provider:delete', (_e, id: string) => store.deleteProvider(id))
@@ -141,12 +148,18 @@ function registerIpc() {
 }
 
 async function createWindow() {
-  win = new BrowserWindow({ width: 1280, height: 820, minWidth: 900, minHeight: 600, webPreferences: { preload: join(currentDir, 'preload.js'), contextIsolation: true, nodeIntegration: false } })
+  win = new BrowserWindow({ width: 1280, height: 820, minWidth: 900, minHeight: 600, title: 'Hamster Studio', icon: join(app.getAppPath(), 'build/icon.png'), webPreferences: { preload: join(currentDir, 'preload.js'), contextIsolation: true, nodeIntegration: false } })
   if (process.env.VITE_DEV_SERVER_URL) await win.loadURL(process.env.VITE_DEV_SERVER_URL)
   else await win.loadFile(join(currentDir, '../dist/index.html'))
 }
 
 app.whenReady().then(() => {
+  app.setName('Hamster Studio')
+  if (process.platform === 'darwin') app.dock?.setIcon(join(app.getAppPath(), 'build/icon.png'))
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: 'Hamster Studio', submenu: [{ role: 'about', label: '关于 Hamster Studio' }, { type: 'separator' }, { role: 'quit', label: '退出 Hamster Studio' }] },
+    { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' }
+  ]))
   const key = 'hamster-studio-key'
   const encrypt = (value: string) => safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(value) : Buffer.from(value)
   const decrypt = (value: Buffer) => safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(value) : value.toString()
