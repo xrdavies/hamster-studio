@@ -1,9 +1,9 @@
 import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Store } from './storage'
 import { autoUpdater } from 'electron-updater'
 import { classifyProviderModels, providerUrl } from './provider'
@@ -110,6 +110,13 @@ function registerIpc() {
     }
     return store.data()
   })
+  ipcMain.handle('image:read', async (_e, file: string) => {
+    const imageDir = join(app.getPath('userData'), 'images')
+    const resolved = file.startsWith('file:') ? fileURLToPath(file) : file
+    if (!resolved.startsWith(imageDir + '/')) throw new Error('图片路径无效')
+    const bytes = await readFile(resolved)
+    return 'data:image/png;base64,' + bytes.toString('base64')
+  })
   ipcMain.handle('provider:test', async (_e, input: ProviderInput) => {
     const key = input.id ? store.providerKey(input.id) : input.apiKey?.trim()
     if (!key) throw new Error('请填写 API Key')
@@ -121,7 +128,7 @@ function registerIpc() {
 }
 
 async function createWindow() {
-  win = new BrowserWindow({ width: 1280, height: 820, minWidth: 900, minHeight: 600, webPreferences: { preload: join(currentDir, 'preload.mjs'), contextIsolation: true, nodeIntegration: false } })
+  win = new BrowserWindow({ width: 1280, height: 820, minWidth: 900, minHeight: 600, webPreferences: { preload: join(currentDir, 'preload.js'), contextIsolation: true, nodeIntegration: false } })
   if (process.env.VITE_DEV_SERVER_URL) await win.loadURL(process.env.VITE_DEV_SERVER_URL)
   else await win.loadFile(join(currentDir, '../dist/index.html'))
 }

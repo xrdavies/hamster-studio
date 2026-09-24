@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('studio', {
   sendChat: (sessionId: string, text: string) => ipcRenderer.invoke('chat:send', sessionId, text),
   stopChat: (sessionId: string) => ipcRenderer.invoke('chat:stop', sessionId),
   generateImage: (sessionId: string, prompt: string) => ipcRenderer.invoke('image:generate', sessionId, prompt),
+  readImage: (file: string) => ipcRenderer.invoke('image:read', file) as Promise<string>,
   fetchModels: (input: ProviderInput) => ipcRenderer.invoke('provider:models', input) as Promise<ProviderModels>,
   testProvider: (input: ProviderInput) => ipcRenderer.invoke('provider:test', input),
   onMessage: (callback: (message: Message) => void) => {
