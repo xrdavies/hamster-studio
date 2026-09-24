@@ -50,9 +50,12 @@ Provider 配置只保存于本机。API Key 不写入代码、`.env`、Git 或 G
 
 workflow 会自动使用这些变量完成签名和公证。自动更新只有在 Release 包含 `app-update.yml` 和签名产物时才会启用。应用图标位于 `build/icon.icns`。
 
-
 ## 品牌资源与模型能力
 
 Logo 源图按 256、512、1024 像素存放在 `src/renderer/assets/`，界面引用 256 像素版本。`build/icon.iconset/` 包含 macOS 所需的 16–1024 像素及 Retina 图标，运行 `iconutil -c icns build/icon.iconset -o build/icon.icns` 重建打包图标。开发版 Dock 使用 `build/icon.png`。
 
 模型名称分类由 `src/shared/model-capabilities.ts` 在构建时配置，Provider 返回的显式图片能力也会被识别。手动补充模型无需用户选择类型。
+
+## 代码排版
+
+运行 `npm run format` 格式化代码，提交前运行 `npm run format:check`。VS Code 安装推荐的 Prettier 扩展后保存即格式化。格式规则为 100 字符目标行宽、2 空格缩进、单引号、不加分号。CI 检查格式；生成资源和构建产物不参与。

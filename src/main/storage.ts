@@ -7,11 +7,16 @@ type ProviderRow = Omit<Provider, 'chatModels' | 'imageModels' | 'hasKey'> & {
   imageModels: string
   apiKey: Buffer | null
 }
-const normalizeImageModel = (model: string) => model === 'image2' || model === 'image-2' || model === 'gpt-gpt-image-2' ? 'gpt-image-2' : model
+const normalizeImageModel = (model: string) =>
+  model === 'image2' || model === 'image-2' || model === 'gpt-gpt-image-2' ? 'gpt-image-2' : model
 
 export class Store {
   private db: Database.Database
-  constructor(path: string, private encrypt: (key: string) => Buffer, private decrypt: (key: Buffer) => string) {
+  constructor(
+    path: string,
+    private encrypt: (key: string) => Buffer,
+    private decrypt: (key: Buffer) => string,
+  ) {
     this.db = new Database(path)
     this.db.pragma('journal_mode = WAL')
     this.db.pragma('foreign_keys = ON')
@@ -34,49 +39,97 @@ export class Store {
       CREATE INDEX IF NOT EXISTS messages_session ON messages(sessionId, createdAt);
     `)
     for (const column of ['pinned', 'archived']) {
-      try { this.db.exec('ALTER TABLE sessions ADD COLUMN ' + column + ' INTEGER NOT NULL DEFAULT 0') } catch {}
+      try {
+        this.db.exec('ALTER TABLE sessions ADD COLUMN ' + column + ' INTEGER NOT NULL DEFAULT 0')
+      } catch {}
     }
-    this.db.prepare("UPDATE messages SET status = 'error', error = '上次生成中断' WHERE status = 'streaming'").run()
-    this.db.prepare(`UPDATE providers SET imageModels = REPLACE(REPLACE(REPLACE(imageModels, '"gpt-gpt-image-2"', '"gpt-image-2"'), '"image-2"', '"gpt-image-2"'), '"image2"', '"gpt-image-2"')`).run()
-    this.db.prepare("UPDATE sessions SET imageModel = 'gpt-image-2' WHERE imageModel IN ('image2', 'image-2', 'gpt-gpt-image-2')").run()
+    this.db
+      .prepare(
+        "UPDATE messages SET status = 'error', error = '上次生成中断' WHERE status = 'streaming'",
+      )
+      .run()
+    this.db
+      .prepare(
+        `UPDATE providers SET imageModels = REPLACE(REPLACE(REPLACE(imageModels, '"gpt-gpt-image-2"', '"gpt-image-2"'), '"image-2"', '"gpt-image-2"'), '"image2"', '"gpt-image-2"')`,
+      )
+      .run()
+    this.db
+      .prepare(
+        "UPDATE sessions SET imageModel = 'gpt-image-2' WHERE imageModel IN ('image2', 'image-2', 'gpt-gpt-image-2')",
+      )
+      .run()
   }
 
-  close() { this.db.close() }
+  close() {
+    this.db.close()
+  }
 
   data(): StudioData {
-    const providers = (this.db.prepare('SELECT * FROM providers ORDER BY rowid').all() as ProviderRow[]).map(({ apiKey, ...row }) => ({
-      ...row, chatModels: JSON.parse(row.chatModels), imageModels: JSON.parse(row.imageModels), hasKey: !!apiKey
+    const providers = (
+      this.db.prepare('SELECT * FROM providers ORDER BY rowid').all() as ProviderRow[]
+    ).map(({ apiKey, ...row }) => ({
+      ...row,
+      chatModels: JSON.parse(row.chatModels),
+      imageModels: JSON.parse(row.imageModels),
+      hasKey: !!apiKey,
     }))
-    const sessions = (this.db.prepare('SELECT * FROM sessions ORDER BY pinned DESC, updatedAt DESC').all() as (Omit<StudioSession, 'pinned' | 'archived'> & { pinned: number; archived: number })[])
-      .map(session => ({ ...session, pinned: Boolean(session.pinned), archived: Boolean(session.archived) }))
-    const messages = (this.db.prepare('SELECT * FROM messages ORDER BY createdAt, rowid').all() as (Omit<Message, 'imageFiles'> & { imageFiles: string })[])
-      .map(row => ({ ...row, imageFiles: JSON.parse(row.imageFiles) }))
+    const sessions = (
+      this.db.prepare('SELECT * FROM sessions ORDER BY pinned DESC, updatedAt DESC').all() as (Omit<
+        StudioSession,
+        'pinned' | 'archived'
+      > & { pinned: number; archived: number })[]
+    ).map((session) => ({
+      ...session,
+      pinned: Boolean(session.pinned),
+      archived: Boolean(session.archived),
+    }))
+    const messages = (
+      this.db.prepare('SELECT * FROM messages ORDER BY createdAt, rowid').all() as (Omit<
+        Message,
+        'imageFiles'
+      > & { imageFiles: string })[]
+    ).map((row) => ({ ...row, imageFiles: JSON.parse(row.imageFiles) }))
     return { providers, sessions, messages }
   }
 
   saveProvider(input: ProviderInput): string {
     const name = typeof input.name === 'string' ? input.name.trim() : ''
-    const baseUrl = typeof input.baseUrl === 'string' ? input.baseUrl.trim().replace(/\/+$/, '') : ''
-    const chatModels = Array.isArray(input.chatModels) ? input.chatModels.filter((model): model is string => typeof model === 'string').map(model => model.trim()).filter(Boolean) : []
-    const imageModels = Array.isArray(input.imageModels) ? input.imageModels.filter((model): model is string => typeof model === 'string').map(normalizeImageModel).map(model => model.trim()).filter(Boolean) : []
+    const baseUrl =
+      typeof input.baseUrl === 'string' ? input.baseUrl.trim().replace(/\/+$/, '') : ''
+    const chatModels = Array.isArray(input.chatModels)
+      ? input.chatModels
+          .filter((model): model is string => typeof model === 'string')
+          .map((model) => model.trim())
+          .filter(Boolean)
+      : []
+    const imageModels = Array.isArray(input.imageModels)
+      ? input.imageModels
+          .filter((model): model is string => typeof model === 'string')
+          .map(normalizeImageModel)
+          .map((model) => model.trim())
+          .filter(Boolean)
+      : []
     if (!name) throw new Error('Provider 名称不能为空')
     if (!baseUrl) throw new Error('Base URL 不能为空')
     if (!chatModels.length) throw new Error('至少配置一个聊天模型')
     const id = input.id || randomUUID()
-    const existing = this.db.prepare('SELECT apiKey FROM providers WHERE id = ?').get(id) as { apiKey: Buffer | null } | undefined
+    const existing = this.db.prepare('SELECT apiKey FROM providers WHERE id = ?').get(id) as
+      { apiKey: Buffer | null } | undefined
     const key = input.apiKey?.trim() ? this.encrypt(input.apiKey.trim()) : existing?.apiKey || null
-    this.db.prepare(`INSERT INTO providers (id,name,baseUrl,chatModels,imageModels,apiKey)
+    this.db
+      .prepare(
+        `INSERT INTO providers (id,name,baseUrl,chatModels,imageModels,apiKey)
       VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
       name=excluded.name,baseUrl=excluded.baseUrl,chatModels=excluded.chatModels,
-      imageModels=excluded.imageModels,apiKey=excluded.apiKey`).run(
-      id, name, baseUrl,
-      JSON.stringify(chatModels), JSON.stringify(imageModels), key
-    )
+      imageModels=excluded.imageModels,apiKey=excluded.apiKey`,
+      )
+      .run(id, name, baseUrl, JSON.stringify(chatModels), JSON.stringify(imageModels), key)
     return id
   }
 
   providerKey(id: string): string {
-    const row = this.db.prepare('SELECT apiKey FROM providers WHERE id = ?').get(id) as { apiKey: Buffer | null } | undefined
+    const row = this.db.prepare('SELECT apiKey FROM providers WHERE id = ?').get(id) as
+      { apiKey: Buffer | null } | undefined
     if (!row) throw new Error('Provider 不存在')
     return row.apiKey ? this.decrypt(row.apiKey) : ''
   }
@@ -85,54 +138,101 @@ export class Store {
     this.db.prepare('DELETE FROM providers WHERE id = ?').run(id)
   }
 
-  saveSession(input: Partial<StudioSession> & Pick<StudioSession, 'providerId' | 'chatModel'>): string {
+  saveSession(
+    input: Partial<StudioSession> & Pick<StudioSession, 'providerId' | 'chatModel'>,
+  ): string {
     if (!input.chatModel.trim()) throw new Error('请先配置聊天模型')
     const id = input.id || randomUUID()
     const now = Date.now()
-    const existing = this.db.prepare('SELECT createdAt FROM sessions WHERE id = ?').get(id) as { createdAt: number } | undefined
-    if (!existing && !this.db.prepare('SELECT 1 FROM providers WHERE id = ?').get(input.providerId)) throw new Error('Provider 不存在')
-    this.db.prepare(`INSERT INTO sessions (id,title,providerId,chatModel,imageModel,systemPrompt,createdAt,updatedAt,pinned,archived)
+    const existing = this.db.prepare('SELECT createdAt FROM sessions WHERE id = ?').get(id) as
+      { createdAt: number } | undefined
+    if (!existing && !this.db.prepare('SELECT 1 FROM providers WHERE id = ?').get(input.providerId))
+      throw new Error('Provider 不存在')
+    this.db
+      .prepare(
+        `INSERT INTO sessions (id,title,providerId,chatModel,imageModel,systemPrompt,createdAt,updatedAt,pinned,archived)
       VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
       title=excluded.title,providerId=excluded.providerId,chatModel=excluded.chatModel,
       imageModel=excluded.imageModel,systemPrompt=excluded.systemPrompt,updatedAt=excluded.updatedAt,
-      pinned=excluded.pinned,archived=excluded.archived`).run(
-      id, input.title || '新对话', input.providerId, input.chatModel,
-      input.imageModel || '', input.systemPrompt || '', existing?.createdAt || now, now,
-      input.pinned ? 1 : 0, input.archived ? 1 : 0
-    )
+      pinned=excluded.pinned,archived=excluded.archived`,
+      )
+      .run(
+        id,
+        input.title || '新对话',
+        input.providerId,
+        input.chatModel,
+        input.imageModel || '',
+        input.systemPrompt || '',
+        existing?.createdAt || now,
+        now,
+        input.pinned ? 1 : 0,
+        input.archived ? 1 : 0,
+      )
     return id
   }
 
-  deleteSession(id: string) { this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id) }
+  deleteSession(id: string) {
+    this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
+  }
 
   saveMessage(message: Message) {
-    this.db.prepare(`INSERT INTO messages (id,sessionId,role,kind,content,imageFiles,providerName,model,createdAt,status,error)
+    this.db
+      .prepare(
+        `INSERT INTO messages (id,sessionId,role,kind,content,imageFiles,providerName,model,createdAt,status,error)
       VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
-      content=excluded.content,imageFiles=excluded.imageFiles,status=excluded.status,error=excluded.error`).run(
-      message.id, message.sessionId, message.role, message.kind, message.content,
-      JSON.stringify(message.imageFiles), message.providerName, message.model,
-      message.createdAt, message.status, message.error
-    )
-    this.db.prepare('UPDATE sessions SET updatedAt = ? WHERE id = ?').run(Date.now(), message.sessionId)
+      content=excluded.content,imageFiles=excluded.imageFiles,status=excluded.status,error=excluded.error`,
+      )
+      .run(
+        message.id,
+        message.sessionId,
+        message.role,
+        message.kind,
+        message.content,
+        JSON.stringify(message.imageFiles),
+        message.providerName,
+        message.model,
+        message.createdAt,
+        message.status,
+        message.error,
+      )
+    this.db
+      .prepare('UPDATE sessions SET updatedAt = ? WHERE id = ?')
+      .run(Date.now(), message.sessionId)
   }
 
   session(id: string): StudioSession {
-    const row = this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as StudioSession | undefined
+    const row = this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as
+      StudioSession | undefined
     if (!row) throw new Error('会话不存在')
     return row
   }
 
   provider(id: string): Provider {
-    const row = (this.db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as ProviderRow | undefined)
+    const row = this.db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as
+      ProviderRow | undefined
     if (!row) throw new Error('Provider 不存在')
-    return { id: row.id, name: row.name, baseUrl: row.baseUrl, chatModels: JSON.parse(row.chatModels), imageModels: JSON.parse(row.imageModels), hasKey: !!row.apiKey }
+    return {
+      id: row.id,
+      name: row.name,
+      baseUrl: row.baseUrl,
+      chatModels: JSON.parse(row.chatModels),
+      imageModels: JSON.parse(row.imageModels),
+      hasKey: !!row.apiKey,
+    }
   }
 
   history(sessionId: string): Message[] {
-    return this.data().messages.filter(message => message.sessionId === sessionId && message.kind === 'chat' && message.status === 'done')
+    return this.data().messages.filter(
+      (message) =>
+        message.sessionId === sessionId && message.kind === 'chat' && message.status === 'done',
+    )
   }
 
   failStreaming(sessionId: string, error: string) {
-    this.db.prepare("UPDATE messages SET status = 'error', error = ? WHERE sessionId = ? AND status = 'streaming'").run(error, sessionId)
+    this.db
+      .prepare(
+        "UPDATE messages SET status = 'error', error = ? WHERE sessionId = ? AND status = 'streaming'",
+      )
+      .run(error, sessionId)
   }
 }

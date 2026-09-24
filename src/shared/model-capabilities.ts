@@ -9,7 +9,7 @@ export function modelKind(model: string): ModelKind {
 export function classifyModels(models: string[]) {
   const chatModels: string[] = []
   const imageModels: string[] = []
-  for (const model of models.map(item => item.trim()).filter(Boolean)) {
+  for (const model of models.map((item) => item.trim()).filter(Boolean)) {
     ;(modelKind(model) === 'image' ? imageModels : chatModels).push(model)
   }
   return { chatModels: [...new Set(chatModels)], imageModels: [...new Set(imageModels)] }
