@@ -233,6 +233,43 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{AboutMetadata, Menu, PredefinedMenuItem};
+                let menu = Menu::default(app.handle())?;
+                if let Some(application_menu) =
+                    menu.items()?.first().and_then(|item| item.as_submenu())
+                {
+                    application_menu.remove_at(0)?;
+                    application_menu.insert(
+                        &PredefinedMenuItem::about(
+                            app,
+                            Some("About Hamster Studio"),
+                            Some(AboutMetadata {
+                                name: Some("Hamster Studio".into()),
+                                version: Some(app.package_info().version.to_string()),
+                                copyright: Some("Copyright © 2026 Frozen · MIT License".into()),
+                                credits: Some(
+                                    concat!(
+                                "An open-source desktop app for AI chat and image generation.\n",
+                                "Connect your own OpenAI Compatible providers.\n",
+                                "No account required. Conversations stay on your device.\n\n",
+                                "Created by Frozen\n",
+                                "GitHub: https://github.com/xrdavies/hamster-studio\n",
+                                "X: https://x.com/xrdavies"
+                            )
+                                    .into(),
+                                ),
+                                icon: app.default_window_icon().cloned(),
+                                ..Default::default()
+                            }),
+                        )?,
+                        0,
+                    )?;
+                }
+                app.set_menu(menu)?;
+            }
+
             let directory = app.path().app_data_dir()?;
             std::fs::create_dir_all(directory.join("images"))?;
             let catalog = Catalog::load(&directory.join("model-capabilities.json"));
