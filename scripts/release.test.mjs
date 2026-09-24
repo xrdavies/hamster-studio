@@ -14,7 +14,7 @@ function runner(fail = '') {
     },
   }
 }
-test('bumps versions, validates before commit and atomically pushes only the release tag', () => {
+test('bumps versions, does not build locally and atomically pushes only the release tag', () => {
   for (const [target, version] of [
     ['patch', '1.2.4'],
     ['minor', '1.3.0'],
@@ -24,9 +24,9 @@ test('bumps versions, validates before commit and atomically pushes only the rel
     const fake = runner()
     release(target, fake.execute, () => '1.2.3')
     assert.ok(fake.calls.includes(`npm version ${version} --no-git-tag-version --ignore-scripts`))
-    assert.ok(
-      fake.calls.indexOf('npm run build:renderer') <
-        fake.calls.indexOf('git add package.json package-lock.json'),
+    assert.deepEqual(
+      fake.calls.filter((line) => line.startsWith('npm ')),
+      [`npm version ${version} --no-git-tag-version --ignore-scripts`],
     )
     assert.equal(fake.calls.at(-1), `git push --atomic origin main refs/tags/v${version}`)
   }
@@ -38,8 +38,8 @@ test('invalid or decreasing versions never change version files', () => {
     assert.ok(!fake.calls.some((line) => line.startsWith('npm version')))
   }
 })
-test('failed verification never commits, tags or pushes', () => {
-  const fake = runner('npm run test')
+test('failed version update never commits, tags or pushes', () => {
+  const fake = runner('npm version 1.2.4 --no-git-tag-version --ignore-scripts')
   assert.throws(() => release('patch', fake.execute, () => '1.2.3'))
   assert.ok(!fake.calls.some((line) => /^git (commit|tag -a|push)/.test(line)))
 })

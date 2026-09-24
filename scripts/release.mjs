@@ -48,17 +48,12 @@ export function release(
     throw new Error('发布版本必须高于当前版本')
   const tag = `v${version}`
   if (git('tag', '--list', tag)) throw new Error(`标签 ${tag} 已存在`)
-  npm('ci')
   npm('version', version, '--no-git-tag-version', '--ignore-scripts')
-  for (const script of ['format:check', 'typecheck', 'test', 'build:renderer']) {
-    console.log(`运行 ${script}…`)
-    console.log(npm('run', script))
-  }
   git('add', 'package.json', 'package-lock.json')
   git('commit', '-m', `chore(release): prepare ${tag}`)
   git('tag', '-a', tag, '-m', `Release ${tag}`)
   git('push', '--atomic', 'origin', 'main', `refs/tags/${tag}`)
-  console.log(`已推送 ${tag}，CI 将创建 Release 草稿。检查安装包后再公开发布。`)
+  console.log(`Pushed ${tag}. GitHub Actions will verify, build and publish the release.`)
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
