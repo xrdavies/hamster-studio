@@ -99,7 +99,7 @@
   "检查更新": "Check for updates",
   "许可证：MIT": "License: MIT",
   "开源致谢": "Open-source acknowledgments",
-  "感谢 Electron、React、Vite、Lucide、better-sqlite3、react-markdown 和其他开源项目。": "Thanks to Electron, React, Vite, Lucide, better-sqlite3, react-markdown, and other open-source projects.",
+  "感谢 Tauri、React、Vite、Lucide、rusqlite、react-markdown 和其他开源项目。": "Thanks to Tauri, React, Vite, Lucide, rusqlite, react-markdown, and other open-source projects.",
   "各依赖遵循其各自的许可证。": "Dependencies are distributed under their respective licenses.",
   "请先填写 API Key": "Enter an API key first",
   "请填写 API Key": "Enter an API key",

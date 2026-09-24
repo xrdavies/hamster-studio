@@ -7,3 +7,8 @@ release/
 *.db
 *.db-*
 .DS_Store
+src-tauri/target/
+src-tauri/gen/
+*.key
+*.key.pub
+src-tauri/release.conf.json

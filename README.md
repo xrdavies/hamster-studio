@@ -36,16 +36,16 @@ Providers must support the OpenAI Compatible endpoints used by the app: `/models
 
 ## Data and privacy
 
-- Conversations and provider configuration are stored in `studio.db` within Electron's application data directory; generated images are stored in its `images/` subdirectory.
+- Conversations and provider configuration are stored in `studio.db` within Tauri's application data directory; generated images are stored in its `images/` subdirectory.
 - AI requests go directly from the desktop app to your configured provider. Hamster Studio does not require an account or a hosted application backend.
-- API keys use Electron `safeStorage` encryption when available. The current implementation falls back to unencrypted bytes when encryption is unavailable; the local database should not be shared.
+- API keys are stored in the system credential store (macOS Keychain); errors never fall back to plaintext.
 - Update checks contact GitHub. Opening project or author links launches your system browser.
 
 Deleting a provider preserves existing conversations. Select another provider and model to continue them.
 
 ## Development
 
-Use **Node.js 24** and npm, matching CI. The app is built with Electron, React, TypeScript, and Vite.
+Use **Node.js 24**, npm, Rust stable, and Xcode Command Line Tools on macOS. The app is built with Tauri, React, TypeScript, and Vite.
 
 ```bash
 git clone https://github.com/xrdavies/hamster-studio.git
@@ -54,18 +54,18 @@ npm ci
 npm run dev
 ```
 
-| Command                  | Purpose                                           |
-| ------------------------ | ------------------------------------------------- |
-| `npm run dev`            | Start the desktop app in development mode         |
-| `npm run format`         | Format source and documentation with Prettier     |
-| `npm run format:check`   | Check formatting                                  |
-| `npm run typecheck`      | Check TypeScript types                            |
-| `npm test`               | Run tests                                         |
-| `npm run build:renderer` | Build renderer, main process, and preload bundles |
-| `npm run build:dir`      | Build an unpacked macOS application               |
-| `npm run build`          | Run type checks and tests, then build a macOS DMG |
+| Command                  | Purpose                                        |
+| ------------------------ | ---------------------------------------------- |
+| `npm run dev`            | Start the desktop app in development mode      |
+| `npm run format`         | Format source and documentation with Prettier  |
+| `npm run format:check`   | Check formatting                               |
+| `npm run typecheck`      | Check TypeScript types                         |
+| `npm test`               | Run tests                                      |
+| `npm run build:renderer` | Build the React frontend                       |
+| `npm run build:dir`      | Compile the native executable without bundling |
+| `npm run build`          | Build the Tauri application and macOS DMG      |
 
-Build output is written to `release/`. See [BUILD.md](BUILD.md) for signing, publishing, and asset generation. Translation dictionaries live in `src/shared/locales/`; model capability rules and their update workflow are described in [MODEL_CAPABILITIES.md](MODEL_CAPABILITIES.md).
+Build output is written to `src-tauri/target/release/bundle/`. See [BUILD.md](BUILD.md) for signing, publishing, and asset generation. Translation dictionaries live in `src/shared/locales/`; model capability rules and their update workflow are described in [MODEL_CAPABILITIES.md](MODEL_CAPABILITIES.md).
 
 For maintainers: see the [release guide (Chinese)](RELEASE.md) for versioning, tags, signing, and publishing a release.
 
@@ -79,7 +79,7 @@ For pull requests, keep changes focused, use [Conventional Commits](https://www.
 
 Created by **Frozen** · [X / @xrdavies](https://x.com/xrdavies).
 
-Thanks to Electron, React, Vite, Lucide, better-sqlite3, react-markdown, and the other open-source projects used by Hamster Studio. The project also draws UI and workflow inspiration from hamster-art and Cherry Studio. Dependencies retain their respective licenses.
+Thanks to Tauri, React, Vite, Lucide, rusqlite, react-markdown, and the other open-source projects used by Hamster Studio. The project also draws UI and workflow inspiration from hamster-art and Cherry Studio. Dependencies retain their respective licenses.
 
 ## License
 

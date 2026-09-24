@@ -99,7 +99,7 @@
   "检查更新": "检查更新",
   "许可证：MIT": "许可证：MIT",
   "开源致谢": "开源致谢",
-  "感谢 Electron、React、Vite、Lucide、better-sqlite3、react-markdown 和其他开源项目。": "感谢 Electron、React、Vite、Lucide、better-sqlite3、react-markdown 和其他开源项目。",
+  "感谢 Tauri、React、Vite、Lucide、rusqlite、react-markdown 和其他开源项目。": "感谢 Tauri、React、Vite、Lucide、rusqlite、react-markdown 和其他开源项目。",
   "各依赖遵循其各自的许可证。": "各依赖遵循其各自的许可证。",
   "请先填写 API Key": "请先填写 API Key",
   "请填写 API Key": "请填写 API Key",

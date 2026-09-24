@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
 
@@ -12,10 +12,29 @@ const run = (command, args) =>
     }) || ''
   ).trim()
 
+export function updateRustVersion(
+  version,
+  read = (file) => readFileSync(file, 'utf8'),
+  write = writeFileSync,
+) {
+  const manifest = 'src-tauri/Cargo.toml'
+  const lock = 'src-tauri/Cargo.lock'
+  const manifestText = read(manifest)
+  const lockText = read(lock)
+  if (
+    !/^version = "[^"]+"/m.test(manifestText) ||
+    !/(name = "hamster-studio"\nversion = )"[^"]+"/.test(lockText)
+  )
+    throw new Error('Missing Rust package version')
+  write(manifest, manifestText.replace(/^version = "[^"]+"/m, `version = "${version}"`))
+  write(lock, lockText.replace(/(name = "hamster-studio"\nversion = )"[^"]+"/, `$1"${version}"`))
+}
+
 export function release(
   target,
   execute = run,
   readVersion = () => JSON.parse(readFileSync('package.json', 'utf8')).version,
+  syncRustVersion = updateRustVersion,
 ) {
   if (
     !target ||
@@ -49,7 +68,8 @@ export function release(
   const tag = `v${version}`
   if (git('tag', '--list', tag)) throw new Error(`标签 ${tag} 已存在`)
   npm('version', version, '--no-git-tag-version', '--ignore-scripts')
-  git('add', 'package.json', 'package-lock.json')
+  syncRustVersion(version)
+  git('add', 'package.json', 'package-lock.json', 'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock')
   git('commit', '-m', `chore(release): prepare ${tag}`)
   git('tag', '-a', tag, '-m', `Release ${tag}`)
   git('push', '--atomic', 'origin', 'main', `refs/tags/${tag}`)

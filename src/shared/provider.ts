@@ -1,5 +1,5 @@
-import type { ProviderModels } from '../shared/types'
-import { bundledCatalog, modelKind, type ModelCatalog } from '../shared/model-capabilities'
+import type { ProviderModels } from './types'
+import { bundledCatalog, modelKind, type ModelCatalog } from './model-capabilities'
 
 export function providerUrl(baseUrl: string, path: string): string {
   const base = baseUrl.trim().replace(/\/+$/, '')

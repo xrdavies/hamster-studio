@@ -24,7 +24,7 @@ describe('classifyProviderModels', () => {
   })
 })
 
-import { classifyModels } from '../shared/model-capabilities'
+import { classifyModels } from './model-capabilities'
 
 it('classifies manual model IDs and removes whitespace and duplicates', () => {
   expect(classifyModels([' gpt-image-2 ', 'gpt-5.6', '', 'gpt-image-2'])).toEqual({
@@ -34,7 +34,7 @@ it('classifies manual model IDs and removes whitespace and duplicates', () => {
   })
 })
 
-import { aboutUrl } from '../shared/about'
+import { aboutUrl } from './about'
 it('opens only configured About links', () => {
   expect(aboutUrl('author')).toBe('https://x.com/xrdavies')
   expect(() => aboutUrl('https://untrusted.example')).toThrow()

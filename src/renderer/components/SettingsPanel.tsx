@@ -450,7 +450,7 @@ export default function SettingsPanel({
                   <summary>{t('开源致谢')}</summary>
                   <p>
                     {t(
-                      '感谢 Electron、React、Vite、Lucide、better-sqlite3、react-markdown 和其他开源项目。',
+                      '感谢 Tauri、React、Vite、Lucide、rusqlite、react-markdown 和其他开源项目。',
                     )}
                   </p>
                   <p>{t('各依赖遵循其各自的许可证。')}</p>

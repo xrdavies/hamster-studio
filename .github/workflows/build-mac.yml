@@ -1,13 +1,10 @@
 name: Build macOS DMG
-
 on:
   workflow_dispatch:
   push:
     tags: ['v*']
-
 permissions:
   contents: write
-
 jobs:
   build:
     runs-on: macos-latest
@@ -17,80 +14,67 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
       - run: npm ci
-      - name: Import signing certificate
-        env:
-          CERTIFICATE_BASE64: ${{ secrets.MAC_CERTIFICATE_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          : "${CERTIFICATE_BASE64:?Missing MAC_CERTIFICATE_BASE64}"
-          : "${CERTIFICATE_PASSWORD:?Missing MAC_CERTIFICATE_PASSWORD}"
-          certificate_path="$RUNNER_TEMP/studio-signing.p12"
-          keychain_path="$RUNNER_TEMP/studio-signing.keychain-db"
-          keychain_password="$(openssl rand -hex 32)"
-          echo "::add-mask::$keychain_password"
-          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$certificate_path"
-          chmod 600 "$certificate_path"
-          security create-keychain -p "$keychain_password" "$keychain_path"
-          security set-keychain-settings -lut 21600 "$keychain_path"
-          security unlock-keychain -p "$keychain_password" "$keychain_path"
-          security import "$certificate_path" -k "$keychain_path" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain_path" > /dev/null
-          security list-keychains -d user -s "$keychain_path" "$HOME/Library/Keychains/login.keychain-db"
-          security find-identity -v -p codesigning "$keychain_path"
-          echo "CSC_KEYCHAIN=$keychain_path" >> "$GITHUB_ENV"
-      - name: Verify and compile
-        run: npm run format:check && npm run typecheck && npm test && npm run build:renderer
-      - name: Build signed macOS app (without publishing)
-        if: github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/v')
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --mac dmg zip --arm64 --publish never
-      - name: Verify release version and notarization credentials
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+      - name: Verify
+        run: npm run format:check && npm run typecheck && npm test && cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: Prepare signed release
+        if: github.event_name == 'push'
         env:
           RELEASE_TAG: ${{ github.ref_name }}
+          TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          APPLE_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          : "${APPLE_ID:?Missing APPLE_ID}"
-          : "${APPLE_APP_SPECIFIC_PASSWORD:?Missing APPLE_APP_SPECIFIC_PASSWORD}"
-          : "${APPLE_TEAM_ID:?Missing APPLE_TEAM_ID}"
+          set -euo pipefail
+          : "${TAURI_SIGNING_PRIVATE_KEY:?Missing updater signing key}"
+          : "${APPLE_CERTIFICATE:?Missing Apple certificate}"
+          : "${APPLE_CERTIFICATE_PASSWORD:?Missing certificate password}"
+          : "${APPLE_SIGNING_IDENTITY:?Missing signing identity}"
+          : "${APPLE_ID:?Missing Apple ID}"
+          : "${APPLE_PASSWORD:?Missing notarization password}"
+          : "${APPLE_TEAM_ID:?Missing Apple team}"
           node -e 'if (process.env.RELEASE_TAG !== "v" + require("./package.json").version) process.exit(1)'
-      - name: Build and publish tagged release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+          node scripts/tauri-release-config.mjs
+      - name: Build and upload release draft
+        if: github.event_name == 'push'
+        uses: tauri-apps/tauri-action@v0
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --mac dmg zip --arm64 --config.forceCodeSigning=true --publish always
-      - name: Upload macOS packages
-        uses: actions/upload-artifact@v4
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Hamster Studio ${{ github.ref_name }}'
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+          args: --target aarch64-apple-darwin --config src-tauri/release.conf.json
+      - name: Build test package
+        if: github.event_name == 'workflow_dispatch'
+        run: npm run build -- --target aarch64-apple-darwin
+      - uses: actions/upload-artifact@v4
         with:
           name: hamster-studio-macos
           path: |
-            release/*.dmg
-            release/*.zip
-            release/*.blockmap
-            release/latest-mac.yml
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.tar.gz*
       - name: Publish completed release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest --verify-tag
-      - name: Remove temporary signing credentials
-        if: always()
-        shell: bash
-        run: |
-          keychain_path="$RUNNER_TEMP/studio-signing.keychain-db"
-          if [ -f "$keychain_path" ]; then
-            security delete-keychain "$keychain_path"
-          fi
-          python3 -c 'import os; from pathlib import Path; Path(os.environ["RUNNER_TEMP"], "studio-signing.p12").unlink(missing_ok=True)'

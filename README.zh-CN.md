@@ -36,16 +36,16 @@ Provider 需要支持应用使用的 OpenAI Compatible 接口：`/models`、流�
 
 ## 数据与隐私
 
-- 会话和 Provider 配置存放于 Electron 应用数据目录的 `studio.db`，生成图片存放于其中的 `images/` 子目录。
+- 会话和 Provider 配置存放于 Tauri 应用数据目录的 `studio.db`，生成图片存放于其中的 `images/` 子目录。
 - AI 请求由桌面应用直接发送到配置的 Provider，无需 Hamster Studio 账号或托管应用后端。
-- 系统加密可用时，API Key 使用 Electron `safeStorage` 加密；当前实现在加密不可用时会退回未加密字节存储，请勿分享本地数据库。
+- API Key: macOS Keychain; no plaintext fallback.
 - 更新检查会连接 GitHub；项目和作者链接通过系统浏览器打开。
 
 删除 Provider 不会删除已有会话。选择新的 Provider 和模型后即可继续使用。
 
 ## 本地开发
 
-使用与 CI 一致的 **Node.js 24** 和 npm。项目采用 Electron、React、TypeScript 与 Vite。
+使用与 CI 一致的 **Node.js 24** 和 npm。项目采用 Tauri、React、TypeScript 与 Vite。
 
 ```bash
 git clone https://github.com/xrdavies/hamster-studio.git
@@ -54,18 +54,18 @@ npm ci
 npm run dev
 ```
 
-| 命令                     | 用途                                   |
-| ------------------------ | -------------------------------------- |
-| `npm run dev`            | 启动桌面开发环境                       |
-| `npm run format`         | 使用 Prettier 格式化代码和文档         |
-| `npm run format:check`   | 检查代码格式                           |
-| `npm run typecheck`      | 检查 TypeScript 类型                   |
-| `npm test`               | 运行测试                               |
-| `npm run build:renderer` | 构建渲染进程、主进程及 preload         |
-| `npm run build:dir`      | 构建未封装为 DMG 的 macOS 应用         |
-| `npm run build`          | 执行类型检查和测试，然后构建 macOS DMG |
+| 命令                     | 用途                                       |
+| ------------------------ | ------------------------------------------ |
+| `npm run dev`            | 启动桌面开发环境                           |
+| `npm run format`         | 使用 Prettier 格式化代码和文档             |
+| `npm run format:check`   | 检查代码格式                               |
+| `npm run typecheck`      | 检查 TypeScript 类型                       |
+| `npm test`               | 运行测试                                   |
+| `npm run build:renderer` | Build React frontend                       |
+| `npm run build:dir`      | Compile native executable without bundling |
+| `npm run build`          | Build Tauri application and DMG            |
 
-应用产物位于 `release/`。签名、发布与图标生成详见 [BUILD.md](BUILD.md)。翻译文案位于 `src/shared/locales/`，模型能力规则及更新方法见 [MODEL_CAPABILITIES.md](MODEL_CAPABILITIES.md)。
+应用产物位于 `src-tauri/target/release/bundle/`。签名、发布与图标生成详见 [BUILD.md](BUILD.md)。翻译文案位于 `src/shared/locales/`，模型能力规则及更新方法见 [MODEL_CAPABILITIES.md](MODEL_CAPABILITIES.md)。
 
 维护者发布新版本时，请按 [发布流程](RELEASE.md) 完成版本准备、打标签、签名验证与正式发布。
 
@@ -79,8 +79,10 @@ npm run dev
 
 作者：**Frozen** · [X / @xrdavies](https://x.com/xrdavies)。
 
-感谢 Electron、React、Vite、Lucide、better-sqlite3、react-markdown 及项目使用的其他开源组件。界面与交互也参考了 hamster-art 和 Cherry Studio。各依赖遵循其各自的许可证。
+感谢 Tauri、React、Vite、Lucide、rusqlite、react-markdown 及项目使用的其他开源组件。界面与交互也参考了 hamster-art 和 Cherry Studio。各依赖遵循其各自的许可证。
 
 ## 许可证
 
 [MIT](LICENSE) · Copyright © 2026 Frozen。
+
+Build prerequisites: Node.js 24, npm, Rust stable, Xcode Command Line Tools.
