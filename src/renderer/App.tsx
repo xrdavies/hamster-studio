@@ -129,7 +129,7 @@ export default function App() {
     <SessionSidebar data={data} session={session} search={search} setSearch={setSearch} searchRef={searchRef} showArchived={showArchived} setShowArchived={setShowArchived} visibleSessions={visibleSessions} onSelect={id => { followBottom.current = true; setSessionId(id); requestAnimationFrame(scrollBottom) }} onDelete={deleteSession} onNew={createSession} onSettings={() => { setSettingsPage('general'); setSettings(true) }} onUpdate={updateSpecificSession} />
     <main className="main">
       {!session ? <EmptyState onSettings={() => { setSettingsPage('providers'); setSettings(true); setEditing(makeEditing(emptyProvider)) }} /> : <>
-        <header className="topbar"><div className="title-block"><input className="title-input" value={session.title} onChange={event => void updateSession({ title: event.target.value })} /><div className="subtitle">本地会话 · 不同步到云端</div></div><div className="local-badge">Local</div></header>
+        <header className="topbar"><div className="title-block"><SessionTitle key={session.id} title={session.title} onSave={title => updateSession({ title })} /><div className="subtitle">本地会话 · 不同步到云端</div></div><div className="local-badge">Local</div></header>
         {!provider && <div className="missing-provider">当前会话的 Provider 已删除，历史消息仍保留。请在输入框中选择新的 Provider。</div>}
         <div ref={messagesRef} className="messages" onScroll={event => { const el = event.currentTarget; followBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100 }} onLoadCapture={scrollBottom}>{messages.length === 0 ? <Welcome provider={provider} onPrompt={setText} /> : messages.map(item => <MessageBubble key={item.id} message={item} onRetry={retry} onCopy={() => { navigator.clipboard.writeText(item.content); notify('已复制到剪贴板') }} onExport={async file => { try { if (await window.studio.exportImage(file)) notify('图片已导出') } catch (reason) { setError(reason instanceof Error ? reason.message : '导出图片失败') } }} />)}{error && <div className="error-banner">{error}</div>}</div>
         <Composer providers={data.providers} session={session} modelKind={modelKind} currentModel={currentModel} busy={busy} text={text} setText={setText} onModel={changeModel} onSubmit={submit} onStop={() => void window.studio.stopChat(session.id)} />
@@ -139,6 +139,29 @@ export default function App() {
     {toast && <div className="toast"><Check size={15} />{toast}</div>}
     {confirm && <ConfirmDialog state={confirm} onCancel={() => setConfirm(null)} />}
   </div>
+}
+
+function SessionTitle({ title, onSave }: { title: string; onSave: (title: string) => Promise<void> }) {
+  const [draft, setDraft] = useState(title)
+  const editing = useRef(false)
+  const composing = useRef(false)
+  useEffect(() => { if (!editing.current) setDraft(title) }, [title])
+  const commit = () => {
+    editing.current = false
+    const next = draft.trim() || title
+    setDraft(next)
+    if (next !== title) void onSave(next)
+  }
+  return <input className="title-input" aria-label="会话标题" value={draft}
+    onFocus={() => { editing.current = true }}
+    onChange={event => setDraft(event.target.value)}
+    onCompositionStart={() => { composing.current = true }}
+    onCompositionEnd={event => { composing.current = false; setDraft(event.currentTarget.value) }}
+    onBlur={commit}
+    onKeyDown={event => {
+      if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return
+      if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur() }
+    }} />
 }
 
 function makeEditing(input: ProviderInput): EditingProvider { return { ...input, fetched: { chatModels: [], imageModels: [] }, loading: false, fetchError: '', testResult: '' } }
