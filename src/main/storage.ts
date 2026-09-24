@@ -43,6 +43,18 @@ export class Store {
         this.db.exec('ALTER TABLE sessions ADD COLUMN ' + column + ' INTEGER NOT NULL DEFAULT 0')
       } catch {}
     }
+    const columns = this.db.pragma('table_info(sessions)') as { name: string }[]
+    if (!columns.some((column) => column.name === 'modelKind')) {
+      this.db.transaction(() => {
+        this.db.exec("ALTER TABLE sessions ADD COLUMN modelKind TEXT NOT NULL DEFAULT 'chat'")
+        this.db.exec(`
+          UPDATE sessions SET modelKind = COALESCE(
+            (SELECT kind FROM messages WHERE sessionId = sessions.id
+             ORDER BY createdAt DESC, rowid DESC LIMIT 1), 'chat'
+          )
+        `)
+      })()
+    }
     this.db
       .prepare(
         "UPDATE messages SET status = 'error', error = '上次生成中断' WHERE status = 'streaming'",
@@ -143,17 +155,20 @@ export class Store {
     if (!input.chatModel.trim()) throw new Error('请先配置聊天模型')
     const id = input.id || randomUUID()
     const now = Date.now()
-    const existing = this.db.prepare('SELECT createdAt FROM sessions WHERE id = ?').get(id) as
-      { createdAt: number } | undefined
+    const existing = this.db
+      .prepare('SELECT createdAt, modelKind FROM sessions WHERE id = ?')
+      .get(id) as Pick<StudioSession, 'createdAt' | 'modelKind'> | undefined
     if (!existing && !this.db.prepare('SELECT 1 FROM providers WHERE id = ?').get(input.providerId))
       throw new Error('Provider 不存在')
+    const modelKind = input.modelKind ?? existing?.modelKind ?? 'chat'
+    if (modelKind !== 'chat' && modelKind !== 'image') throw new Error('Invalid model kind')
     this.db
       .prepare(
-        `INSERT INTO sessions (id,title,providerId,chatModel,imageModel,systemPrompt,createdAt,updatedAt,pinned,archived)
-      VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+        `INSERT INTO sessions (id,title,providerId,chatModel,imageModel,systemPrompt,createdAt,updatedAt,pinned,archived,modelKind)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
       title=excluded.title,providerId=excluded.providerId,chatModel=excluded.chatModel,
       imageModel=excluded.imageModel,systemPrompt=excluded.systemPrompt,updatedAt=excluded.updatedAt,
-      pinned=excluded.pinned,archived=excluded.archived`,
+      pinned=excluded.pinned,archived=excluded.archived,modelKind=excluded.modelKind`,
       )
       .run(
         id,
@@ -166,6 +181,7 @@ export class Store {
         now,
         input.pinned ? 1 : 0,
         input.archived ? 1 : 0,
+        modelKind,
       )
     return id
   }

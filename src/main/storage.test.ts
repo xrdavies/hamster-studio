@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { unlinkSync } from 'node:fs'
 import { Store } from './storage'
+import Database from 'better-sqlite3'
 
 const files: string[] = []
 afterEach(() => {
@@ -53,6 +54,115 @@ describe('Store', () => {
     expect(store.data().sessions[0].title).toBe('测试')
     expect(store.history(sessionId)).toHaveLength(1)
     store.close()
+  })
+
+  it('keeps each session model selection independent across saves and restarts', () => {
+    const file = '/tmp/hamster-studio-' + randomUUID() + '.db'
+    files.push(file)
+    const open = () =>
+      new Store(
+        file,
+        (value) => Buffer.from(value),
+        (value) => value.toString(),
+      )
+    let store = open()
+    try {
+      const providerId = store.saveProvider({
+        name: 'Relay',
+        baseUrl: 'https://example.com',
+        chatModels: ['chat-a', 'chat-b'],
+        imageModels: ['image-a', 'image-b'],
+      })
+      const otherProviderId = store.saveProvider({
+        name: 'Other',
+        baseUrl: 'https://other.example.com',
+        chatModels: ['other-chat'],
+        imageModels: ['other-image'],
+      })
+      const a = store.saveSession({
+        providerId,
+        chatModel: 'chat-b',
+        imageModel: 'image-b',
+        modelKind: 'image',
+      })
+      const b = store.saveSession({ providerId, chatModel: 'chat-a', modelKind: 'chat' })
+      const originalA = store.session(a)
+      store.saveSession({
+        ...store.session(b),
+        providerId: otherProviderId,
+        chatModel: 'other-chat',
+        modelKind: 'chat',
+      })
+      expect(store.session(a)).toEqual(originalA)
+      store.saveSession({ ...store.session(b), imageModel: 'other-image', modelKind: 'image' })
+      store.saveSession({ ...store.session(a), modelKind: 'chat' })
+      // A metadata-only save must not reset the selected model type.
+      store.saveSession({
+        ...store.session(b),
+        modelKind: undefined,
+        title: 'Renamed',
+        pinned: true,
+      })
+      store.close()
+      store = open()
+      expect(store.data().sessions.find((session) => session.id === a)).toMatchObject({
+        providerId,
+        modelKind: 'chat',
+        chatModel: 'chat-b',
+        imageModel: 'image-b',
+      })
+      expect(store.data().sessions.find((session) => session.id === b)).toMatchObject({
+        providerId: otherProviderId,
+        modelKind: 'image',
+        imageModel: 'other-image',
+        title: 'Renamed',
+        pinned: true,
+      })
+    } finally {
+      store.close()
+    }
+  })
+
+  it('migrates legacy sessions using their latest message only once', () => {
+    const file = '/tmp/hamster-studio-' + randomUUID() + '.db'
+    files.push(file)
+    const legacy = new Database(file)
+    legacy.exec(`
+      CREATE TABLE sessions (
+        id TEXT PRIMARY KEY, title TEXT NOT NULL, providerId TEXT NOT NULL,
+        chatModel TEXT NOT NULL, imageModel TEXT NOT NULL, systemPrompt TEXT NOT NULL,
+        createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL
+      );
+      CREATE TABLE messages (
+        id TEXT PRIMARY KEY, sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        role TEXT NOT NULL, kind TEXT NOT NULL, content TEXT NOT NULL, imageFiles TEXT NOT NULL,
+        providerName TEXT NOT NULL, model TEXT NOT NULL, createdAt INTEGER NOT NULL,
+        status TEXT NOT NULL, error TEXT NOT NULL
+      );
+      INSERT INTO sessions VALUES ('a', 'A', 'deleted-provider', 'chat', 'image', '', 1, 1);
+      INSERT INTO sessions VALUES ('b', 'B', 'deleted-provider', 'chat', 'image', '', 1, 1);
+      INSERT INTO messages VALUES ('m1', 'a', 'user', 'chat', 'hello', '[]', 'Relay', 'chat', 1, 'done', '');
+      INSERT INTO messages VALUES ('m2', 'a', 'user', 'image', 'draw', '[]', 'Relay', 'image', 2, 'done', '');
+    `)
+    legacy.close()
+    const open = () =>
+      new Store(
+        file,
+        (value) => Buffer.from(value),
+        (value) => value.toString(),
+      )
+    let store = open()
+    try {
+      expect(store.session('a').modelKind).toBe('image')
+      expect(store.session('b').modelKind).toBe('chat')
+      expect(store.data().messages).toHaveLength(2)
+      store.saveSession({ ...store.session('a'), modelKind: 'chat' })
+      store.close()
+      store = open()
+      expect(store.session('a').modelKind).toBe('chat')
+    } finally {
+      store.close()
+    }
   })
 
   it('normalizes legacy image model names once', () => {

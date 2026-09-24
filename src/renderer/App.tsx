@@ -25,7 +25,6 @@ export default function App() {
   const [data, setData] = useState<StudioData>({ providers: [], sessions: [], messages: [] })
   const [sessionId, setSessionId] = useState('')
   const [text, setText] = useState('')
-  const [modelKind, setModelKind] = useState<ModelKind>('chat')
   const [busy, setBusy] = useState(false)
   const [settings, setSettings] = useState(false)
   const [settingsPage, setSettingsPage] = useState<'general' | 'providers' | 'about'>('general')
@@ -79,6 +78,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   })
   const session = data.sessions.find((item) => item.id === sessionId) || data.sessions[0]
+  const modelKind = session?.modelKind || 'chat'
   const provider = data.providers.find((item) => item.id === session?.providerId)
   const messages = data.messages
     .filter((item) => item.sessionId === session?.id)
@@ -135,6 +135,7 @@ export default function App() {
       id: newId(),
       title: t('新对话'),
       providerId: first.id,
+      modelKind: 'chat',
       chatModel: first.chatModels[0],
       imageModel: first.imageModels[0] || '',
       systemPrompt: '',
@@ -145,7 +146,6 @@ export default function App() {
     }
     setData(await window.studio.saveSession(next))
     setSessionId(next.id)
-    setModelKind('chat')
   }
   function askConfirm(title: string, message: string, action: () => void) {
     setConfirm({
@@ -202,9 +202,9 @@ export default function App() {
   }
   const changeModel = (providerId: string, model: string, kind: ModelKind) => {
     const next = data.providers.find((item) => item.id === providerId)
-    setModelKind(kind)
     void updateSession({
       providerId,
+      modelKind: kind,
       ...(kind === 'chat'
         ? { chatModel: model, imageModel: next?.imageModels[0] || session?.imageModel || '' }
         : { imageModel: model, chatModel: next?.chatModels[0] || session?.chatModel || '' }),

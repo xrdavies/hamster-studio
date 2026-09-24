@@ -1,3 +1,5 @@
+import type { ModelKind } from './model-capabilities'
+
 export type Provider = {
   id: string
   name: string
@@ -18,6 +20,7 @@ export type StudioSession = {
   id: string
   title: string
   providerId: string
+  modelKind: ModelKind
   chatModel: string
   imageModel: string
   systemPrompt: string
