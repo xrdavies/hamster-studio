@@ -57,3 +57,7 @@ Logo 源图按 256、512、1024 像素存放在 `src/renderer/assets/`，界面�
 ## 代码排版
 
 运行 `npm run format` 格式化代码，提交前运行 `npm run format:check`。VS Code 安装推荐的 Prettier 扩展后保存即格式化。格式规则为 100 字符目标行宽、2 空格缩进、单引号、不加分号。CI 检查格式；生成资源和构建产物不参与。
+
+## CI 钥匙串
+
+Actions 显式创建临时钥匙串并导入签名证书，通过 `CSC_KEYCHAIN` 提供给 electron-builder。导入证书使用 `.p12` 密码，设置私钥访问权限使用独立生成的钥匙串密码。不要同时传入 `CSC_LINK`，否则会重新进入打包器的证书导入流程。任务结束后始终清理临时证书和钥匙串。
