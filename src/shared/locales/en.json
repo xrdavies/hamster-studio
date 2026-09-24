@@ -6,7 +6,6 @@
   "删除会话": "Delete conversation",
   "会删除这个会话及其全部消息，无法恢复。": "This permanently deletes the conversation and all its messages.",
   "请求失败": "Request failed",
-  "本地会话 · 不同步到云端": "Local conversation · No cloud sync",
   "当前会话的 Provider 已删除，历史消息仍保留。请在输入框中选择新的 Provider。": "This provider was deleted. Your history is preserved. Select another provider to continue.",
   "已复制到剪贴板": "Copied to clipboard",
   "图片已导出": "Image exported",

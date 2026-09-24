@@ -222,11 +222,6 @@ select:focus-visible {
   width: 240px;
   padding: 0;
 }
-.subtitle {
-  color: #a0a1a9;
-  font-size: 11px;
-  margin-top: 4px;
-}
 .selectors {
   display: flex;
   align-items: center;
@@ -1047,7 +1042,7 @@ select:focus-visible {
   background: #faf9ff;
 }
 .topbar {
-  height: 56px;
+  height: 44px;
   padding-top: 0;
   padding-bottom: 0;
 }
@@ -1148,7 +1143,7 @@ select:focus-visible {
 }
 
 .topbar {
-  flex: 0 0 56px;
+  flex: 0 0 44px;
 }
 .messages {
   min-height: 0;

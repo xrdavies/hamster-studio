@@ -295,7 +295,6 @@ export default function App() {
                   title={session.title}
                   onSave={(title) => updateSession({ title })}
                 />
-                <div className="subtitle">{t('本地会话 · 不同步到云端')}</div>
               </div>
               <div className="local-badge">Local</div>
             </header>
