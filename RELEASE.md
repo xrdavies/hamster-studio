@@ -2,60 +2,31 @@
 
 本文对应当前 [macOS 工作流](.github/workflows/build-mac.yml)。发布入口是推送 `v*` Git 标签：CI 构建、签名、公证并上传 GitHub Release 草稿，维护者检查后再公开发布。无需提前在 GitHub 创建 Release。
 
-## 发布命令速查
+## 使用 npm 发布（推荐）
 
-完成下方签名 Secrets 配置后，在仓库根目录执行。以下以 `0.1.1` 为例：将它替换为本次目标版本，且必须高于已公开版本。命令中的 `studio_version` 不带 `v`，标签自动添加 `v`。
-
-### 更新版本、验证、提交并推送标签
-
-先提交或妥善保存现有修改，工作区应保持干净。下面使用子 Shell，任何一步失败都会停止，不会继续创建或推送标签：
+完成签名 Secrets 配置，确保位于 `main` 且工作区干净，执行以下任一命令：
 
 ```bash
-(
-  set -eu
-  studio_version=0.1.1
-
-  test -z "$(git status --porcelain)" || {
-    echo "工作区有未提交修改，请先处理后再发布。"
-    exit 1
-  }
-  git switch main
-  git pull --ff-only origin main
-  git fetch origin --tags
-
-  if git show-ref --verify --quiet "refs/tags/v${studio_version}"; then
-    echo "目标标签已存在，请使用新的版本号。"
-    exit 1
-  fi
-
-  npm ci
-  npm version "$studio_version" --no-git-tag-version
-  npm run format:check
-  npm run typecheck
-  npm test
-  npm run build:renderer
-
-  git diff -- package.json package-lock.json
-  git add package.json package-lock.json
-  git commit -m "chore(release): prepare v${studio_version}"
-  git tag -a "v${studio_version}" -m "Release v${studio_version}"
-  git push --atomic origin main "refs/tags/v${studio_version}"
-)
+npm run release -- patch   # 0.1.0 → 0.1.1
+npm run release -- minor   # 0.1.0 → 0.2.0
+npm run release -- major   # 0.1.0 → 1.0.0
+npm run release -- 0.2.1   # 指定高于当前版本的正式版本
 ```
 
-`--atomic` 确保分支与本次标签一起推送成功或一起失败；推送标签会触发 CI。如果验证失败，版本文件可能已经修改，修复后从验证步骤继续，不要盲目重复 `npm version`。如果推送失败，本地提交和标签仍然存在，处理失败原因后再推送，不要重复提交或打标签。
+每次发布只执行一条。脚本会自动：
 
-也可以用 `npm version patch --no-git-tag-version` 或 `npm version minor --no-git-tag-version` 递增版本，但同一次发布只执行一种版本修改方式，并确保提交信息和标签使用最终版本。
+1. 检查分支和工作区，获取远端代码及标签，以 fast-forward 方式同步 `origin/main`。
+2. 检查版本递增和标签冲突，运行 `npm ci`。
+3. 更新 `package.json` 和 `package-lock.json`。
+4. 执行格式检查、类型检查、全部测试和构建。
+5. 创建 `chore(release): prepare v版本号` 提交及附注标签。
+6. 原子推送 `main` 和本次标签，触发 GitHub Actions 生成 Release 草稿。
 
-首次发布如果沿用已经提交的 `package.json` 版本，完成验证后只需：
+脚本不会公开草稿；检查安装包后按下方步骤正式发布。仅支持正式版本号，不支持预发布版本参数。
 
-```bash
-studio_version=$(node -p 'require("./package.json").version')
-git tag -a "v${studio_version}" -m "Release v${studio_version}"
-git push --atomic origin main "refs/tags/v${studio_version}"
-```
+失败时立即停止，保留已完成的修改。验证失败后请修复问题并从下方第 3 节的验证步骤继续；提交或标签已创建时，检查 `git status`、`git log -1` 和 `git tag`，不要直接重跑递增版本命令。若只是推送失败，处理原因后重试 `git push --atomic origin main refs/tags/v实际版本号`。不要移动已经公开的标签。
 
-此时同样要求工作区干净、代码已同步到 `main`、目标标签尚不存在。无需创建空的版本提交。
+首次发布如果保留现有版本，使用下方第 3、4 节的手动步骤；`npm run release` 始终递增版本。
 
 ### 查看 CI 与 Release 草稿
 

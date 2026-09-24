@@ -11,7 +11,8 @@
     "build": "npm run typecheck && npm run test && vite build && electron-builder --mac dmg zip --publish never",
     "build:dir": "vite build && electron-builder --mac dir --publish never",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "release": "node scripts/release.mjs"
   },
   "repository": {
     "type": "git",
