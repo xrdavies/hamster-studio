@@ -24,3 +24,10 @@ it('classifies manual model IDs and removes whitespace and duplicates', () => {
     chatModels: ['gpt-5.6'], imageModels: ['gpt-image-2']
   })
 })
+
+import { aboutUrl } from '../shared/about'
+it('opens only configured About links', () => {
+  expect(aboutUrl('author')).toBe('https://x.com/xrdavies')
+  expect(() => aboutUrl('https://untrusted.example')).toThrow()
+  expect(() => aboutUrl('__proto__')).toThrow()
+})

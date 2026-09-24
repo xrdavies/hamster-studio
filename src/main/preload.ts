@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { Message, ProviderInput, ProviderModels, StudioData, StudioSession } from '../shared/types'
 
 contextBridge.exposeInMainWorld('studio', {
+  openAboutLink: (key: string) => ipcRenderer.invoke('app:open-link', key) as Promise<void>,
   version: () => ipcRenderer.invoke('app:version') as Promise<string>,
   checkUpdates: () => ipcRenderer.invoke('app:updates') as Promise<string>,
   load: (): Promise<StudioData> => ipcRenderer.invoke('data'),

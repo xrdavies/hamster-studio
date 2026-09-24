@@ -1,3 +1,4 @@
+import { aboutLinks } from '../shared/about'
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -216,6 +217,12 @@ function MessageBubble({ message, onRetry, onCopy, onExport }: { message: Messag
 function SettingsPanel({ data, page, setPage, editing, setEditing, close, refresh, askConfirm }: { data: StudioData; page: 'general' | 'providers' | 'about'; setPage: (page: 'general' | 'providers' | 'about') => void; editing: EditingProvider | null; setEditing: (value: EditingProvider | null) => void; close: () => void; refresh: (data: StudioData) => void; askConfirm: (title: string, message: string, action: () => void) => void }) {
   const current = editing
   const [manualModel, setManualModel] = useState('')
+  const [linkError, setLinkError] = useState('')
+  const openLink = async (key: keyof typeof aboutLinks) => {
+    setLinkError('')
+    try { await window.studio.openAboutLink(key) }
+    catch { setLinkError('无法打开浏览器，请稍后重试。') }
+  }
   const [version, setVersion] = useState('')
   const [updateStatus, setUpdateStatus] = useState('尚未检查更新')
   const [checking, setChecking] = useState(false)
@@ -275,7 +282,16 @@ function SettingsPanel({ data, page, setPage, editing, setEditing, close, refres
     <div className="settings-layout"><nav className="settings-nav"><button className={page === 'general' ? 'active' : ''} onClick={() => setPage('general')}><Languages size={16} />通用</button><button className={page === 'providers' ? 'active' : ''} onClick={() => setPage('providers')}><Globe size={16} />Providers</button><button className={page === 'about' ? 'active' : ''} onClick={() => setPage('about')}><Info size={16} />About</button></nav><div className="settings-content">
       {page === 'general' && <><div className="settings-title"><div><h3>通用设置</h3><p>Hamster Studio 的本地使用偏好。</p></div></div><div className="setting-item"><span>语言</span><strong>简体中文</strong></div><div className="setting-item"><span>数据存储</span><strong>仅保存在本机</strong></div></>}
       {page === 'providers' && providerList}
-      {page === 'about' && <><div className="settings-title"><div><h3>About Hamster Studio</h3><p>本地优先的聊天与图片生成工具。</p></div></div><div className="about-card"><img src={hamsterLogo} /><div><strong>Hamster Studio</strong><p>版本 {version || '读取中…'}</p><small role="status">{updateStatus}</small><p><button className="secondary" disabled={checking} onClick={checkUpdates}>{checking ? '检查中…' : '检查更新'}</button></p></div></div></>}
+      {page === 'about' && <section className="about-page" aria-label="关于 Hamster Studio">
+        <img className="about-logo" src={hamsterLogo} alt="Hamster Studio Logo" />
+        <h2>Hamster Studio</h2><span className="about-version">版本 {version || '读取中…'}</span>
+        <p className="about-intro">一款开源的桌面 AI 聊天与图片生成工具。</p>
+        <p className="about-description">支持接入自定义 OpenAI Compatible 服务，通过 API Key 使用模型，无需注册登录。会话历史保存在本机，生成请求直接发送到你配置的服务。</p>
+        <div className="about-links">{([['repository', 'GitHub 仓库'], ['issues', '问题反馈'], ['releases', '更新日志']] as const).map(([key, label]) => <a key={key} href={aboutLinks[key]} onClick={event => { event.preventDefault(); void openLink(key) }}>{label} ↗</a>)}</div>
+        {linkError && <p role="alert" className="form-error">{linkError}</p>}
+        <div className="about-update"><button className="secondary" disabled={checking} onClick={checkUpdates}>{checking ? '检查中…' : '检查更新'}</button><p role="status">{updateStatus}</p></div>
+        <footer className="about-footer">Made by <a href={aboutLinks.author} onClick={event => { event.preventDefault(); void openLink('author') }}>Frozen · X ↗</a><p>许可证：ISC（项目声明）</p><details><summary>开源致谢</summary><p>感谢 Electron、React、Vite、Lucide、better-sqlite3、react-markdown 和其他开源项目。</p><p>各依赖遵循其各自的许可证。</p></details></footer>
+      </section>}
     </div></div>
   </>
   return <div className="settings-backdrop" onKeyDown={event => { if (event.key === 'Escape') close() }} onMouseDown={close}><section className="settings" onMouseDown={event => event.stopPropagation()}>{content}</section></div>

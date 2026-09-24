@@ -2,6 +2,7 @@ import type { Message, ProviderInput, StudioData, StudioSession } from '../share
 declare global {
   interface Window {
     studio: {
+      openAboutLink(key: string): Promise<void>
       version(): Promise<string>
       checkUpdates(): Promise<string>
       load(): Promise<StudioData>; saveProvider(input: ProviderInput): Promise<unknown>; deleteProvider(id: string): Promise<void>

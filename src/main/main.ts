@@ -1,4 +1,5 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage } from 'electron'
+import { aboutUrl } from '../shared/about'
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron'
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -93,6 +94,7 @@ async function generateImage(sessionId: string, prompt: string) {
 }
 
 function registerIpc() {
+  ipcMain.handle('app:open-link', (_event, key: string) => shell.openExternal(aboutUrl(key)))
   ipcMain.handle('app:version', () => app.getVersion())
   ipcMain.handle('app:updates', async () => {
     if (!app.isPackaged) return '开发版本不支持自动更新，请使用安装版检查更新。'
