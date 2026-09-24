@@ -1,70 +1,32 @@
 # 发布流程
 
-本文对应当前 [macOS 工作流](.github/workflows/build-mac.yml)。发布入口是推送 `v*` Git 标签：CI 构建、签名、公证并上传 GitHub Release 草稿，维护者检查后再公开发布。无需提前在 GitHub 创建 Release。
+Push a version tag to trigger GitHub Actions. CI verifies, builds, signs, notarizes, uploads a draft, and automatically publishes the completed Release.
 
-## 使用 npm 发布（推荐）
+## npm release
 
-完成签名 Secrets 配置，确保位于 `main` 且工作区干净，执行以下任一命令：
+Run one command from a clean checkout on `main`:
 
 ```bash
-npm run release -- patch   # 0.1.0 → 0.1.1
-npm run release -- minor   # 0.1.0 → 0.2.0
-npm run release -- major   # 0.1.0 → 1.0.0
-npm run release -- 0.2.1   # 指定高于当前版本的正式版本
+npm run release -- patch
+npm run release -- minor
+npm run release -- major
+npm run release -- 0.2.1
 ```
 
-每次发布只执行一条。脚本会自动：
+The local command only synchronizes main, checks the version and tag, updates package.json and package-lock.json, commits, creates an annotated tag, and atomically pushes main and that tag. It does not install dependencies, run tests, or build packages.
 
-1. 检查分支和工作区，获取远端代码及标签，以 fast-forward 方式同步 `origin/main`。
-2. 检查版本递增和标签冲突，运行 `npm ci`。
-3. 更新 `package.json` 和 `package-lock.json`。
-4. 执行格式检查、类型检查、全部测试和构建。
-5. 创建 `chore(release): prepare v版本号` 提交及附注标签。
-6. 原子推送 `main` 和本次标签，触发 GitHub Actions 生成 Release 草稿。
+GitHub Actions performs all verification and packaging. After successful artifact upload, Publish completed release automatically makes the release public. No manual publish step is required. Failed runs leave any uploaded release as a draft.
 
-脚本不会公开草稿；检查安装包后按下方步骤正式发布。仅支持正式版本号，不支持预发布版本参数。
+If preparation fails, inspect git status, git log -1, and git tag before retrying. Changes already made remain locally. If only push failed, retry `git push --atomic origin main refs/tags/vVERSION` after resolving the cause; do not bump the version again.
 
-失败时立即停止，保留已完成的修改。验证失败后请修复问题并从下方第 3 节的验证步骤继续；提交或标签已创建时，检查 `git status`、`git log -1` 和 `git tag`，不要直接重跑递增版本命令。若只是推送失败，处理原因后重试 `git push --atomic origin main refs/tags/v实际版本号`。不要移动已经公开的标签。
-
-首次发布如果保留现有版本，使用下方第 3、4 节的手动步骤；`npm run release` 始终递增版本。
-
-### 查看 CI 与 Release 草稿
-
-以下命令需要已安装 GitHub CLI 并登录（`gh auth login`）。版本变量需重新设置，因为上面的子 Shell 不会保留变量。
+For a test build before publishing, run the workflow manually. Manual runs upload artifacts without publishing a Release.
 
 ```bash
-studio_version=0.1.1
-gh run list --workflow build-mac.yml --branch "v${studio_version}" --event push --limit 5
-```
-
-从输出中找到本次构建的 ID，再执行（将 `123456789` 替换为实际 ID）：
-
-```bash
+gh run list --workflow build-mac.yml --event push --limit 5
+# Replace with the actual run ID
 gh run watch 123456789 --exit-status
-gh release view "v${studio_version}" --web
+gh release view v0.2.1 --web
 ```
-
-工作流可能需要几秒才出现在列表中。CI 成功后先按第 5 节下载并验证草稿中的安装包。
-
-### 填写说明并公开发布
-
-准备一份实际更新说明文件，例如仓库外的 `/tmp/hamster-release-notes.md`，然后执行：
-
-```bash
-studio_version=0.1.1
-gh release edit "v${studio_version}" \
-  --title "Hamster Studio v${studio_version}" \
-  --notes-file /tmp/hamster-release-notes.md
-```
-
-**完成安装包检查后**，以下命令将草稿公开为正式版本，应用内 updater 才能发现它：
-
-```bash
-gh release edit "v${studio_version}" --draft=false --prerelease=false --latest --verify-tag
-gh release view "v${studio_version}" --web
-```
-
-无需再执行 `gh release create`，CI 已创建草稿。模型能力表单独更新仅需修改表、递增表的 `version` 并提交推送 `main`，不需要应用版本标签，详见 [模型能力表文档](MODEL_CAPABILITIES.md)。
 
 ## 1. 首次配置
 
@@ -140,25 +102,9 @@ git push origin v0.1.1
 
 当前 CI 固定构建 Apple Silicon（arm64），同时输出 DMG 和 ZIP。尚未提供 Intel Mac 更新包；不要将此版本描述为同时支持两种架构。
 
-## 5. 检查草稿并正式发布
+## 5. Verify the published release
 
-当前配置采用 electron-builder 的默认 Release 草稿行为。CI 成功不代表版本已公开；到 [Releases](https://github.com/xrdavies/hamster-studio/releases) 找到对应草稿。
-
-1. 确认标签、版本号、产物架构和待发布提交一致。
-2. 确认 Assets 中有 DMG、macOS ZIP，以及构建生成的 `.blockmap`、`latest-mac.yml` 等相关文件；保留生成的更新文件。
-3. 下载这次 Release 草稿中的 DMG，安装并启动验证。不要用 GitHub 自动生成的 Source code 压缩包代替安装包。
-4. 确认签名与公证成功。将应用安装到“应用程序”后可执行：
-
-   ```bash
-   codesign --verify --deep --strict --verbose=2 "/Applications/Hamster Studio.app"
-   spctl --assess --type execute --verbose=2 "/Applications/Hamster Studio.app"
-   xcrun stapler validate "/Applications/Hamster Studio.app"
-   ```
-
-5. 填写更新说明：主要变化、问题修复、支持的系统与架构、已知限制、安装方式。测试版本勾选 **Set as a pre-release**。
-6. 点击 **Publish release**，确认公开页面可以下载安装包。
-
-Release 标题可用 `Hamster Studio v0.1.1`。发布后同步中英文 README 的下载状态，移除“尚未发布公开版本”等过期说明。
+CI initially uploads a draft and automatically publishes it after successful build and artifact upload. Check the public Release for the DMG, ZIP, blockmaps, and latest-mac.yml. Verify the installed app version and upgrade from the previous signed version. Release notes can be edited on GitHub after publication.
 
 ## 6. 应用内更新
 
@@ -178,7 +124,6 @@ Release 标题可用 `Hamster Studio v0.1.1`。发布后同步中英文 README �
 - 保留本次构建生成的 ZIP、DMG、`.blockmap` 和 `latest-mac.yml`。不要混用不同构建的文件，不要手工修改哈希或改名附件。
 - `latest-mac.yml` 中引用的 ZIP 必须存在于同一公开 Release，版本、文件名、大小和 SHA-512 必须匹配。GitHub 自动生成的源码 ZIP 无法替代应用 ZIP。
 - 保持 `appId`、GitHub 发布仓库和签名身份连续一致。配置仍使用现有 Apple 签名与公证 Secrets，发布包须签名、公证成功。
-- 检查草稿安装包后再点击 **Publish release**。仅上传 Actions artifact 或保留草稿不会对用户开放更新。
 
 macOS ZIP 与签名要求见 [electron-builder v26 自动更新文档](https://www.electron.build/v26/docs/features/auto-update/)。
 
@@ -206,7 +151,6 @@ macOS ZIP 与签名要求见 [electron-builder v26 自动更新文档](https://w
 | `SecKeychainUnlock` / 密码错误 | 区分 `.p12` 密码与临时钥匙串密码；使用当前显式导入钥匙串的流程，不额外配置 `CSC_LINK`。                           |
 | 找不到签名身份                 | 检查证书是否为 Developer ID Application、是否包含私钥、密码及有效期是否正确。                                     |
 | 公证失败或未执行               | 检查三个 Apple Secrets 是否齐全、账号与 Team ID 是否匹配，并查看打包和 Apple 公证日志。                           |
-| CI 成功但用户看不到版本        | 检查 Release 是否仍为草稿，是否已点击 Publish release。                                                           |
 | 更新提示缺少 ZIP               | 检查 Release 是否包含本次构建的 ZIP 和匹配的 latest-mac.yml。                                                     |
 
 网络临时故障或修正 Secrets 后，可以在原来的**标签 push 运行记录**中选择 **Re-run failed jobs**；必要时 **Re-run all jobs**。不要用 Run workflow 代替发布重试，它只构建 artifact。

@@ -24,7 +24,6 @@ npm run build
 `.github/workflows/build-mac.yml` 在手动触发或推送 `v*` 标签时运行 macOS 构建。
 
 - `workflow_dispatch`：只构建并上传 DMG artifact。
-- 推送 `v0.1.0` 这类标签：构建 DMG，并使用 electron-builder 上传 GitHub Release 草稿和更新元数据，检查后需手动公开发布。
 - workflow 已接入下方列出的签名与公证 Secrets；实际签名状态取决于凭证是否配置且有效。
 
 ## Provider 本地测试
@@ -67,3 +66,5 @@ Actions 显式创建临时钥匙串并导入签名证书，通过 `CSC_KEYCHAIN`
 ## 发布模式
 
 本地 `npm run build`、`npm run build:dir` 和手动 Actions 构建均显式使用 `--publish never`。只有推送 `v*` 标签才使用 `--publish always`，发布步骤将 Actions 自动提供的 `GITHUB_TOKEN` 映射为 `GH_TOKEN`，无需另建个人访问令牌。校验与编译后仅执行一次打包。
+
+Tag builds automatically publish the completed Release after verification, packaging and artifact upload. See [RELEASE.md](RELEASE.md).
