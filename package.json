@@ -8,8 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build:renderer": "vite build",
-    "build": "npm run typecheck && npm run test && vite build && electron-builder --mac dmg",
-    "build:dir": "vite build && electron-builder --mac dir",
+    "build": "npm run typecheck && npm run test && vite build && electron-builder --mac dmg --publish never",
+    "build:dir": "vite build && electron-builder --mac dir --publish never",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

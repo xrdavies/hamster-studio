@@ -41,14 +41,17 @@ jobs:
           security list-keychains -d user -s "$keychain_path" "$HOME/Library/Keychains/login.keychain-db"
           security find-identity -v -p codesigning "$keychain_path"
           echo "CSC_KEYCHAIN=$keychain_path" >> "$GITHUB_ENV"
-      - name: Build signed macOS app
+      - name: Verify and compile
+        run: npm run format:check && npm run typecheck && npm test && npm run build:renderer
+      - name: Build signed macOS app (without publishing)
+        if: github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/v')
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run build
-      - name: Publish update metadata
-        if: startsWith(github.ref, 'refs/tags/v')
+        run: npx electron-builder --mac dmg --publish never
+      - name: Build and publish tagged release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_ID: ${{ secrets.APPLE_ID }}

@@ -61,3 +61,7 @@ Logo 源图按 256、512、1024 像素存放在 `src/renderer/assets/`，界面�
 ## CI 钥匙串
 
 Actions 显式创建临时钥匙串并导入签名证书，通过 `CSC_KEYCHAIN` 提供给 electron-builder。导入证书使用 `.p12` 密码，设置私钥访问权限使用独立生成的钥匙串密码。不要同时传入 `CSC_LINK`，否则会重新进入打包器的证书导入流程。任务结束后始终清理临时证书和钥匙串。
+
+## 发布模式
+
+本地 `npm run build`、`npm run build:dir` 和手动 Actions 构建均显式使用 `--publish never`。只有推送 `v*` 标签才使用 `--publish always`，发布步骤将 Actions 自动提供的 `GITHUB_TOKEN` 映射为 `GH_TOKEN`，无需另建个人访问令牌。校验与编译后仅执行一次打包。
