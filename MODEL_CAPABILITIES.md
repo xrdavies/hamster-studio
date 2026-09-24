@@ -19,7 +19,7 @@ ID 区分大小写，不使用模糊的 image 子串匹配。图片规则只用�
 ```json
 {
   "schemaVersion": 1,
-  "version": 3,
+  "version": 1,
   "models": {
     "gpt-image-2": "image"
   },

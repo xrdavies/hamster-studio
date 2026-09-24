@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "version": 2,
+  "version": 1,
   "models": {
     "gpt-image-2": "image",
     "gpt-image-1": "image",
