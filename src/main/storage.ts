@@ -111,7 +111,6 @@ export class Store {
       : []
     if (!name) throw new Error('Provider 名称不能为空')
     if (!baseUrl) throw new Error('Base URL 不能为空')
-    if (!chatModels.length) throw new Error('至少配置一个聊天模型')
     const id = input.id || randomUUID()
     const existing = this.db.prepare('SELECT apiKey FROM providers WHERE id = ?').get(id) as
       { apiKey: Buffer | null } | undefined

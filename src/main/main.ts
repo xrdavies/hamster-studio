@@ -52,7 +52,7 @@ async function jsonRequest(baseUrl: string, key: string, path: string, body: unk
 }
 
 async function fetchProviderModels(input: ProviderInput): Promise<ProviderModels> {
-  const key = input.id ? store.providerKey(input.id) : input.apiKey?.trim()
+  const key = input.apiKey?.trim() || (input.id ? store.providerKey(input.id) : '')
   if (!key) throw new Error('请先填写 API Key')
   const response = await fetch(providerUrl(input.baseUrl, '/models'), {
     headers: { Authorization: 'Bearer ' + key },
@@ -269,7 +269,7 @@ function registerIpc() {
     return true
   })
   ipcMain.handle('provider:test', async (_e, input: ProviderInput) => {
-    const key = input.id ? store.providerKey(input.id) : input.apiKey?.trim()
+    const key = input.apiKey?.trim() || (input.id ? store.providerKey(input.id) : '')
     if (!key) throw new Error('请填写 API Key')
     const result = await fetch(providerUrl(input.baseUrl, '/models'), {
       headers: { Authorization: 'Bearer ' + key },

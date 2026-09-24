@@ -97,7 +97,7 @@ describe('Store', () => {
     store.close()
   })
 
-  it('rejects providers without a chat model', () => {
+  it('allows saving and removing all provider models', () => {
     const file = '/tmp/hamster-studio-' + randomUUID() + '.db'
     files.push(file)
     const store = new Store(
@@ -105,15 +105,16 @@ describe('Store', () => {
       (value) => Buffer.from(value),
       (value) => value.toString(),
     )
-    expect(() =>
-      store.saveProvider({
-        name: 'Relay',
-        baseUrl: 'https://example.com',
-        chatModels: [],
-        imageModels: [],
-        apiKey: 'secret',
-      }),
-    ).toThrow('聊天模型')
+    const input = {
+      name: 'Relay',
+      baseUrl: 'https://example.com',
+      chatModels: ['chat'],
+      imageModels: ['gpt-image-2'],
+      apiKey: 'secret',
+    }
+    const id = store.saveProvider(input)
+    store.saveProvider({ ...input, id, chatModels: [], imageModels: [] })
+    expect(store.provider(id)).toMatchObject({ chatModels: [], imageModels: [] })
     store.close()
   })
 

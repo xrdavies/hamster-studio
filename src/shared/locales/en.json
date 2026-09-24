@@ -120,5 +120,6 @@
   "请先配置聊天模型": "Configure a chat model first",
   "会话不存在": "Conversation does not exist",
   "上次生成中断": "Previous generation was interrupted",
-  "PNG 图片": "PNG image"
+  "PNG 图片": "PNG image",
+  "点击获取模型，也可以手动添加或删除。保存后生效。": "Fetch models on demand, or add and remove them manually. Save to apply changes."
 }

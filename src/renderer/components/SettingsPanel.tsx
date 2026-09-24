@@ -11,13 +11,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import type { ProviderInput, ProviderModels, StudioData } from '../../shared/types'
+import type { ProviderInput, StudioData } from '../../shared/types'
 import { classifyModels } from '../../shared/model-capabilities'
 import { aboutLinks } from '../../shared/about'
 import hamsterLogo from '../assets/hamster-logo-256.png'
 
 export type EditingProvider = ProviderInput & {
-  fetched: ProviderModels
   loading: boolean
   fetchError: string
   testResult: string
@@ -35,7 +34,6 @@ const unique = (values: string[]) => [
 export function makeEditing(input: ProviderInput): EditingProvider {
   return {
     ...input,
-    fetched: { chatModels: [], imageModels: [] },
     loading: false,
     fetchError: '',
     testResult: '',
@@ -97,7 +95,6 @@ export default function SettingsPanel({
       const fetched = await window.studio.fetchModels(current)
       setEditing({
         ...current,
-        fetched,
         chatModels: unique([...current.chatModels, ...fetched.chatModels]),
         imageModels: unique([...current.imageModels, ...fetched.imageModels]),
         loading: false,
@@ -143,15 +140,6 @@ export default function SettingsPanel({
       })
     }
   }
-  useEffect(() => {
-    if (
-      current?.id &&
-      !current.loading &&
-      !current.fetched.chatModels.length &&
-      !current.fetched.imageModels.length
-    )
-      void fetchModels()
-  }, [current?.id])
   const remove = () => {
     if (!current?.id) return
     askConfirm(
@@ -172,83 +160,103 @@ export default function SettingsPanel({
           <X />
         </button>
       </div>
-      <form className="provider-form" onSubmit={save}>
-        <label>
-          {t('名称')}
-          <input
-            required
-            value={current.name}
-            onChange={(event) => setEditing({ ...current, name: event.target.value })}
-            placeholder={t('我的中转站')}
-          />
-        </label>
-        <label>
-          Base URL
-          <input
-            required
-            type="url"
-            value={current.baseUrl}
-            onChange={(event) => setEditing({ ...current, baseUrl: event.target.value })}
-            placeholder="https://api.example.com/v1"
-          />
-        </label>
-        <label>
-          API Key
-          <input
-            type="password"
-            value={current.apiKey || ''}
-            onChange={(event) => setEditing({ ...current, apiKey: event.target.value })}
-            placeholder={current.id ? t('留空则保留原 Key') : 'sk-…'}
-          />
-        </label>
-        <div className="model-fetch-row">
-          <span>{t('模型列表')}</span>
+      <form onSubmit={save}>
+        <fieldset className="provider-form" disabled={current.loading}>
+          <label>
+            {t('名称')}
+            <input
+              required
+              value={current.name}
+              onChange={(event) => setEditing({ ...current, name: event.target.value })}
+              placeholder={t('我的中转站')}
+            />
+          </label>
+          <label>
+            Base URL
+            <input
+              required
+              type="url"
+              value={current.baseUrl}
+              onChange={(event) => setEditing({ ...current, baseUrl: event.target.value })}
+              placeholder="https://api.example.com/v1"
+            />
+          </label>
+          <label>
+            API Key
+            <input
+              type="password"
+              value={current.apiKey || ''}
+              onChange={(event) => setEditing({ ...current, apiKey: event.target.value })}
+              placeholder={current.id ? t('留空则保留原 Key') : 'sk-…'}
+            />
+          </label>
+          <div className="model-fetch-row">
+            <span>{t('模型列表')}</span>
+            <button
+              type="button"
+              className="secondary"
+              onClick={fetchModels}
+              disabled={current.loading}
+            >
+              {current.loading ? t('拉取中…') : t('从 Provider 拉取模型')}
+            </button>
+          </div>
+          {current.fetchError && <div className="form-error">{t(current.fetchError)}</div>}
+          {current.testResult && <div className="form-success">{t(current.testResult)}</div>}
+          <label>
+            {t('手动补充模型')}
+            <input
+              value={manualModel}
+              onChange={(event) => setManualModel(event.target.value)}
+              placeholder={t('输入模型 ID，多个模型用逗号分隔')}
+            />
+          </label>
           <button
             type="button"
             className="secondary"
-            onClick={fetchModels}
-            disabled={current.loading}
+            disabled={!manualModel.trim()}
+            onClick={() => {
+              const extra = classifyModels(manualModel.split(','))
+              setEditing({
+                ...current,
+                chatModels: unique([...current.chatModels, ...extra.chatModels]),
+                imageModels: unique([...current.imageModels, ...extra.imageModels]),
+              })
+              setManualModel('')
+            }}
           >
-            {current.loading ? t('拉取中…') : t('从 Provider 拉取模型')}
+            {t('添加到模型列表')}
           </button>
-        </div>
-        {current.fetchError && <div className="form-error">{t(current.fetchError)}</div>}
-        {current.testResult && <div className="form-success">{t(current.testResult)}</div>}
-        <label>
-          {t('手动补充模型')}
-          <input
-            value={manualModel}
-            onChange={(event) => setManualModel(event.target.value)}
-            placeholder={t('输入模型 ID，多个模型用逗号分隔')}
-          />
-        </label>
-        <button
-          type="button"
-          className="secondary"
-          disabled={!manualModel.trim()}
-          onClick={() => {
-            const extra = classifyModels(manualModel.split(','))
-            setEditing({
-              ...current,
-              chatModels: unique([...current.chatModels, ...extra.chatModels]),
-              imageModels: unique([...current.imageModels, ...extra.imageModels]),
-            })
-            setManualModel('')
-          }}
-        >
-          {t('添加到模型列表')}
-        </button>
-        <div className="capability-chips edit">
-          {unique([...current.chatModels, ...current.imageModels]).map((model) => (
-            <span key={model}>{model}</span>
-          ))}
-        </div>
-        <div className="form-actions">
-          <button type="button" className="secondary" onClick={test}>
-            {t('测试连接')}
-          </button>
-          <button type="submit">{t('保存 Provider')}</button>
-        </div>
+          <div className="capability-chips edit">
+            {unique([...current.chatModels, ...current.imageModels]).map((model) => (
+              <span key={model}>
+                {model}
+                <button
+                  type="button"
+                  className="remove-model"
+                  aria-label={`${t('删除')} ${model}`}
+                  title={`${t('删除')} ${model}`}
+                  onClick={() =>
+                    setEditing({
+                      ...current,
+                      chatModels: current.chatModels.filter((item) => item !== model),
+                      imageModels: current.imageModels.filter((item) => item !== model),
+                      testResult: '',
+                    })
+                  }
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="form-actions">
+            <button type="button" className="secondary" onClick={test}>
+              {t('测试连接')}
+            </button>
+            <button type="submit">{t('保存 Provider')}</button>
+          </div>
+        </fieldset>
       </form>
       {current.id && (
         <button className="danger-link" onClick={remove}>
@@ -263,7 +271,7 @@ export default function SettingsPanel({
       <div className="settings-title">
         <div>
           <h3>Providers</h3>
-          <p>{t('模型列表从 Provider 自动读取，也可以手动补充。')}</p>
+          <p>{t('点击获取模型，也可以手动添加或删除。保存后生效。')}</p>
         </div>
         <button onClick={() => setEditing(makeEditing(emptyProvider))}>
           <Plus size={16} />
