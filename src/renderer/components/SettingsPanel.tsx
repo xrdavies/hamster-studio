@@ -1,4 +1,5 @@
-import { t, useLanguage, setLanguage } from '../i18n'
+import { t } from '../i18n'
+import LanguageMenu from './LanguageMenu'
 import { useEffect, useState } from 'react'
 import {
   Globe,
@@ -59,7 +60,6 @@ export default function SettingsPanel({
   refresh: (data: StudioData) => void
   askConfirm: (title: string, message: string, action: () => void) => void
 }) {
-  const language = useLanguage()
   const current = editing
   const [manualModel, setManualModel] = useState('')
   const [linkError, setLinkError] = useState('')
@@ -337,14 +337,7 @@ export default function SettingsPanel({
               </div>
               <div className="setting-item">
                 <span>{t('语言')}</span>
-                <select
-                  aria-label={t('语言')}
-                  value={language}
-                  onChange={(event) => setLanguage(event.target.value as 'zh' | 'en')}
-                >
-                  <option value="zh">简体中文</option>
-                  <option value="en">English</option>
-                </select>
+                <LanguageMenu />
               </div>
               <div className="setting-item">
                 <span>{t('数据存储')}</span>

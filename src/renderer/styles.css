@@ -1275,3 +1275,16 @@ select:focus-visible {
 .about-footer details p {
   line-height: 1.7;
 }
+
+.language-menu {
+  width: 180px;
+}
+.language-menu .model-menu-panel {
+  top: calc(100% + 6px);
+  bottom: auto;
+}
+.language-menu .model-option[aria-checked='true'],
+.language-menu .model-option:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
