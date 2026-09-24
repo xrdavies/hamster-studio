@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import {
   Archive,
   MessageSquarePlus,
@@ -51,21 +52,23 @@ export default function SessionSidebar({
         <PanelLeftClose size={16} className="muted" />
       </div>
       <button className="new-chat" onClick={onNew}>
-        <MessageSquarePlus size={17} /> 新建对话 <span>⌘ N</span>
+        <MessageSquarePlus size={17} />
+        {t('新建对话')}
+        <span>⌘ N</span>
       </button>
-      <div className="section-label">最近对话</div>
+      <div className="section-label">{t('最近对话')}</div>
       <div className="search-wrap">
         <Search size={14} />
         <input
           ref={searchRef}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="搜索标题 · ⌘ F"
+          placeholder={t('搜索标题 · ⌘ F')}
         />
       </div>
       <div className="session-tools">
         <button onClick={() => setShowArchived(!showArchived)}>
-          {showArchived ? '隐藏归档' : '显示归档'}
+          {showArchived ? t('隐藏归档') : t('显示归档')}
         </button>
       </div>
       <div className="session-list">
@@ -79,25 +82,25 @@ export default function SessionSidebar({
                 </span>
                 <span className="session-preview">
                   {data.messages.filter((message) => message.sessionId === item.id).at(-1)
-                    ?.content || '空会话'}{' '}
+                    ?.content || t('空会话')}{' '}
                   · {time(item.updatedAt)}
                 </span>
               </span>
             </button>
             <div className="session-actions">
               <button
-                title={item.pinned ? '取消置顶' : '置顶'}
+                title={item.pinned ? t('取消置顶') : t('置顶')}
                 onClick={() => void onUpdate(item, { pinned: !item.pinned })}
               >
                 {item.pinned ? <PinOff size={14} /> : <Pin size={14} />}
               </button>
               <button
-                title={item.archived ? '取消归档' : '归档'}
+                title={item.archived ? t('取消归档') : t('归档')}
                 onClick={() => void onUpdate(item, { archived: !item.archived })}
               >
                 <Archive size={14} />
               </button>
-              <button title="删除" onClick={() => onDelete(item)}>
+              <button title={t('删除')} onClick={() => onDelete(item)}>
                 <Trash2 size={14} />
               </button>
             </div>
@@ -106,7 +109,8 @@ export default function SessionSidebar({
       </div>
       <div className="sidebar-bottom">
         <button onClick={onSettings}>
-          <Settings size={17} /> 设置
+          <Settings size={17} />
+          {t('设置')}
         </button>
       </div>
     </aside>

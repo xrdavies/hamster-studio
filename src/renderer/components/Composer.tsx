@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Image as ImageIcon, MessageSquare, Send } from 'lucide-react'
 import type { Provider, StudioSession } from '../../shared/types'
@@ -66,7 +67,7 @@ export default function Composer({
               }
             }}
             placeholder={
-              modelKind === 'image' ? '描述你想生成的图片…' : '给 Hamster Studio 发消息…'
+              modelKind === 'image' ? t('描述你想生成的图片…') : t('给 Hamster Studio 发消息…')
             }
             disabled={busy}
           />
@@ -80,8 +81,12 @@ export default function Composer({
         </div>
         <div className="hint">
           {modelKind === 'image'
-            ? '图片模型：' + (session.imageModel || '未配置') + ' · Enter 发送 · Shift + Enter 换行'
-            : '聊天模型：' + (session.chatModel || '未配置') + ' · Enter 发送 · Shift + Enter 换行'}
+            ? t('图片模型：') +
+              (session.imageModel || t('未配置')) +
+              t(' · Enter 发送 · Shift + Enter 换行')
+            : t('聊天模型：') +
+              (session.chatModel || t('未配置')) +
+              t(' · Enter 发送 · Shift + Enter 换行')}
         </div>
       </div>
     </div>
@@ -116,7 +121,7 @@ function ModelMenu({
         aria-expanded={open}
       >
         <span>
-          {selected ? `${selected.providerName} · ${selected.model}` : '选择 Provider · 模型'}
+          {selected ? `${selected.providerName} · ${selected.model}` : t('选择 Provider · 模型')}
         </span>
         <span className="model-trigger-icon">
           {selected?.kind === 'image' ? <ImageIcon size={15} /> : <MessageSquare size={15} />}
@@ -145,7 +150,7 @@ function ModelMenu({
               </button>
             ))
           ) : (
-            <div className="model-empty">请先在设置中配置模型</div>
+            <div className="model-empty">{t('请先在设置中配置模型')}</div>
           )}
         </div>
       )}

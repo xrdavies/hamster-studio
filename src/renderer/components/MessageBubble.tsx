@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { useEffect, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -33,10 +34,10 @@ export default function MessageBubble({
   }, [message.id, message.imageFiles.join('|')])
   return (
     <div className={message.role === 'user' ? 'message user' : 'message assistant'}>
-      <div className="avatar">{message.role === 'user' ? '你' : 'H'}</div>
+      <div className="avatar">{message.role === 'user' ? t('你') : 'H'}</div>
       <div className="message-body">
         <div className="message-meta">
-          {message.role === 'user' ? '你' : message.providerName}
+          {message.role === 'user' ? t('你') : message.providerName}
           <span>{message.model}</span>
         </div>
         {message.kind === 'image' ? (
@@ -45,16 +46,16 @@ export default function MessageBubble({
             {message.status === 'streaming' && (
               <div className="image-loading">
                 <span className="spinner dark" />
-                正在生成图片…
+                {t('正在生成图片…')}
               </div>
             )}
-            {message.error && <div className="image-error">{message.error}</div>}
+            {message.error && <div className="image-error">{t(message.error)}</div>}
             {images.map((image) => (
               <div className="generated-image-wrap" key={image.file}>
                 <img className="generated-image" src={image.src} />
                 <button className="export-image" onClick={() => void onExport(image.file)}>
                   <Download size={13} />
-                  导出图片
+                  {t('导出图片')}
                 </button>
               </div>
             ))}
@@ -64,12 +65,12 @@ export default function MessageBubble({
             {message.status === 'streaming' && !message.content && (
               <div className="thinking">
                 <span className="spinner dark" />
-                正在思考…
+                {t('正在思考…')}
               </div>
             )}
             <div className="markdown">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {message.content || message.error || '▍'}
+                {message.content || t(message.error) || '▍'}
               </ReactMarkdown>
             </div>
           </>
@@ -78,11 +79,11 @@ export default function MessageBubble({
           <div className="message-actions">
             <button onClick={onCopy}>
               <Copy size={13} />
-              复制
+              {t('复制')}
             </button>
             <button onClick={() => onRetry(message)}>
               <RefreshCw size={13} />
-              重试
+              {t('重试')}
             </button>
           </div>
         )}

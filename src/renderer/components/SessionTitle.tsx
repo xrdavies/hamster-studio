@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import { useEffect, useRef } from 'react'
 
 export default function SessionTitle({
@@ -30,7 +31,7 @@ export default function SessionTitle({
     <input
       ref={input}
       className="title-input"
-      aria-label="会话标题"
+      aria-label={t('会话标题')}
       defaultValue={title}
       onFocus={() => {
         pendingBlur.current = false

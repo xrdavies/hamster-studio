@@ -2,6 +2,7 @@ import type { Message, ProviderInput, StudioData, StudioSession } from '../share
 declare global {
   interface Window {
     studio: {
+      setLanguage(value: string): Promise<void>
       openAboutLink(key: string): Promise<void>
       version(): Promise<string>
       checkUpdates(): Promise<string>

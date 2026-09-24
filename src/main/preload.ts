@@ -8,6 +8,7 @@ import type {
 } from '../shared/types'
 
 contextBridge.exposeInMainWorld('studio', {
+  setLanguage: (value: string) => ipcRenderer.invoke('app:language', value) as Promise<void>,
   openAboutLink: (key: string) => ipcRenderer.invoke('app:open-link', key) as Promise<void>,
   version: () => ipcRenderer.invoke('app:version') as Promise<string>,
   checkUpdates: () => ipcRenderer.invoke('app:updates') as Promise<string>,

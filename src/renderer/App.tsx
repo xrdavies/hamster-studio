@@ -1,3 +1,4 @@
+import { t, useLanguage } from './i18n'
 import { useEffect, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import type { Message, StudioData, StudioSession } from '../shared/types'
@@ -17,6 +18,10 @@ import SettingsPanel, {
 const newId = () => crypto.randomUUID()
 
 export default function App() {
+  const language = useLanguage()
+  useEffect(() => {
+    void window.studio.setLanguage(language)
+  }, [language])
   const [data, setData] = useState<StudioData>({ providers: [], sessions: [], messages: [] })
   const [sessionId, setSessionId] = useState('')
   const [text, setText] = useState('')
@@ -46,7 +51,7 @@ export default function App() {
         setData(next)
         setSessionId(next.sessions[0]?.id || '')
       })
-      .catch((reason) => setError(reason instanceof Error ? reason.message : '无法读取本地数据'))
+      .catch((reason) => setError(reason instanceof Error ? reason.message : t('无法读取本地数据')))
   }, [])
   useEffect(
     () =>
@@ -101,14 +106,14 @@ export default function App() {
     try {
       setData(await window.studio.saveSession({ ...session, ...values }))
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '保存会话失败')
+      setError(reason instanceof Error ? reason.message : t('保存会话失败'))
     }
   }
   const updateSpecificSession = async (target: StudioSession, values: Partial<StudioSession>) => {
     try {
       setData(await window.studio.saveSession({ ...target, ...values }))
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '保存会话失败')
+      setError(reason instanceof Error ? reason.message : t('保存会话失败'))
     }
   }
   async function createSession() {
@@ -123,12 +128,12 @@ export default function App() {
       setSettingsPage('providers')
       setSettings(true)
       setEditing(makeEditing(first))
-      setError('请先为 Provider 配置聊天模型')
+      setError(t('请先为 Provider 配置聊天模型'))
       return
     }
     const next: StudioSession = {
       id: newId(),
-      title: '新对话',
+      title: t('新对话'),
       providerId: first.id,
       chatModel: first.chatModels[0],
       imageModel: first.imageModels[0] || '',
@@ -153,7 +158,7 @@ export default function App() {
     })
   }
   function deleteSession(target: StudioSession) {
-    askConfirm('删除会话', '会删除这个会话及其全部消息，无法恢复。', async () => {
+    askConfirm(t('删除会话'), t('会删除这个会话及其全部消息，无法恢复。'), async () => {
       const next = await window.studio.deleteSession(target.id)
       setData(next)
       if (target.id === sessionId) setSessionId(next.sessions[0]?.id || '')
@@ -166,7 +171,8 @@ export default function App() {
     setBusy(true)
     setError('')
     try {
-      if (session.title === '新对话') await updateSession({ title: prompt.slice(0, 28) })
+      if (['新对话', 'New conversation'].includes(session.title))
+        await updateSession({ title: prompt.slice(0, 28) })
       setData(
         modelKind === 'image'
           ? await window.studio.generateImage(session.id, prompt)
@@ -174,7 +180,7 @@ export default function App() {
       )
     } catch (reason) {
       setData(await window.studio.load())
-      setError(reason instanceof Error ? reason.message : '请求失败')
+      setError(reason instanceof Error ? reason.message : t('请求失败'))
     } finally {
       setBusy(false)
     }
@@ -189,7 +195,7 @@ export default function App() {
       setData(await window.studio.sendChat(message.sessionId, previous.content))
     } catch (reason) {
       setData(await window.studio.load())
-      setError(reason instanceof Error ? reason.message : '请求失败')
+      setError(reason instanceof Error ? reason.message : t('请求失败'))
     } finally {
       setBusy(false)
     }
@@ -247,13 +253,13 @@ export default function App() {
                   title={session.title}
                   onSave={(title) => updateSession({ title })}
                 />
-                <div className="subtitle">本地会话 · 不同步到云端</div>
+                <div className="subtitle">{t('本地会话 · 不同步到云端')}</div>
               </div>
               <div className="local-badge">Local</div>
             </header>
             {!provider && (
               <div className="missing-provider">
-                当前会话的 Provider 已删除，历史消息仍保留。请在输入框中选择新的 Provider。
+                {t('当前会话的 Provider 已删除，历史消息仍保留。请在输入框中选择新的 Provider。')}
               </div>
             )}
             <div
@@ -275,19 +281,19 @@ export default function App() {
                     onRetry={retry}
                     onCopy={() => {
                       navigator.clipboard.writeText(item.content)
-                      notify('已复制到剪贴板')
+                      notify(t('已复制到剪贴板'))
                     }}
                     onExport={async (file) => {
                       try {
-                        if (await window.studio.exportImage(file)) notify('图片已导出')
+                        if (await window.studio.exportImage(file)) notify(t('图片已导出'))
                       } catch (reason) {
-                        setError(reason instanceof Error ? reason.message : '导出图片失败')
+                        setError(reason instanceof Error ? reason.message : t('导出图片失败'))
                       }
                     }}
                   />
                 ))
               )}
-              {error && <div className="error-banner">{error}</div>}
+              {error && <div className="error-banner">{t(error)}</div>}
             </div>
             <Composer
               providers={data.providers}
@@ -322,7 +328,7 @@ export default function App() {
       {toast && (
         <div className="toast">
           <Check size={15} />
-          {toast}
+          {t(toast)}
         </div>
       )}
       {confirm && <ConfirmDialog state={confirm} onCancel={() => setConfirm(null)} />}

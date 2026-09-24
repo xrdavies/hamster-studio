@@ -1,3 +1,4 @@
+import en from '../shared/locales/en.json'
 import { aboutUrl } from '../shared/about'
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron'
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -184,7 +185,12 @@ async function generateImage(sessionId: string, prompt: string) {
   return image
 }
 
+let uiLanguage = 'zh'
 function registerIpc() {
+  ipcMain.handle('app:language', (_event, value: string) => {
+    if (value !== 'zh' && value !== 'en') throw new Error('Invalid language')
+    uiLanguage = value
+  })
   ipcMain.handle('app:open-link', (_event, key: string) => shell.openExternal(aboutUrl(key)))
   ipcMain.handle('app:version', () => app.getVersion())
   ipcMain.handle('app:updates', async () => {
@@ -193,7 +199,9 @@ function registerIpc() {
     if (!result) return '更新服务暂不可用'
     return result.updateInfo.version === app.getVersion()
       ? '当前已是最新版本'
-      : `发现新版本 ${result.updateInfo.version}，正在后台下载。下载后重启应用安装。`
+      : uiLanguage === 'en'
+        ? `Version ${result.updateInfo.version} is downloading. Restart after download to install.`
+        : `发现新版本 ${result.updateInfo.version}，正在后台下载。下载后重启应用安装。`
   })
   ipcMain.handle('data', () => store.data())
   ipcMain.handle('provider:save', (_e, input: ProviderInput) => {
@@ -252,9 +260,9 @@ function registerIpc() {
   ipcMain.handle('image:export', async (_e, file: string) => {
     const source = localImagePath(file)
     const result = await dialog.showSaveDialog(win, {
-      title: '导出图片',
+      title: uiLanguage === 'en' ? en['导出图片'] : '导出图片',
       defaultPath: 'hamster-image.png',
-      filters: [{ name: 'PNG 图片', extensions: ['png'] }],
+      filters: [{ name: uiLanguage === 'en' ? en['PNG 图片'] : 'PNG 图片', extensions: ['png'] }],
     })
     if (result.canceled || !result.filePath) return false
     await copyFile(source, result.filePath)
