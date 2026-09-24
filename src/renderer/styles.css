@@ -1155,7 +1155,7 @@ select:focus-visible {
   scroll-behavior: auto;
 }
 .model-menu {
-  width: 300px;
+  width: 270px;
   max-width: 100%;
 }
 .model-trigger,
