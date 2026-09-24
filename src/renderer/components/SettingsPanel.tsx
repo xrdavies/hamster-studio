@@ -12,7 +12,8 @@ import {
   X,
 } from 'lucide-react'
 import type { ProviderInput, StudioData } from '../../shared/types'
-import { classifyModels } from '../../shared/model-capabilities'
+import UpdateNotice from './UpdateNotice'
+import CatalogSettings from './CatalogSettings'
 import { aboutLinks } from '../../shared/about'
 import hamsterLogo from '../assets/hamster-logo-256.png'
 
@@ -27,6 +28,7 @@ export const emptyProvider: ProviderInput = {
   baseUrl: '',
   chatModels: [],
   imageModels: [],
+  unknownModels: [],
 }
 const unique = (values: string[]) => [
   ...new Set(values.map((value) => value.trim()).filter(Boolean)),
@@ -70,33 +72,36 @@ export default function SettingsPanel({
     }
   }
   const [version, setVersion] = useState('')
-  const [updateStatus, setUpdateStatus] = useState(t('尚未检查更新'))
-  const [checking, setChecking] = useState(false)
   useEffect(() => {
     window.studio
       .version()
       .then(setVersion)
       .catch(() => setVersion(t('未知')))
   }, [])
-  const checkUpdates = async () => {
-    setChecking(true)
-    try {
-      setUpdateStatus(await window.studio.checkUpdates())
-    } catch (error) {
-      setUpdateStatus(error instanceof Error ? error.message : t('检查更新失败'))
-    } finally {
-      setChecking(false)
-    }
-  }
   const fetchModels = async () => {
     if (!current) return
     setEditing({ ...current, loading: true, fetchError: '', testResult: '' })
     try {
       const fetched = await window.studio.fetchModels(current)
+      const fetchedIds = new Set([
+        ...fetched.chatModels,
+        ...fetched.imageModels,
+        ...(fetched.unknownModels || []),
+      ])
       setEditing({
         ...current,
-        chatModels: unique([...current.chatModels, ...fetched.chatModels]),
-        imageModels: unique([...current.imageModels, ...fetched.imageModels]),
+        chatModels: unique([
+          ...current.chatModels.filter((id) => !fetchedIds.has(id)),
+          ...fetched.chatModels,
+        ]),
+        imageModels: unique([
+          ...current.imageModels.filter((id) => !fetchedIds.has(id)),
+          ...fetched.imageModels,
+        ]),
+        unknownModels: unique([
+          ...(current.unknownModels || []).filter((id) => !fetchedIds.has(id)),
+          ...(fetched.unknownModels || []),
+        ]),
         loading: false,
         fetchError: '',
         testResult: t('已更新模型列表'),
@@ -215,20 +220,44 @@ export default function SettingsPanel({
             type="button"
             className="secondary"
             disabled={!manualModel.trim()}
-            onClick={() => {
-              const extra = classifyModels(manualModel.split(','))
-              setEditing({
-                ...current,
-                chatModels: unique([...current.chatModels, ...extra.chatModels]),
-                imageModels: unique([...current.imageModels, ...extra.imageModels]),
-              })
-              setManualModel('')
+            onClick={async () => {
+              try {
+                const extra = await window.studio.classifyModels(
+                  manualModel
+                    .split(',')
+                    .map((id) => id.trim())
+                    .filter(
+                      (id) =>
+                        ![
+                          ...current.chatModels,
+                          ...current.imageModels,
+                          ...(current.unknownModels || []),
+                        ].includes(id),
+                    ),
+                )
+                setEditing({
+                  ...current,
+                  chatModels: unique([...current.chatModels, ...extra.chatModels]),
+                  imageModels: unique([...current.imageModels, ...extra.imageModels]),
+                  unknownModels: unique([
+                    ...(current.unknownModels || []),
+                    ...(extra.unknownModels || []),
+                  ]),
+                })
+                setManualModel('')
+              } catch (error) {
+                setEditing({ ...current, fetchError: String(error) })
+              }
             }}
           >
             {t('添加到模型列表')}
           </button>
           <div className="capability-chips edit">
-            {unique([...current.chatModels, ...current.imageModels]).map((model) => (
+            {unique([
+              ...current.chatModels,
+              ...current.imageModels,
+              ...(current.unknownModels || []),
+            ]).map((model) => (
               <span key={model}>
                 {model}
                 <button
@@ -241,6 +270,7 @@ export default function SettingsPanel({
                       ...current,
                       chatModels: current.chatModels.filter((item) => item !== model),
                       imageModels: current.imageModels.filter((item) => item !== model),
+                      unknownModels: current.unknownModels?.filter((item) => item !== model),
                       testResult: '',
                     })
                   }
@@ -278,6 +308,11 @@ export default function SettingsPanel({
           {t('添加')}
         </button>
       </div>
+      <CatalogSettings
+        onApplied={async () => {
+          refresh(await window.studio.load())
+        }}
+      />
       {data.providers.length === 0 && <div className="settings-empty">{t('还没有 Provider')}</div>}
       {data.providers.map((item) => (
         <div className="provider-row" key={item.id}>
@@ -287,6 +322,11 @@ export default function SettingsPanel({
               {item.baseUrl} · {item.hasKey ? t('已配置 Key') : t('未配置 Key')}
             </small>
             <div className="capability-chips">
+              {item.unknownModels?.map((model) => (
+                <span key={model} title={t('能力未知，暂不可用于生成')}>
+                  ? {model}
+                </span>
+              ))}
               {item.chatModels.map((model) => (
                 <span key={model}>
                   <MessageSquare size={11} />
@@ -393,12 +433,7 @@ export default function SettingsPanel({
                   {t(linkError)}
                 </p>
               )}
-              <div className="about-update">
-                <button className="secondary" disabled={checking} onClick={checkUpdates}>
-                  {checking ? t('检查中…') : t('检查更新')}
-                </button>
-                <p role="status">{t(updateStatus)}</p>
-              </div>
+              <UpdateNotice manual />
               <footer className="about-footer">
                 Made by{' '}
                 <a

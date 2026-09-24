@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build:renderer": "vite build",
-    "build": "npm run typecheck && npm run test && vite build && electron-builder --mac dmg --publish never",
+    "build": "npm run typecheck && npm run test && vite build && electron-builder --mac dmg zip --publish never",
     "build:dir": "vite build && electron-builder --mac dir --publish never",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -68,13 +68,15 @@
     "publish": {
       "provider": "github",
       "owner": "xrdavies",
-      "repo": "hamster-studio"
+      "repo": "hamster-studio",
+      "releaseType": "draft"
     },
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "build/icon.icns",
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",

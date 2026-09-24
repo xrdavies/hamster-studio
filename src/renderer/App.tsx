@@ -1,3 +1,4 @@
+import UpdateNotice from './components/UpdateNotice'
 import { t, useLanguage } from './i18n'
 import { useEffect, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
@@ -155,19 +156,19 @@ export default function App() {
       setEditing(makeEditing(emptyProvider))
       return
     }
-    if (!first.chatModels.length) {
+    if (!first.chatModels.length && !first.imageModels.length) {
       setSettingsPage('providers')
       setSettings(true)
       setEditing(makeEditing(first))
-      setError(t('请先为 Provider 配置聊天模型'))
+      setError(t('请先为 Provider 配置可用模型'))
       return
     }
     const next: StudioSession = {
       id: newId(),
       title: t('新对话'),
       providerId: first.id,
-      modelKind: 'chat',
-      chatModel: first.chatModels[0],
+      modelKind: first.chatModels.length ? 'chat' : 'image',
+      chatModel: first.chatModels[0] || '',
       imageModel: first.imageModels[0] || '',
       systemPrompt: '',
       createdAt: Date.now(),
@@ -369,6 +370,7 @@ export default function App() {
           askConfirm={askConfirm}
         />
       )}
+      <UpdateNotice />
       {toast && (
         <div className="toast">
           <Check size={15} />

@@ -65,7 +65,7 @@ npm run dev
 | `npm run build:dir`      | Build an unpacked macOS application               |
 | `npm run build`          | Run type checks and tests, then build a macOS DMG |
 
-Build output is written to `release/`. See [BUILD.md](BUILD.md) for signing, publishing, and asset generation. Translation dictionaries live in `src/shared/locales/`; model capability rules live in `src/shared/model-capabilities.ts`.
+Build output is written to `release/`. See [BUILD.md](BUILD.md) for signing, publishing, and asset generation. Translation dictionaries live in `src/shared/locales/`; model capability rules and their update workflow are described in [MODEL_CAPABILITIES.md](MODEL_CAPABILITIES.md).
 
 For maintainers: see the [release guide (Chinese)](RELEASE.md) for versioning, tags, signing, and publishing a release.
 

@@ -1305,3 +1305,30 @@ fieldset.provider-form {
 .remove-model:hover {
   background: #e4ddef;
 }
+
+.update-notice {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 90;
+  max-width: 380px;
+  padding: 18px;
+  border: 1px solid #ddd;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 32px #0002;
+}
+.update-notice button,
+.catalog-settings button,
+.about-update button {
+  margin: 4px;
+}
+.catalog-settings {
+  padding: 16px 0;
+  border-bottom: 1px solid #eee;
+  margin-bottom: 16px;
+}
+.catalog-settings p {
+  font-size: 13px;
+  color: #666;
+}

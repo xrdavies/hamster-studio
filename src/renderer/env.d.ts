@@ -1,3 +1,5 @@
+import type { UpdateState, CatalogState } from '../shared/updates'
+import type { ProviderModels } from '../shared/types'
 import type { Message, ProviderInput, StudioData, StudioSession } from '../shared/types'
 declare global {
   interface Window {
@@ -5,7 +7,15 @@ declare global {
       setLanguage(value: string): Promise<void>
       openAboutLink(key: string): Promise<void>
       version(): Promise<string>
-      checkUpdates(): Promise<string>
+      checkUpdates(): Promise<UpdateState>
+      updateState(): Promise<UpdateState>
+      downloadUpdate(): Promise<UpdateState>
+      installUpdate(): Promise<void>
+      onUpdate(callback: (state: UpdateState) => void): () => void
+      catalogState(): Promise<CatalogState>
+      checkCatalog(): Promise<CatalogState>
+      installCatalog(): Promise<CatalogState>
+      classifyModels(models: string[]): Promise<ProviderModels>
       load(): Promise<StudioData>
       saveProvider(input: ProviderInput): Promise<unknown>
       deleteProvider(id: string): Promise<void>
@@ -16,7 +26,7 @@ declare global {
       generateImage(sessionId: string, prompt: string): Promise<StudioData>
       readImage(file: string): Promise<string>
       exportImage(file: string): Promise<boolean>
-      fetchModels(input: ProviderInput): Promise<{ chatModels: string[]; imageModels: string[] }>
+      fetchModels(input: ProviderInput): Promise<ProviderModels>
       testProvider(input: ProviderInput): Promise<boolean>
       onMessage(callback: (message: Message) => void): () => void
     }

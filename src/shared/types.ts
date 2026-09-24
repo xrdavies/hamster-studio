@@ -6,6 +6,7 @@ export type Provider = {
   baseUrl: string
   chatModels: string[]
   imageModels: string[]
+  unknownModels?: string[]
   hasKey: boolean
 }
 
@@ -14,6 +15,7 @@ export type ProviderInput = Omit<Provider, 'id' | 'hasKey'> & { id?: string; api
 export type ProviderModels = {
   chatModels: string[]
   imageModels: string[]
+  unknownModels?: string[]
 }
 
 export type StudioSession = {

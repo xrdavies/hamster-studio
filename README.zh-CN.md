@@ -65,7 +65,7 @@ npm run dev
 | `npm run build:dir`      | 构建未封装为 DMG 的 macOS 应用         |
 | `npm run build`          | 执行类型检查和测试，然后构建 macOS DMG |
 
-应用产物位于 `release/`。签名、发布与图标生成详见 [BUILD.md](BUILD.md)。翻译文案位于 `src/shared/locales/`，模型能力规则位于 `src/shared/model-capabilities.ts`。
+应用产物位于 `release/`。签名、发布与图标生成详见 [BUILD.md](BUILD.md)。翻译文案位于 `src/shared/locales/`，模型能力规则及更新方法见 [MODEL_CAPABILITIES.md](MODEL_CAPABILITIES.md)。
 
 维护者发布新版本时，请按 [发布流程](RELEASE.md) 完成版本准备、打标签、签名验证与正式发布。
 

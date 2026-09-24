@@ -1,3 +1,4 @@
+import { bundledCatalog } from '../shared/model-capabilities'
 import { afterEach, describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { unlinkSync } from 'node:fs'
@@ -213,6 +214,35 @@ describe('Store', () => {
     }
   })
 
+  it('reclassifies saved unknown models after a catalog update without losing models or sessions', () => {
+    let table = bundledCatalog
+    const store = new Store(
+      ':memory:',
+      Buffer.from,
+      (value) => value.toString(),
+      () => table,
+    )
+    try {
+      const providerId = store.saveProvider({
+        name: 'Relay',
+        baseUrl: 'https://example.com',
+        chatModels: ['gpt-5.6'],
+        imageModels: [],
+        unknownModels: ['custom'],
+      })
+      const id = store.saveSession({ providerId, chatModel: 'gpt-5.6' })
+      expect(store.data().providers[0].unknownModels).toEqual(['custom'])
+      table = { ...table, version: table.version + 1, models: { ...table.models, custom: 'image' } }
+      expect(store.data().providers[0]).toMatchObject({
+        imageModels: ['custom'],
+        unknownModels: [],
+      })
+      expect(store.session(id).chatModel).toBe('gpt-5.6')
+    } finally {
+      store.close()
+    }
+  })
+
   it('normalizes legacy image model names once', () => {
     const file = '/tmp/hamster-studio-' + randomUUID() + '.db'
     files.push(file)
@@ -228,7 +258,7 @@ describe('Store', () => {
       imageModels: ['image-2', 'gpt-image-2'],
       apiKey: 'secret',
     })
-    expect(store.data().providers[0].imageModels).toEqual(['gpt-image-2', 'gpt-image-2'])
+    expect(store.data().providers[0].imageModels).toEqual(['gpt-image-2'])
     store.close()
   })
 

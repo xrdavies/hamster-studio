@@ -19,6 +19,7 @@ describe('classifyProviderModels', () => {
     ).toEqual({
       chatModels: ['gpt-5.6'],
       imageModels: ['gpt-image-2', 'custom-image'],
+      unknownModels: [],
     })
   })
 })
@@ -29,6 +30,7 @@ it('classifies manual model IDs and removes whitespace and duplicates', () => {
   expect(classifyModels([' gpt-image-2 ', 'gpt-5.6', '', 'gpt-image-2'])).toEqual({
     chatModels: ['gpt-5.6'],
     imageModels: ['gpt-image-2'],
+    unknownModels: [],
   })
 })
 

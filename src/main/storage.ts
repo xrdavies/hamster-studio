@@ -1,10 +1,12 @@
+import { bundledCatalog, modelKind, type ModelCatalog } from '../shared/model-capabilities'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import type { Message, Provider, ProviderInput, StudioData, StudioSession } from '../shared/types'
 
-type ProviderRow = Omit<Provider, 'chatModels' | 'imageModels' | 'hasKey'> & {
+type ProviderRow = Omit<Provider, 'chatModels' | 'imageModels' | 'unknownModels' | 'hasKey'> & {
   chatModels: string
   imageModels: string
+  unknownModels: string
   apiKey: Buffer | null
 }
 const normalizeImageModel = (model: string) =>
@@ -16,6 +18,7 @@ export class Store {
     path: string,
     private encrypt: (key: string) => Buffer,
     private decrypt: (key: Buffer) => string,
+    private catalog: () => ModelCatalog = () => bundledCatalog,
   ) {
     this.db = new Database(path)
     this.db.pragma('journal_mode = WAL')
@@ -38,6 +41,12 @@ export class Store {
       );
       CREATE INDEX IF NOT EXISTS messages_session ON messages(sessionId, createdAt);
     `)
+    if (
+      !(this.db.pragma('table_info(providers)') as { name: string }[]).some(
+        (column) => column.name === 'unknownModels',
+      )
+    )
+      this.db.exec("ALTER TABLE providers ADD COLUMN unknownModels TEXT NOT NULL DEFAULT '[]'")
     for (const column of ['pinned', 'archived']) {
       try {
         this.db.exec('ALTER TABLE sessions ADD COLUMN ' + column + ' INTEGER NOT NULL DEFAULT 0')
@@ -83,8 +92,35 @@ export class Store {
       ...row,
       chatModels: JSON.parse(row.chatModels),
       imageModels: JSON.parse(row.imageModels),
+      unknownModels: JSON.parse(row.unknownModels),
       hasKey: !!apiKey,
     }))
+    for (const provider of providers) {
+      const models = {
+        chatModels: [] as string[],
+        imageModels: [] as string[],
+        unknownModels: [] as string[],
+      }
+      for (const id of new Set([
+        ...provider.chatModels,
+        ...provider.imageModels,
+        ...provider.unknownModels,
+      ])) {
+        const hint = provider.imageModels.includes(id)
+          ? 'image'
+          : provider.chatModels.includes(id)
+            ? 'chat'
+            : undefined
+        const kind = modelKind(id, this.catalog(), hint)
+        ;(kind === 'image'
+          ? models.imageModels
+          : kind === 'chat'
+            ? models.chatModels
+            : models.unknownModels
+        ).push(id)
+      }
+      Object.assign(provider, models)
+    }
     const sessions = (
       this.db.prepare('SELECT * FROM sessions ORDER BY pinned DESC, updatedAt DESC').all() as (Omit<
         StudioSession,
@@ -121,6 +157,13 @@ export class Store {
           .map((model) => model.trim())
           .filter(Boolean)
       : []
+    const unknownModels = [
+      ...new Set(
+        (input.unknownModels || [])
+          .filter((id) => typeof id === 'string' && id.trim())
+          .map((id) => id.trim()),
+      ),
+    ].filter((id) => !chatModels.includes(id) && !imageModels.includes(id))
     if (!name) throw new Error('Provider 名称不能为空')
     if (!baseUrl) throw new Error('Base URL 不能为空')
     const id = input.id || randomUUID()
@@ -129,12 +172,20 @@ export class Store {
     const key = input.apiKey?.trim() ? this.encrypt(input.apiKey.trim()) : existing?.apiKey || null
     this.db
       .prepare(
-        `INSERT INTO providers (id,name,baseUrl,chatModels,imageModels,apiKey)
-      VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+        `INSERT INTO providers (id,name,baseUrl,chatModels,imageModels,apiKey,unknownModels)
+      VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
       name=excluded.name,baseUrl=excluded.baseUrl,chatModels=excluded.chatModels,
-      imageModels=excluded.imageModels,apiKey=excluded.apiKey`,
+      imageModels=excluded.imageModels,apiKey=excluded.apiKey,unknownModels=excluded.unknownModels`,
       )
-      .run(id, name, baseUrl, JSON.stringify(chatModels), JSON.stringify(imageModels), key)
+      .run(
+        id,
+        name,
+        baseUrl,
+        JSON.stringify(chatModels),
+        JSON.stringify(imageModels),
+        key,
+        JSON.stringify(unknownModels),
+      )
     return id
   }
 
@@ -155,7 +206,7 @@ export class Store {
     const existing = this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as
       StudioSession | undefined
     input = { ...existing, ...input }
-    if (!input.chatModel?.trim()) throw new Error('请先配置聊天模型')
+    if (!input.chatModel?.trim() && !input.imageModel?.trim()) throw new Error('请先配置可用模型')
     if (!existing && !this.db.prepare('SELECT 1 FROM providers WHERE id = ?').get(input.providerId))
       throw new Error('Provider 不存在')
     const modelKind = input.modelKind ?? existing?.modelKind ?? 'chat'
@@ -172,7 +223,7 @@ export class Store {
         id,
         input.title || '新对话',
         input.providerId,
-        input.chatModel,
+        input.chatModel || '',
         input.imageModel || '',
         input.systemPrompt || '',
         existing?.createdAt || now,

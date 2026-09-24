@@ -7,12 +7,16 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Store } from './storage'
-import { autoUpdater } from 'electron-updater'
+import { setupUpdater } from './updater'
+import { ModelCatalogStore } from './model-catalog'
+import { classifyModels, modelKind } from '../shared/model-capabilities'
 import { classifyProviderModels, providerUrl } from './provider'
 import type { Message, ProviderInput, ProviderModels, StudioSession } from '../shared/types'
 
 let win: BrowserWindow
 let store: Store
+let catalog: ModelCatalogStore
+let updater: ReturnType<typeof setupUpdater>
 const activeRequests = new Map<string, AbortController>()
 const currentDir = __dirname
 
@@ -66,7 +70,7 @@ async function fetchProviderModels(input: ProviderInput): Promise<ProviderModels
   })
   if (!response.ok)
     throw new Error('模型列表请求失败（' + response.status + '）: ' + (await response.text()))
-  return classifyProviderModels(await response.json())
+  return classifyProviderModels(await response.json(), catalog.current)
 }
 
 async function streamChat(sessionId: string, text: string, signal: AbortSignal) {
@@ -204,15 +208,17 @@ function registerIpc() {
   })
   ipcMain.handle('app:open-link', (_event, key: string) => shell.openExternal(aboutUrl(key)))
   ipcMain.handle('app:version', () => app.getVersion())
-  ipcMain.handle('app:updates', async () => {
-    if (!app.isPackaged) return '开发版本不支持自动更新，请使用安装版检查更新。'
-    const result = await autoUpdater.checkForUpdates()
-    if (!result) return '更新服务暂不可用'
-    return result.updateInfo.version === app.getVersion()
-      ? '当前已是最新版本'
-      : uiLanguage === 'en'
-        ? `Version ${result.updateInfo.version} is downloading. Restart after download to install.`
-        : `发现新版本 ${result.updateInfo.version}，正在后台下载。下载后重启应用安装。`
+  ipcMain.handle('app:updates', () => updater.check())
+  ipcMain.handle('app:update-state', () => updater.state())
+  ipcMain.handle('app:update-download', () => updater.download())
+  ipcMain.handle('app:update-install', () => updater.install())
+  ipcMain.handle('catalog:state', () => catalog.status())
+  ipcMain.handle('catalog:check', () => catalog.check())
+  ipcMain.handle('catalog:install', () => catalog.install())
+  ipcMain.handle('catalog:classify', (_e, models: unknown) => {
+    if (!Array.isArray(models) || models.some((model) => typeof model !== 'string'))
+      throw new Error('Invalid models')
+    return classifyModels(models, catalog.current)
   })
   ipcMain.handle('data', () => store.data())
   ipcMain.handle('provider:save', (_e, input: ProviderInput) => {
@@ -231,6 +237,12 @@ function registerIpc() {
   })
   const runRequest = async (id: string, text: string, kind: 'chat' | 'image') => {
     if (activeRequests.has(id)) throw new Error('Session already has an active request')
+    const session = store.session(id)
+    const provider = store.data().providers.find((item) => item.id === session.providerId)
+    const model = kind === 'image' ? session.imageModel : session.chatModel
+    const models = kind === 'image' ? provider?.imageModels : provider?.chatModels
+    if (!models?.includes(model) || modelKind(model, catalog.current, kind) !== kind)
+      throw new Error('模型能力已变化或不可用，请重新选择模型')
     const controller = new AbortController()
     activeRequests.set(id, controller)
     try {
@@ -307,7 +319,7 @@ async function createWindow() {
   else await win.loadFile(join(currentDir, '../dist/index.html'))
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setName('Hamster Studio')
   if (process.platform === 'darwin') app.dock?.setIcon(join(app.getAppPath(), 'build/icon.png'))
   Menu.setApplicationMenu(
@@ -330,14 +342,39 @@ app.whenReady().then(() => {
     safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(value) : Buffer.from(value)
   const decrypt = (value: Buffer) =>
     safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(value) : value.toString()
-  store = new Store(join(app.getPath('userData'), 'studio.db'), encrypt, decrypt)
+  catalog = new ModelCatalogStore(app.getPath('userData'))
+  await catalog.load()
+  store = new Store(
+    join(app.getPath('userData'), 'studio.db'),
+    encrypt,
+    decrypt,
+    () => catalog.current,
+  )
+  updater = setupUpdater(
+    app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml')),
+    (state) => {
+      if (win && !win.isDestroyed()) win.webContents.send('app:update-state', state)
+    },
+    () => activeRequests.size > 0,
+  )
   registerIpc()
-  createWindow()
-  autoUpdater.on('error', () => {})
-  if (app.isPackaged && existsSync(join(process.resourcesPath, 'app-update.yml')))
-    autoUpdater.checkForUpdatesAndNotify().catch(() => {})
+  await createWindow()
+  void updater.check()
+  const updateTimer = setInterval(
+    () => {
+      void updater.check()
+    },
+    6 * 60 * 60 * 1000,
+  )
+  updateTimer.unref()
 })
 app.on('window-all-closed', () => {
-  store?.close()
   if (process.platform !== 'darwin') app.quit()
+})
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) void createWindow()
+})
+app.on('will-quit', () => {
+  for (const request of activeRequests.values()) request.abort()
+  store?.close()
 })
