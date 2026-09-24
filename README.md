@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/renderer/assets/hamster-logo-256.png" width="128" alt="Hamster Studio logo" />
+  <img src="src/renderer/assets/hamster-logo-256.png" width="256" alt="Hamster Studio logo" />
 </p>
 
 # Hamster Studio
