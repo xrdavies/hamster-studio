@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
-  Archive, Check, CheckSquare, Copy, Image as ImageIcon, MessageSquare, MessageSquarePlus,
-  PanelLeftClose, Pin, PinOff, Plus, RefreshCw, Search, Send, Settings, Sparkles,
-  Square, Trash2, X
+  Archive, Check, CheckSquare, ChevronDown, Copy, Download, Image as ImageIcon, MessageSquare,
+  MessageSquarePlus, PanelLeftClose, Pin, PinOff, Plus, RefreshCw, Search, Send, Settings,
+  Sparkles, Square, Trash2, X
 } from 'lucide-react'
 import type { Message, Provider, ProviderInput, ProviderModels, StudioData, StudioSession } from '../shared/types'
 
@@ -15,7 +15,6 @@ type ConfirmState = { title: string; message: string; confirm: () => void }
 const emptyProvider: ProviderInput = { name: '', baseUrl: '', chatModels: [], imageModels: [] }
 const newId = () => crypto.randomUUID()
 const time = (value: number) => new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-const imageSrc = (value: string) => value.startsWith('data:') ? value : value
 const unique = (values: string[]) => [...new Set(values.map(value => value.trim()).filter(Boolean))]
 
 export default function App() {
@@ -126,11 +125,14 @@ export default function App() {
     catch (reason) { setData(await window.studio.load()); setError(reason instanceof Error ? reason.message : '请求失败') }
     finally { setBusy(false) }
   }
-  const changeProvider = (id: string) => {
-    const next = data.providers.find(item => item.id === id)
-    if (next) void updateSession({ providerId: id, chatModel: next.chatModels[0] || '', imageModel: next.imageModels[0] || '' })
+  const changeModel = (providerId: string, model: string, kind: ModelKind) => {
+    const next = data.providers.find(item => item.id === providerId)
+    setModelKind(kind)
+    void updateSession({
+      providerId,
+      ...(kind === 'chat' ? { chatModel: model, imageModel: next?.imageModels[0] || session?.imageModel || '' } : { imageModel: model, chatModel: next?.chatModels[0] || session?.chatModel || '' })
+    })
   }
-  const changeModel = (model: string, kind: ModelKind) => { setModelKind(kind); void updateSession(kind === 'chat' ? { chatModel: model } : { imageModel: model }) }
 
   return <div className="app">
     <SessionSidebar data={data} session={session} search={search} setSearch={setSearch} searchRef={searchRef} showArchived={showArchived} setShowArchived={setShowArchived} selected={selected} setSelected={setSelected} visibleSessions={visibleSessions} onSelect={setSessionId} onDelete={deleteSession} onNew={createSession} onSettings={() => setSettings(true)} onDeleteSelected={deleteSelected} onUpdate={updateSpecificSession} />
@@ -138,8 +140,8 @@ export default function App() {
       {!session ? <EmptyState onSettings={() => { setSettings(true); setEditing(makeEditing(emptyProvider)) }} /> : <>
         <header className="topbar"><div className="title-block"><input className="title-input" value={session.title} onChange={event => void updateSession({ title: event.target.value })} /><div className="subtitle">本地会话 · 不同步到云端</div></div><div className="local-badge">Local</div></header>
         {!provider && <div className="missing-provider">当前会话的 Provider 已删除，历史消息仍保留。请在输入框中选择新的 Provider。</div>}
-        <div ref={messagesRef} className="messages">{messages.length === 0 ? <Welcome provider={provider} onPrompt={setText} /> : messages.map(item => <MessageBubble key={item.id} message={item} onRetry={retry} onCopy={() => { navigator.clipboard.writeText(item.content); notify('已复制到剪贴板') }} />)}{error && <div className="error-banner">{error}</div>}</div>
-        <Composer providers={data.providers} provider={provider} session={session} modelKind={modelKind} currentModel={currentModel} busy={busy} text={text} setText={setText} onProvider={changeProvider} onModel={changeModel} onSubmit={submit} onStop={() => void window.studio.stopChat(session.id)} />
+        <div ref={messagesRef} className="messages">{messages.length === 0 ? <Welcome provider={provider} onPrompt={setText} /> : messages.map(item => <MessageBubble key={item.id} message={item} onRetry={retry} onCopy={() => { navigator.clipboard.writeText(item.content); notify('已复制到剪贴板') }} onExport={async file => { try { if (await window.studio.exportImage(file)) notify('图片已导出') } catch (reason) { setError(reason instanceof Error ? reason.message : '导出图片失败') } }} />)}{error && <div className="error-banner">{error}</div>}</div>
+        <Composer providers={data.providers} session={session} modelKind={modelKind} currentModel={currentModel} busy={busy} text={text} setText={setText} onModel={changeModel} onSubmit={submit} onStop={() => void window.studio.stopChat(session.id)} />
       </>}
     </main>
     {settings && <SettingsPanel data={data} editing={editing} setEditing={setEditing} close={() => { setSettings(false); setEditing(null) }} refresh={setData} askConfirm={askConfirm} />}
@@ -154,18 +156,39 @@ function SessionSidebar({ data, session, search, setSearch, searchRef, showArchi
   return <aside className="sidebar"><div className="brand"><div className="brand-mark">H</div><span>Hamster Studio</span><PanelLeftClose size={16} className="muted" /></div><button className="new-chat" onClick={onNew}><MessageSquarePlus size={17} /> 新建对话 <span>⌘ N</span></button><div className="section-label">最近对话</div><div className="search-wrap"><Search size={14} /><input ref={searchRef} value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索标题 · ⌘ F" /></div><div className="session-tools"><button onClick={() => setShowArchived(!showArchived)}>{showArchived ? '隐藏归档' : '显示归档'}</button>{selected.size > 0 && <button className="danger-text" onClick={onDeleteSelected}><Trash2 size={13} /> 删除 {selected.size}</button>}</div><div className="session-list">{visibleSessions.map(item => <div key={item.id} className={item.id === session?.id ? 'session active' : 'session'}><button className="session-main" onClick={() => onSelect(item.id)}><span className="session-copy"><span className="session-title">{item.pinned && <Pin size={11} />}{item.title}</span><span className="session-preview">{data.messages.filter(message => message.sessionId === item.id).at(-1)?.content || '空会话'} · {time(item.updatedAt)}</span></span></button><div className="session-actions"><button title={selected.has(item.id) ? '取消选择' : '选择'} onClick={() => { const next = new Set(selected); next.has(item.id) ? next.delete(item.id) : next.add(item.id); setSelected(next) }}>{selected.has(item.id) ? <CheckSquare size={14} /> : <Square size={14} />}</button><button title={item.pinned ? '取消置顶' : '置顶'} onClick={() => void onUpdate(item, { pinned: !item.pinned })}>{item.pinned ? <PinOff size={14} /> : <Pin size={14} />}</button><button title={item.archived ? '取消归档' : '归档'} onClick={() => void onUpdate(item, { archived: !item.archived })}><Archive size={14} /></button><button title="删除" onClick={() => onDelete(item)}><Trash2 size={14} /></button></div></div>)}</div><div className="sidebar-bottom"><button onClick={onSettings}><Settings size={17} /> 设置</button></div></aside>
 }
 
-function Composer({ providers, provider, session, modelKind, currentModel, busy, text, setText, onProvider, onModel, onSubmit, onStop }: { providers: Provider[]; provider?: Provider; session: StudioSession; modelKind: ModelKind; currentModel: string; busy: boolean; text: string; setText: (value: string) => void; onProvider: (id: string) => void; onModel: (model: string, kind: ModelKind) => void; onSubmit: () => void; onStop: () => void }) {
-  const choices = [...(provider?.chatModels || []).map(model => ({ model, kind: 'chat' as const })), ...(provider?.imageModels || []).map(model => ({ model, kind: 'image' as const }))]
-  const value = modelKind + ':' + currentModel
-  return <div className="composer-wrap"><div className="composer"><div className="composer-modelbar"><select className="provider-select" value={session.providerId} onChange={event => onProvider(event.target.value)}>{!provider && <option value={session.providerId}>Provider 已删除</option>}{providers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><div className="model-field"><span className="model-icon">{modelKind === 'chat' ? <MessageSquare size={14} /> : <ImageIcon size={14} />}</span><select value={value} disabled={!provider || !choices.length} onChange={event => { const [kind, ...parts] = event.target.value.split(':'); onModel(parts.join(':'), kind as ModelKind) }}>{!choices.length && <option value="">未配置模型</option>}{choices.map(choice => <option key={choice.kind + ':' + choice.model} value={choice.kind + ':' + choice.model}>{choice.kind === 'chat' ? '聊天 · ' : '图片 · '}{choice.model}</option>)}</select></div></div><div className="composer-input"><textarea value={text} onChange={event => setText(event.target.value)} onKeyDown={event => { if (event.nativeEvent.isComposing || event.keyCode === 229) return; if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); onSubmit() } }} placeholder={modelKind === 'image' ? '描述你想生成的图片…' : '给 Hamster Studio 发消息…'} disabled={busy} /><button className="send" onClick={busy ? onStop : onSubmit} disabled={!busy && !text.trim()}>{busy ? <span className="spinner" /> : <Send size={18} />}</button></div><div className="hint">{modelKind === 'image' ? '图片模型：' + (session.imageModel || '未配置') : '聊天模型：' + (session.chatModel || '未配置') + ' · Enter 发送 · Shift + Enter 换行'}</div></div></div>
+type ModelChoice = { providerId: string; providerName: string; model: string; kind: ModelKind }
+
+function Composer({ providers, session, modelKind, currentModel, busy, text, setText, onModel, onSubmit, onStop }: { providers: Provider[]; session: StudioSession; modelKind: ModelKind; currentModel: string; busy: boolean; text: string; setText: (value: string) => void; onModel: (providerId: string, model: string, kind: ModelKind) => void; onSubmit: () => void; onStop: () => void }) {
+  const choices = providers.flatMap(provider => [
+    ...provider.chatModels.map(model => ({ providerId: provider.id, providerName: provider.name, model, kind: 'chat' as const })),
+    ...provider.imageModels.map(model => ({ providerId: provider.id, providerName: provider.name, model, kind: 'image' as const }))
+  ])
+  const selected = choices.find(choice => choice.providerId === session.providerId && choice.kind === modelKind && choice.model === currentModel)
+  return <div className="composer-wrap"><div className="composer"><div className="composer-modelbar"><ModelMenu choices={choices} selected={selected} onSelect={onModel} /></div><div className="composer-input"><textarea value={text} onChange={event => setText(event.target.value)} onKeyDown={event => { if (event.nativeEvent.isComposing || event.keyCode === 229) return; if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); onSubmit() } }} placeholder={modelKind === 'image' ? '描述你想生成的图片…' : '给 Hamster Studio 发消息…'} disabled={busy} /><button className="send" onClick={busy ? onStop : onSubmit} disabled={!busy && !text.trim()}>{busy ? <span className="spinner" /> : <Send size={18} />}</button></div><div className="hint">{modelKind === 'image' ? '图片模型：' + (session.imageModel || '未配置') : '聊天模型：' + (session.chatModel || '未配置') + ' · Enter 发送 · Shift + Enter 换行'}</div></div></div>
+}
+
+function ModelMenu({ choices, selected, onSelect }: { choices: ModelChoice[]; selected?: ModelChoice; onSelect: (providerId: string, model: string, kind: ModelKind) => void }) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (event: MouseEvent) => { if (!menuRef.current?.contains(event.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+  return <div className="model-menu" ref={menuRef}><button className="model-trigger" type="button" onClick={() => setOpen(!open)} aria-expanded={open}><span>{selected ? `${selected.providerName} · ${selected.model}` : '选择 Provider · 模型'}</span><span className="model-trigger-icon">{selected?.kind === 'image' ? <ImageIcon size={15} /> : <MessageSquare size={15} />}<ChevronDown size={14} /></span></button>{open && <div className="model-menu-panel" role="listbox">{choices.length ? choices.map(choice => <button className="model-option" type="button" role="option" aria-selected={choice === selected} key={`${choice.providerId}:${choice.kind}:${choice.model}`} onClick={() => { onSelect(choice.providerId, choice.model, choice.kind); setOpen(false) }}><span>{choice.providerName} · {choice.model} · {choice.kind === 'chat' ? '聊天' : '图片'}</span>{choice.kind === 'image' ? <ImageIcon size={15} /> : <MessageSquare size={15} />}</button>) : <div className="model-empty">请先在设置中配置模型</div>}</div>}</div>
 }
 
 function EmptyState({ onSettings }: { onSettings: () => void }) { return <div className="empty"><div className="empty-icon"><Sparkles /></div><h1>开始使用 Hamster Studio</h1><p>配置一个自定义 OpenAI Compatible 中转站，然后开始聊天或生成图片。</p><button onClick={onSettings}>配置 Provider</button></div> }
 function Welcome({ provider, onPrompt }: { provider?: Provider; onPrompt: (prompt: string) => void }) { const suggestions = ['帮我整理一个三步计划', '写一段简洁的产品介绍', '生成一张极简风格海报']; return <div className="welcome"><div className="welcome-icon"><Sparkles size={22} /></div><h2>有什么可以帮你？</h2><p>{provider ? '当前使用 ' + provider.name + '，你的 API Key 只保存在本机。' : '请先配置一个 Provider。'}</p><div className="suggestions">{suggestions.map(item => <button key={item} onClick={() => onPrompt(item)}>{item}</button>)}</div></div> }
-function MessageBubble({ message, onRetry, onCopy }: { message: Message; onRetry: (message: Message) => void; onCopy: () => void }) {
-  const [images, setImages] = useState<string[]>([])
-  useEffect(() => { if (message.kind === 'image') Promise.all(message.imageFiles.map(file => window.studio.readImage(file).catch(() => ''))).then(values => setImages(values.filter(Boolean))) }, [message.id, message.imageFiles.join('|')])
-  return <div className={message.role === 'user' ? 'message user' : 'message assistant'}><div className="avatar">{message.role === 'user' ? '你' : 'H'}</div><div className="message-body"><div className="message-meta">{message.role === 'user' ? '你' : message.providerName}<span>{message.model}</span></div>{message.kind === 'image' ? <>{message.content && <p>{message.content}</p>}{message.status === 'streaming' && <div className="image-loading"><span className="spinner dark" />正在生成图片…</div>}{message.error && <div className="image-error">{message.error}</div>}{images.map(file => <img className="generated-image" src={file} key={file} />)}</> : <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || (message.error || '▍')}</ReactMarkdown></div>}{message.role === 'assistant' && <div className="message-actions"><button onClick={onCopy}><Copy size={13} />复制</button><button onClick={() => onRetry(message)}><RefreshCw size={13} />重试</button></div>}</div></div>
+function MessageBubble({ message, onRetry, onCopy, onExport }: { message: Message; onRetry: (message: Message) => void; onCopy: () => void; onExport: (file: string) => Promise<void> }) {
+  const [images, setImages] = useState<{ file: string; src: string }[]>([])
+  useEffect(() => {
+    let cancelled = false
+    if (message.kind === 'image') Promise.all(message.imageFiles.map(async file => ({ file, src: await window.studio.readImage(file).catch(() => '') }))).then(values => { if (!cancelled) setImages(values.filter(item => item.src)) })
+    return () => { cancelled = true }
+  }, [message.id, message.imageFiles.join('|')])
+  return <div className={message.role === 'user' ? 'message user' : 'message assistant'}><div className="avatar">{message.role === 'user' ? '你' : 'H'}</div><div className="message-body"><div className="message-meta">{message.role === 'user' ? '你' : message.providerName}<span>{message.model}</span></div>{message.kind === 'image' ? <>{message.content && <p>{message.content}</p>}{message.status === 'streaming' && <div className="image-loading"><span className="spinner dark" />正在生成图片…</div>}{message.error && <div className="image-error">{message.error}</div>}{images.map(image => <div className="generated-image-wrap" key={image.file}><img className="generated-image" src={image.src} /><button className="export-image" onClick={() => void onExport(image.file)}><Download size={13} />导出图片</button></div>)}</> : <>{message.status === 'streaming' && !message.content && <div className="thinking"><span className="spinner dark" />正在思考…</div>}<div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content || (message.error || '▍')}</ReactMarkdown></div></>}{message.role === 'assistant' && <div className="message-actions"><button onClick={onCopy}><Copy size={13} />复制</button><button onClick={() => onRetry(message)}><RefreshCw size={13} />重试</button></div>}</div></div>
 }
 
 function SettingsPanel({ data, editing, setEditing, close, refresh, askConfirm }: { data: StudioData; editing: EditingProvider | null; setEditing: (value: EditingProvider | null) => void; close: () => void; refresh: (data: StudioData) => void; askConfirm: (title: string, message: string, action: () => void) => void }) {
@@ -187,9 +210,6 @@ function SettingsPanel({ data, editing, setEditing, close, refresh, askConfirm }
     try { await window.studio.testProvider(current); setEditing({ ...current, testResult: '连接成功', fetchError: '' }) }
     catch (reason) { setEditing({ ...current, testResult: '', fetchError: reason instanceof Error ? reason.message : '连接失败' }) }
   }
-  useEffect(() => {
-    if (current?.id && !current.loading && !current.fetched.chatModels.length && !current.fetched.imageModels.length) void fetchModels()
-  }, [current?.id])
   useEffect(() => {
     if (current?.id && !current.loading && !current.fetched.chatModels.length && !current.fetched.imageModels.length) void fetchModels()
   }, [current?.id])

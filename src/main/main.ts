@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, safeStorage } from 'electron'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron'
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -110,12 +110,25 @@ function registerIpc() {
     }
     return store.data()
   })
-  ipcMain.handle('image:read', async (_e, file: string) => {
+  const localImagePath = (file: string) => {
     const imageDir = join(app.getPath('userData'), 'images')
     const resolved = file.startsWith('file:') ? fileURLToPath(file) : file
     if (!resolved.startsWith(imageDir + '/')) throw new Error('图片路径无效')
-    const bytes = await readFile(resolved)
+    return resolved
+  }
+  ipcMain.handle('image:read', async (_e, file: string) => {
+    const bytes = await readFile(localImagePath(file))
     return 'data:image/png;base64,' + bytes.toString('base64')
+  })
+  ipcMain.handle('image:export', async (_e, file: string) => {
+    const source = localImagePath(file)
+    const result = await dialog.showSaveDialog(win, {
+      title: '导出图片', defaultPath: 'hamster-image.png',
+      filters: [{ name: 'PNG 图片', extensions: ['png'] }]
+    })
+    if (result.canceled || !result.filePath) return false
+    await copyFile(source, result.filePath)
+    return true
   })
   ipcMain.handle('provider:test', async (_e, input: ProviderInput) => {
     const key = input.id ? store.providerKey(input.id) : input.apiKey?.trim()
