@@ -67,6 +67,8 @@ npm run dev
 
 Build output is written to `release/`. See [BUILD.md](BUILD.md) for signing, publishing, and asset generation. Translation dictionaries live in `src/shared/locales/`; model capability rules live in `src/shared/model-capabilities.ts`.
 
+For maintainers: see the [release guide (Chinese)](RELEASE.md) for versioning, tags, signing, and publishing a release.
+
 ## Contributing
 
 Bug reports and feature requests are welcome in [GitHub Issues](https://github.com/xrdavies/hamster-studio/issues). Include your app version, operating system, reproduction steps, and expected behavior. Remove API keys and private content from logs before sharing them.

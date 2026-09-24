@@ -67,6 +67,8 @@ npm run dev
 
 应用产物位于 `release/`。签名、发布与图标生成详见 [BUILD.md](BUILD.md)。翻译文案位于 `src/shared/locales/`，模型能力规则位于 `src/shared/model-capabilities.ts`。
 
+维护者发布新版本时，请按 [发布流程](RELEASE.md) 完成版本准备、打标签、签名验证与正式发布。
+
 ## 参与贡献
 
 欢迎通过 [GitHub Issues](https://github.com/xrdavies/hamster-studio/issues) 提交 Bug 和功能建议。报告问题时请提供应用版本、操作系统、复现步骤及预期行为；分享日志前请移除 API Key 和私人内容。

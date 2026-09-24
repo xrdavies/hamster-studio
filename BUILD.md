@@ -1,5 +1,7 @@
 # 构建和发布
 
+完整的版本准备、打标签、签名配置、Release 草稿检查及失败重试步骤见 [发布流程](RELEASE.md)。
+
 ## 本地开发
 
 npm install
@@ -15,14 +17,14 @@ npm run build:renderer
 
 npm run build
 
-产物位于 `release/`。本地构建使用未签名应用，macOS 首次打开时需要在系统设置中允许运行。
+产物位于 `release/`。未配置可用签名身份的本地构建为未签名应用；实际签名状态以构建日志为准。
 
 ## GitHub Actions
 
 `.github/workflows/build-mac.yml` 在手动触发或推送 `v*` 标签时运行 macOS 构建。
 
 - `workflow_dispatch`：只构建并上传 DMG artifact。
-- 推送 `v0.1.0` 这类标签：构建 DMG，并使用 electron-builder 发布 GitHub Release 和更新元数据。
+- 推送 `v0.1.0` 这类标签：构建 DMG，并使用 electron-builder 上传 GitHub Release 草稿和更新元数据，检查后需手动公开发布。
 - workflow 已接入下方列出的签名与公证 Secrets；实际签名状态取决于凭证是否配置且有效。
 
 ## Provider 本地测试
@@ -46,7 +48,7 @@ Provider 配置只保存于本机。API Key 不写入代码、`.env`、Git 或 G
 - `APPLE_APP_SPECIFIC_PASSWORD`：公证专用密码
 - `APPLE_TEAM_ID`：Apple Team ID
 
-workflow 将这些变量传给 electron-builder，签名与公证结果需检查构建日志。自动更新需要应用内包含 `app-update.yml`，并在 GitHub Release 发布对应更新元数据及安装产物。应用图标位于 `build/icon.icns`。
+workflow 将这些变量传给 electron-builder，签名与公证结果需检查构建日志。当前仅构建 DMG，尚不具备完整的 macOS 自动更新产物；自动更新还需要 ZIP、匹配的更新元数据和应用内的 `app-update.yml`，详见 [发布流程](RELEASE.md#6-当前自动更新限制)。应用图标位于 `build/icon.icns`。
 
 ## 品牌资源与模型能力
 
