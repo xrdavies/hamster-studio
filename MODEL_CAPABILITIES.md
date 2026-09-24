@@ -4,24 +4,24 @@
 
 ## 分类规则
 
-1. `models` 中精确匹配的模型 ID。
-2. Provider 返回的 `type: "image"`、`type: "chat"` 或 `capabilities.image_generation: true`。
-3. `prefixes` 中最长的匹配前缀。
-4. 未匹配模型标为未知，保留在 Provider 列表中，暂不进入生成模型菜单。
+聊天是默认类型，不需要逐个配置聊天模型。配置表只维护图片生成模型的精确 ID 和前缀：
 
-ID 区分大小写，不使用模糊的 `image` 子串匹配。手动添加模型与 Provider 拉取使用同一份表。Provider 能力字段是可选扩展，并非所有中转站都会提供。应只维护确实通过聊天或图片生成接口工作的规则；视觉理解不等于图片生成。当前只支持一种主要能力，不支持视频、语音等接口。
+1. 优先匹配配置表中的精确 ID，再匹配最长前缀。
+2. 未命中规则时，识别 Provider 的 `type: "image"` 或 `capabilities.image_generation: true`。
+3. 其余模型默认归为聊天模型，可直接选择使用。
 
-已保存 Provider 的分类作为既有能力提示保留，精确规则可覆盖旧分类；重新获取模型可刷新 Provider 的提示。更新表不会添加、删除用户的模型，不会改写历史消息。会话仍保留原来的模型选择；若能力变化，发送会提示重新选择。
+手动添加和从 Provider 获取使用相同规则。已有未知模型会重新归为聊天；图片规则可以纠正旧列表中错误归为聊天的模型。表更新不会增删用户模型或修改历史消息。默认聊天是接口路由策略，不保证任意模型都支持聊天接口；视频、音频等接口仍不受支持。
+
+ID 区分大小写，不使用模糊的 image 子串匹配。图片规则只用于支持图片生成接口的模型，视觉理解模型仍属于聊天。旧表中的显式 chat 条目仍可读取，但维护新表时无需添加。
 
 ## 配置格式
 
 ```json
 {
   "schemaVersion": 1,
-  "version": 2,
+  "version": 3,
   "models": {
-    "gpt-image-2": "image",
-    "my-relay-chat-alias": "chat"
+    "gpt-image-2": "image"
   },
   "prefixes": [{ "prefix": "gpt-image-", "kind": "image" }]
 }

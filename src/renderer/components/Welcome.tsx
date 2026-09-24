@@ -1,14 +1,11 @@
 import { t } from '../i18n'
-import { Sparkles } from 'lucide-react'
 import type { Provider } from '../../shared/types'
 import hamsterLogo from '../assets/hamster-logo-256.png'
 
 export function EmptyState({ onSettings }: { onSettings: () => void }) {
   return (
     <div className="empty">
-      <div className="empty-icon">
-        <Sparkles />
-      </div>
+      <img src={hamsterLogo} className="welcome-logo" alt="Hamster Studio" />
       <h1>{t('开始使用 Hamster Studio')}</h1>
       <p>{t('配置一个自定义 OpenAI Compatible 中转站，然后开始聊天或生成图片。')}</p>
       <button onClick={onSettings}>{t('配置 Provider')}</button>
@@ -29,7 +26,7 @@ export function Welcome({
   ]
   return (
     <div className="welcome">
-      <img src={hamsterLogo} className="welcome-logo" />
+      <img src={hamsterLogo} className="welcome-logo" alt="Hamster Studio" />
       <h2>{t('有什么可以帮你？')}</h2>
       <p>
         {provider

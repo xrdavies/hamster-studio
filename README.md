@@ -79,8 +79,12 @@ For pull requests, keep changes focused, use [Conventional Commits](https://www.
 
 Created by **Frozen** · [X / @xrdavies](https://x.com/xrdavies).
 
-Thanks to Tauri, React, Vite, Lucide, rusqlite, react-markdown, and the other open-source projects used by Hamster Studio. The project also draws UI and workflow inspiration from hamster-art and Cherry Studio. Dependencies retain their respective licenses.
+Thanks to Tauri, React, Vite, Lucide, rusqlite, react-markdown, and the other open-source projects used by Hamster Studio. Dependencies retain their respective licenses.
 
 ## License
 
 [MIT](LICENSE) · Copyright © 2026 Frozen.
+
+## Release
+
+From a clean `main` checkout, run `npm run release -- patch` (or `minor`, `major`, an explicit version). This updates versions, commits, tags and pushes; GitHub Actions builds and publishes. See [RELEASE.md](RELEASE.md) for signing setup.

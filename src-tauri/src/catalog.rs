@@ -58,15 +58,12 @@ impl Catalog {
         if let Some(kind) = self.models.get(id.trim()) {
             return kind;
         }
-        if let Some(kind) = hint.filter(|k| valid_kind(k)) {
-            return kind;
-        }
         self.prefixes
             .iter()
             .filter(|r| id.trim().starts_with(&r.prefix))
             .max_by_key(|r| r.prefix.len())
             .map(|r| r.kind.as_str())
-            .unwrap_or("unknown")
+            .unwrap_or_else(|| hint.filter(|k| valid_kind(k)).unwrap_or("chat"))
     }
     pub fn classify(&self, rows: &[Value]) -> Value {
         let mut result = json!({"chatModels": [], "imageModels": [], "unknownModels": []});
@@ -124,7 +121,7 @@ mod tests {
     fn classification_and_validation() {
         let t = Catalog::bundled();
         assert_eq!(t.kind("gpt-image-2", Some("chat")), "image");
-        assert_eq!(t.kind("image-reader", None), "unknown");
+        assert_eq!(t.kind("image-reader", None), "chat");
         assert_eq!(
             t.classify(&[
                 json!(null),
@@ -133,6 +130,12 @@ mod tests {
             ])["imageModels"],
             json!(["alias"])
         );
+        assert_eq!(t.kind("gpt-image-future", Some("chat")), "image");
+        let mut p = json!({"chatModels":["gpt-image-future"],"unknownModels":["custom-chat"],"imageModels":[]});
+        t.provider(&mut p);
+        assert_eq!(p["chatModels"], json!(["custom-chat"]));
+        assert_eq!(p["imageModels"], json!(["gpt-image-future"]));
+        assert_eq!(p["unknownModels"], json!([]));
         assert!(Catalog::parse(br#"{"schemaVersion":2}"#).is_err());
     }
 }

@@ -40,3 +40,20 @@ it('opens only configured About links', () => {
   expect(() => aboutUrl('https://untrusted.example')).toThrow()
   expect(() => aboutUrl('__proto__')).toThrow()
 })
+
+it('defaults unlisted models to chat and gives image rules priority over chat hints', () => {
+  expect(classifyModels(['custom-model', 'image-reader', 'gpt-image-future'])).toEqual({
+    chatModels: ['custom-model', 'image-reader'],
+    imageModels: ['gpt-image-future'],
+    unknownModels: [],
+  })
+  expect(
+    classifyProviderModels({
+      data: [{ id: 'gpt-image-future', type: 'chat' }, { id: 'custom-model' }],
+    }),
+  ).toEqual({
+    chatModels: ['custom-model'],
+    imageModels: ['gpt-image-future'],
+    unknownModels: [],
+  })
+})

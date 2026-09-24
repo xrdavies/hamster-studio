@@ -1,7 +1,7 @@
 import bundled from '../../config/model-capabilities.json'
 
 export type ModelKind = 'chat' | 'image'
-export type ModelCapability = ModelKind | 'unknown'
+export type ModelCapability = ModelKind
 export type ModelCatalog = {
   schemaVersion: 1
   version: number
@@ -47,11 +47,10 @@ export function modelKind(
 ): ModelCapability {
   const id = model.trim()
   if (Object.hasOwn(table.models, id)) return table.models[id]
-  if (hint) return hint
   const rule = table.prefixes
     .filter((rule) => id.startsWith(rule.prefix))
     .sort((a, b) => b.prefix.length - a.prefix.length)[0]
-  return rule?.kind ?? 'unknown'
+  return rule?.kind ?? hint ?? 'chat'
 }
 
 export function classifyModels(models: string[], table = bundledCatalog) {

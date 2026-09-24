@@ -79,10 +79,14 @@ npm run dev
 
 作者：**Frozen** · [X / @xrdavies](https://x.com/xrdavies)。
 
-感谢 Tauri、React、Vite、Lucide、rusqlite、react-markdown 及项目使用的其他开源组件。界面与交互也参考了 hamster-art 和 Cherry Studio。各依赖遵循其各自的许可证。
+感谢 Tauri、React、Vite、Lucide、rusqlite、react-markdown 及项目使用的其他开源组件。各依赖遵循其各自的许可证。
 
 ## 许可证
 
 [MIT](LICENSE) · Copyright © 2026 Frozen。
 
 Build prerequisites: Node.js 24, npm, Rust stable, Xcode Command Line Tools.
+
+## 发布
+
+在干净的 `main` 分支执行 `npm run release -- patch`，也可使用 `minor`、`major` 或指定版本。命令更新版本、提交、打标签并推送；GitHub Actions 自动构建和发布。签名配置见 [RELEASE.md](RELEASE.md)。
