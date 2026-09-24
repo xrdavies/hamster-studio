@@ -2,6 +2,99 @@
 
 本文对应当前 [macOS 工作流](.github/workflows/build-mac.yml)。发布入口是推送 `v*` Git 标签：CI 构建、签名、公证并上传 GitHub Release 草稿，维护者检查后再公开发布。无需提前在 GitHub 创建 Release。
 
+## 发布命令速查
+
+完成下方签名 Secrets 配置后，在仓库根目录执行。以下以 `0.1.1` 为例：将它替换为本次目标版本，且必须高于已公开版本。命令中的 `studio_version` 不带 `v`，标签自动添加 `v`。
+
+### 更新版本、验证、提交并推送标签
+
+先提交或妥善保存现有修改，工作区应保持干净。下面使用子 Shell，任何一步失败都会停止，不会继续创建或推送标签：
+
+```bash
+(
+  set -eu
+  studio_version=0.1.1
+
+  test -z "$(git status --porcelain)" || {
+    echo "工作区有未提交修改，请先处理后再发布。"
+    exit 1
+  }
+  git switch main
+  git pull --ff-only origin main
+  git fetch origin --tags
+
+  if git show-ref --verify --quiet "refs/tags/v${studio_version}"; then
+    echo "目标标签已存在，请使用新的版本号。"
+    exit 1
+  fi
+
+  npm ci
+  npm version "$studio_version" --no-git-tag-version
+  npm run format:check
+  npm run typecheck
+  npm test
+  npm run build:renderer
+
+  git diff -- package.json package-lock.json
+  git add package.json package-lock.json
+  git commit -m "chore(release): prepare v${studio_version}"
+  git tag -a "v${studio_version}" -m "Release v${studio_version}"
+  git push --atomic origin main "refs/tags/v${studio_version}"
+)
+```
+
+`--atomic` 确保分支与本次标签一起推送成功或一起失败；推送标签会触发 CI。如果验证失败，版本文件可能已经修改，修复后从验证步骤继续，不要盲目重复 `npm version`。如果推送失败，本地提交和标签仍然存在，处理失败原因后再推送，不要重复提交或打标签。
+
+也可以用 `npm version patch --no-git-tag-version` 或 `npm version minor --no-git-tag-version` 递增版本，但同一次发布只执行一种版本修改方式，并确保提交信息和标签使用最终版本。
+
+首次发布如果沿用已经提交的 `package.json` 版本，完成验证后只需：
+
+```bash
+studio_version=$(node -p 'require("./package.json").version')
+git tag -a "v${studio_version}" -m "Release v${studio_version}"
+git push --atomic origin main "refs/tags/v${studio_version}"
+```
+
+此时同样要求工作区干净、代码已同步到 `main`、目标标签尚不存在。无需创建空的版本提交。
+
+### 查看 CI 与 Release 草稿
+
+以下命令需要已安装 GitHub CLI 并登录（`gh auth login`）。版本变量需重新设置，因为上面的子 Shell 不会保留变量。
+
+```bash
+studio_version=0.1.1
+gh run list --workflow build-mac.yml --branch "v${studio_version}" --event push --limit 5
+```
+
+从输出中找到本次构建的 ID，再执行（将 `123456789` 替换为实际 ID）：
+
+```bash
+gh run watch 123456789 --exit-status
+gh release view "v${studio_version}" --web
+```
+
+工作流可能需要几秒才出现在列表中。CI 成功后先按第 5 节下载并验证草稿中的安装包。
+
+### 填写说明并公开发布
+
+准备一份实际更新说明文件，例如仓库外的 `/tmp/hamster-release-notes.md`，然后执行：
+
+```bash
+studio_version=0.1.1
+gh release edit "v${studio_version}" \
+  --title "Hamster Studio v${studio_version}" \
+  --notes-file /tmp/hamster-release-notes.md
+```
+
+**完成安装包检查后**，以下命令将草稿公开为正式版本，应用内 updater 才能发现它：
+
+```bash
+gh release edit "v${studio_version}" --draft=false --prerelease=false --latest --verify-tag
+gh release view "v${studio_version}" --web
+```
+
+无需再执行 `gh release create`，CI 已创建草稿。模型能力表单独更新仅需修改表、递增表的 `version` 并提交推送 `main`，不需要应用版本标签，详见 [模型能力表文档](MODEL_CAPABILITIES.md)。
+
 ## 1. 首次配置
 
 在仓库 **Settings → Secrets and variables → Actions → Repository secrets** 配置：
