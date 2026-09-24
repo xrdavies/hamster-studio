@@ -142,21 +142,29 @@ export default function App() {
 }
 
 function SessionTitle({ title, onSave }: { title: string; onSave: (title: string) => Promise<void> }) {
-  const [draft, setDraft] = useState(title)
-  const editing = useRef(false)
+  const input = useRef<HTMLInputElement>(null)
   const composing = useRef(false)
-  useEffect(() => { if (!editing.current) setDraft(title) }, [title])
+  const pendingBlur = useRef(false)
+  useEffect(() => {
+    if (input.current && document.activeElement !== input.current && !composing.current) input.current.value = title
+  }, [title])
   const commit = () => {
-    editing.current = false
-    const next = draft.trim() || title
-    setDraft(next)
+    if (composing.current) { pendingBlur.current = true; return }
+    const element = input.current
+    if (!element) return
+    const next = element.value.trim() || title
+    element.value = next
+    pendingBlur.current = false
     if (next !== title) void onSave(next)
   }
-  return <input className="title-input" aria-label="会话标题" value={draft}
-    onFocus={() => { editing.current = true }}
-    onChange={event => setDraft(event.target.value)}
+  return <input ref={input} className="title-input" aria-label="会话标题" defaultValue={title}
+    onFocus={() => { pendingBlur.current = false }}
     onCompositionStart={() => { composing.current = true }}
-    onCompositionEnd={event => { composing.current = false; setDraft(event.currentTarget.value) }}
+    onCompositionEnd={() => {
+      composing.current = false
+      // Let the browser apply the final IME input before saving a blurred field.
+      queueMicrotask(() => { if (pendingBlur.current) commit() })
+    }}
     onBlur={commit}
     onKeyDown={event => {
       if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return
