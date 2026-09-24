@@ -235,7 +235,7 @@ fn main() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             {
-                use tauri::menu::{AboutMetadata, Menu, PredefinedMenuItem};
+                use tauri::menu::{AboutMetadata, Menu, PredefinedMenuItem, HELP_SUBMENU_ID};
                 let menu = Menu::default(app.handle())?;
                 if let Some(application_menu) =
                     menu.items()?.first().and_then(|item| item.as_submenu())
@@ -266,6 +266,14 @@ fn main() {
                         )?,
                         0,
                     )?;
+                }
+                if let Some(help) = menu
+                    .get(HELP_SUBMENU_ID)
+                    .and_then(|item| item.as_submenu().cloned())
+                {
+                    if help.items()?.is_empty() {
+                        menu.remove(&help)?;
+                    }
                 }
                 app.set_menu(menu)?;
             }
