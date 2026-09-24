@@ -19,7 +19,7 @@
   },
   "keywords": [],
   "author": "Frozen",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/xrdavies/hamster-studio/issues"

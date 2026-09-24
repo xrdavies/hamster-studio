@@ -410,7 +410,7 @@ export default function SettingsPanel({
                 >
                   Frozen · X ↗
                 </a>
-                <p>{t('许可证：ISC（项目声明）')}</p>
+                <p>{t('许可证：MIT')}</p>
                 <details>
                   <summary>{t('开源致谢')}</summary>
                   <p>

@@ -23,9 +23,7 @@ npm run build
 
 - `workflow_dispatch`：只构建并上传 DMG artifact。
 - 推送 `v0.1.0` 这类标签：构建 DMG，并使用 electron-builder 发布 GitHub Release 和更新元数据。
-- 当前 workflow 使用未签名构建，不需要 Secrets。
-
-正式发布前，在 GitHub 仓库配置 Apple Developer 证书、App Store Connect notarization 凭证，并将签名和公证参数加入 workflow。自动更新只有在 Release 包含 `app-update.yml` 和签名产物时才会启用。
+- workflow 已接入下方列出的签名与公证 Secrets；实际签名状态取决于凭证是否配置且有效。
 
 ## Provider 本地测试
 
@@ -33,7 +31,7 @@ Provider 配置只保存于本机。API Key 不写入代码、`.env`、Git 或 G
 
 测试连接时可在应用设置中填写：
 
-- Base URL：`https://buyonce.xyz`
+- Base URL：`https://api.example.com/v1`
 - API Key：用户自己的测试 Key
 - 聊天模型：`gpt-5.6`
 - 图片模型：`gpt-image-2`
@@ -48,7 +46,7 @@ Provider 配置只保存于本机。API Key 不写入代码、`.env`、Git 或 G
 - `APPLE_APP_SPECIFIC_PASSWORD`：公证专用密码
 - `APPLE_TEAM_ID`：Apple Team ID
 
-workflow 会自动使用这些变量完成签名和公证。自动更新只有在 Release 包含 `app-update.yml` 和签名产物时才会启用。应用图标位于 `build/icon.icns`。
+workflow 将这些变量传给 electron-builder，签名与公证结果需检查构建日志。自动更新需要应用内包含 `app-update.yml`，并在 GitHub Release 发布对应更新元数据及安装产物。应用图标位于 `build/icon.icns`。
 
 ## 品牌资源与模型能力
 

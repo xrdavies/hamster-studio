@@ -97,7 +97,7 @@
   "更新日志": "Release notes",
   "检查中…": "Checking…",
   "检查更新": "Check for updates",
-  "许可证：ISC（项目声明）": "License: ISC (project declaration)",
+  "许可证：MIT": "License: MIT",
   "开源致谢": "Open-source acknowledgments",
   "感谢 Electron、React、Vite、Lucide、better-sqlite3、react-markdown 和其他开源项目。": "Thanks to Electron, React, Vite, Lucide, better-sqlite3, react-markdown, and other open-source projects.",
   "各依赖遵循其各自的许可证。": "Dependencies are distributed under their respective licenses.",
