@@ -13,7 +13,7 @@ import type { Message, ProviderInput, ProviderModels, StudioSession } from '../s
 
 let win: BrowserWindow
 let store: Store
-const activeChats = new Map<string, AbortController>()
+const activeRequests = new Map<string, AbortController>()
 const currentDir = __dirname
 
 function message(
@@ -40,11 +40,18 @@ function message(
   }
 }
 
-async function jsonRequest(baseUrl: string, key: string, path: string, body: unknown) {
+async function jsonRequest(
+  baseUrl: string,
+  key: string,
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+) {
   const response = await fetch(providerUrl(baseUrl, path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify(body),
+    signal,
   })
   if (!response.ok)
     throw new Error(`Provider 请求失败（${response.status}）: ${await response.text()}`)
@@ -62,7 +69,7 @@ async function fetchProviderModels(input: ProviderInput): Promise<ProviderModels
   return classifyProviderModels(await response.json())
 }
 
-async function streamChat(sessionId: string, text: string) {
+async function streamChat(sessionId: string, text: string, signal: AbortSignal) {
   const session = store.session(sessionId)
   const provider = store.provider(session.providerId)
   const key = store.providerKey(provider.id)
@@ -83,8 +90,6 @@ async function streamChat(sessionId: string, text: string) {
   )
   store.saveMessage(assistant)
   win.webContents.send('message', assistant)
-  const controller = new AbortController()
-  activeChats.set(sessionId, controller)
   const response = await fetch(providerUrl(provider.baseUrl, '/chat/completions'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
@@ -97,7 +102,7 @@ async function streamChat(sessionId: string, text: string) {
         { role: 'user', content: text },
       ],
     }),
-    signal: controller.signal,
+    signal,
   })
   if (!response.ok || !response.body)
     throw new Error(`聊天请求失败（${response.status}）: ${await response.text()}`)
@@ -129,10 +134,9 @@ async function streamChat(sessionId: string, text: string) {
   assistant.status = 'done'
   store.saveMessage(assistant)
   win.webContents.send('message', assistant)
-  activeChats.delete(sessionId)
 }
 
-async function generateImage(sessionId: string, prompt: string) {
+async function generateImage(sessionId: string, prompt: string, signal: AbortSignal) {
   const session = store.session(sessionId)
   const provider = store.provider(session.providerId)
   const key = store.providerKey(provider.id)
@@ -160,24 +164,31 @@ async function generateImage(sessionId: string, prompt: string) {
   )
   store.saveMessage(image)
   win.webContents.send('message', image)
-  const result = await jsonRequest(provider.baseUrl, key, '/images/generations', {
-    model: session.imageModel,
-    prompt,
-    n: 1,
-    response_format: 'b64_json',
-  })
+  const result = await jsonRequest(
+    provider.baseUrl,
+    key,
+    '/images/generations',
+    {
+      model: session.imageModel,
+      prompt,
+      n: 1,
+      response_format: 'b64_json',
+    },
+    signal,
+  )
   const data = result.data?.[0]
   if (!data) throw new Error('Provider 未返回图片')
   const bytes = data.b64_json
     ? Buffer.from(data.b64_json, 'base64')
     : data.url
-      ? Buffer.from(await (await fetch(data.url)).arrayBuffer())
+      ? Buffer.from(await (await fetch(data.url, { signal })).arrayBuffer())
       : null
   if (!bytes) throw new Error('Provider 返回的图片格式不支持')
   const dir = join(app.getPath('userData'), 'images')
   await mkdir(dir, { recursive: true })
   const file = join(dir, `${randomUUID()}.png`)
   await writeFile(file, bytes)
+  signal.throwIfAborted()
   image.status = 'done'
   image.imageFiles = [pathToFileURL(file).href]
   store.saveMessage(image)
@@ -209,44 +220,42 @@ function registerIpc() {
     return store.data().providers.find((p) => p.id === id)
   })
   ipcMain.handle('provider:delete', (_e, id: string) => store.deleteProvider(id))
-  ipcMain.handle(
-    'session:save',
-    (_e, session: Partial<StudioSession> & Pick<StudioSession, 'providerId' | 'chatModel'>) => {
-      store.saveSession(session)
-      return store.data()
-    },
-  )
+  ipcMain.handle('session:save', (_e, session: Partial<StudioSession>) => {
+    store.saveSession(session)
+    return store.data()
+  })
   ipcMain.handle('session:delete', (_e, id: string) => {
+    activeRequests.get(id)?.abort()
     store.deleteSession(id)
     return store.data()
   })
-  ipcMain.handle('chat:send', async (_e, id: string, text: string) => {
+  const runRequest = async (id: string, text: string, kind: 'chat' | 'image') => {
+    if (activeRequests.has(id)) throw new Error('Session already has an active request')
+    const controller = new AbortController()
+    activeRequests.set(id, controller)
     try {
-      await streamChat(id, text.trim())
+      if (kind === 'image') await generateImage(id, text.trim(), controller.signal)
+      else await streamChat(id, text.trim(), controller.signal)
     } catch (error) {
-      activeChats.delete(id)
       store.failStreaming(
         id,
-        error instanceof Error && error.name === 'AbortError'
+        controller.signal.aborted
           ? '已停止生成'
           : error instanceof Error
             ? error.message
             : '请求失败',
       )
       throw error
+    } finally {
+      activeRequests.delete(id)
     }
     return store.data()
-  })
-  ipcMain.handle('chat:stop', (_e, id: string) => activeChats.get(id)?.abort())
-  ipcMain.handle('image:generate', async (_e, id: string, prompt: string) => {
-    try {
-      await generateImage(id, prompt.trim())
-    } catch (error) {
-      store.failStreaming(id, error instanceof Error ? error.message : '图片生成失败')
-      throw error
-    }
-    return store.data()
-  })
+  }
+  ipcMain.handle('chat:send', (_e, id: string, text: string) => runRequest(id, text, 'chat'))
+  ipcMain.handle('chat:stop', (_e, id: string) => activeRequests.get(id)?.abort())
+  ipcMain.handle('image:generate', (_e, id: string, prompt: string) =>
+    runRequest(id, prompt, 'image'),
+  )
   const localImagePath = (file: string) => {
     const imageDir = join(app.getPath('userData'), 'images')
     const resolved = file.startsWith('file:') ? fileURLToPath(file) : file

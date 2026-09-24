@@ -24,15 +24,36 @@ export default function App() {
   }, [language])
   const [data, setData] = useState<StudioData>({ providers: [], sessions: [], messages: [] })
   const [sessionId, setSessionId] = useState('')
-  const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [pending, setPending] = useState<Record<string, boolean>>({})
+  const activeRequests = useRef(new Set<string>())
   const [settings, setSettings] = useState(false)
   const [settingsPage, setSettingsPage] = useState<'general' | 'providers' | 'about'>('general')
   const [editing, setEditing] = useState<EditingProvider | null>(null)
   const [search, setSearch] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [toast, setToast] = useState('')
-  const [error, setError] = useState('')
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const refreshVersion = useRef(0)
+  const streamed = useRef(new Map<string, Message>())
+  const refreshData = async () => {
+    const version = ++refreshVersion.current
+    const before = new Map(streamed.current)
+    const next = await window.studio.load()
+    if (version === refreshVersion.current) {
+      const messages = new Map(next.messages.map((message) => [message.id, message]))
+      for (const [id, message] of streamed.current) {
+        if (
+          before.get(id) !== message &&
+          next.sessions.some((session) => session.id === message.sessionId)
+        )
+          messages.set(id, message)
+      }
+      setData({ ...next, messages: [...messages.values()] })
+      streamed.current.clear()
+    }
+    return next
+  }
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const messagesRef = useRef<HTMLDivElement>(null)
@@ -44,22 +65,23 @@ export default function App() {
   }
 
   useEffect(() => {
-    window.studio
-      .load()
+    refreshData()
       .then((next) => {
-        setData(next)
         setSessionId(next.sessions[0]?.id || '')
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : t('无法读取本地数据')))
   }, [])
   useEffect(
     () =>
-      window.studio.onMessage((message) =>
+      window.studio.onMessage((message) => {
+        streamed.current.set(message.id, message)
         setData((current) => ({
           ...current,
-          messages: [...current.messages.filter((item) => item.id !== message.id), message],
-        })),
-      ),
+          messages: current.sessions.some((session) => session.id === message.sessionId)
+            ? [...current.messages.filter((item) => item.id !== message.id), message]
+            : current.messages,
+        }))
+      }),
     [],
   )
   useEffect(() => {
@@ -78,6 +100,13 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   })
   const session = data.sessions.find((item) => item.id === sessionId) || data.sessions[0]
+  const stateId = session?.id || ''
+  const text = drafts[stateId] || ''
+  const busy = pending[stateId] || false
+  const error = errors[stateId] || errors[''] || ''
+  const setText = (value: string) => setDrafts((current) => ({ ...current, [stateId]: value }))
+  const setError = (value: string, id = stateId) =>
+    setErrors((current) => ({ ...current, [id]: value }))
   const modelKind = session?.modelKind || 'chat'
   const provider = data.providers.find((item) => item.id === session?.providerId)
   const messages = data.messages
@@ -104,16 +133,18 @@ export default function App() {
   const updateSession = async (values: Partial<StudioSession>) => {
     if (!session) return
     try {
-      setData(await window.studio.saveSession({ ...session, ...values }))
+      await window.studio.saveSession({ id: session.id, ...values })
+      await refreshData()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t('保存会话失败'))
     }
   }
   const updateSpecificSession = async (target: StudioSession, values: Partial<StudioSession>) => {
     try {
-      setData(await window.studio.saveSession({ ...target, ...values }))
+      await window.studio.saveSession({ id: target.id, ...values })
+      await refreshData()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('保存会话失败'))
+      setError(reason instanceof Error ? reason.message : t('保存会话失败'), target.id)
     }
   }
   async function createSession() {
@@ -144,7 +175,8 @@ export default function App() {
       pinned: false,
       archived: false,
     }
-    setData(await window.studio.saveSession(next))
+    await window.studio.saveSession(next)
+    await refreshData()
     setSessionId(next.id)
   }
   function askConfirm(title: string, message: string, action: () => void) {
@@ -159,46 +191,55 @@ export default function App() {
   }
   function deleteSession(target: StudioSession) {
     askConfirm(t('删除会话'), t('会删除这个会话及其全部消息，无法恢复。'), async () => {
-      const next = await window.studio.deleteSession(target.id)
-      setData(next)
-      if (target.id === sessionId) setSessionId(next.sessions[0]?.id || '')
+      await window.studio.deleteSession(target.id)
+      const next = await refreshData()
+      setSessionId((current) => (current === target.id ? next.sessions[0]?.id || '' : current))
+      setDrafts((current) => {
+        const next = { ...current }
+        delete next[target.id]
+        return next
+      })
+      setErrors((current) => {
+        const next = { ...current }
+        delete next[target.id]
+        return next
+      })
     })
   }
-  async function submit() {
-    if (!session || !text.trim() || busy) return
-    const prompt = text.trim()
-    setText('')
-    setBusy(true)
-    setError('')
+  async function runRequest(target: StudioSession, prompt: string, kind: ModelKind) {
+    if (activeRequests.current.has(target.id)) return
+    activeRequests.current.add(target.id)
+    setPending((current) => ({ ...current, [target.id]: true }))
+    setError('', target.id)
     try {
-      if (['新对话', 'New conversation'].includes(session.title))
-        await updateSession({ title: prompt.slice(0, 28) })
-      setData(
-        modelKind === 'image'
-          ? await window.studio.generateImage(session.id, prompt)
-          : await window.studio.sendChat(session.id, prompt),
-      )
+      if (['新对话', 'New conversation'].includes(target.title))
+        await window.studio.saveSession({ id: target.id, title: prompt.slice(0, 28) })
+      if (kind === 'image') await window.studio.generateImage(target.id, prompt)
+      else await window.studio.sendChat(target.id, prompt)
     } catch (reason) {
-      setData(await window.studio.load())
-      setError(reason instanceof Error ? reason.message : t('请求失败'))
+      setError(reason instanceof Error ? reason.message : t('请求失败'), target.id)
     } finally {
-      setBusy(false)
+      activeRequests.current.delete(target.id)
+      setPending((current) => ({ ...current, [target.id]: false }))
+      await refreshData().catch((reason) =>
+        setError(reason instanceof Error ? reason.message : t('无法读取本地数据'), target.id),
+      )
     }
   }
+  async function submit() {
+    if (!session || !text.trim() || activeRequests.current.has(session.id)) return
+    const prompt = text.trim()
+    setText('')
+    await runRequest(session, prompt, modelKind)
+  }
   async function retry(message: Message) {
-    const index = messages.findIndex((item) => item.id === message.id)
-    const previous = messages[index - 1]
-    if (!previous || previous.role !== 'user') return
-    setBusy(true)
-    setError('')
-    try {
-      setData(await window.studio.sendChat(message.sessionId, previous.content))
-    } catch (reason) {
-      setData(await window.studio.load())
-      setError(reason instanceof Error ? reason.message : t('请求失败'))
-    } finally {
-      setBusy(false)
-    }
+    const target = data.sessions.find((item) => item.id === message.sessionId)
+    const history = data.messages
+      .filter((item) => item.sessionId === message.sessionId)
+      .sort((a, b) => a.createdAt - b.createdAt)
+    const previous = history[history.findIndex((item) => item.id === message.id) - 1]
+    if (!target || !previous || previous.role !== 'user') return
+    await runRequest(target, previous.content, message.kind)
   }
   const changeModel = (providerId: string, model: string, kind: ModelKind) => {
     const next = data.providers.find((item) => item.id === providerId)
@@ -296,6 +337,7 @@ export default function App() {
               {error && <div className="error-banner">{t(error)}</div>}
             </div>
             <Composer
+              key={session.id}
               providers={data.providers}
               session={session}
               modelKind={modelKind}
@@ -321,7 +363,9 @@ export default function App() {
             setSettings(false)
             setEditing(null)
           }}
-          refresh={setData}
+          refresh={() => {
+            void refreshData().catch((reason) => setError(String(reason)))
+          }}
           askConfirm={askConfirm}
         />
       )}

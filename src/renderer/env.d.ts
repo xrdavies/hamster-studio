@@ -9,9 +9,7 @@ declare global {
       load(): Promise<StudioData>
       saveProvider(input: ProviderInput): Promise<unknown>
       deleteProvider(id: string): Promise<void>
-      saveSession(
-        session: Partial<StudioSession> & Pick<StudioSession, 'providerId' | 'chatModel'>,
-      ): Promise<StudioData>
+      saveSession(session: Partial<StudioSession>): Promise<StudioData>
       deleteSession(id: string): Promise<StudioData>
       sendChat(sessionId: string, text: string): Promise<StudioData>
       stopChat(sessionId: string): Promise<void>

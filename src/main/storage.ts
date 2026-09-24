@@ -149,15 +149,13 @@ export class Store {
     this.db.prepare('DELETE FROM providers WHERE id = ?').run(id)
   }
 
-  saveSession(
-    input: Partial<StudioSession> & Pick<StudioSession, 'providerId' | 'chatModel'>,
-  ): string {
-    if (!input.chatModel.trim()) throw new Error('请先配置聊天模型')
+  saveSession(input: Partial<StudioSession>): string {
     const id = input.id || randomUUID()
     const now = Date.now()
-    const existing = this.db
-      .prepare('SELECT createdAt, modelKind FROM sessions WHERE id = ?')
-      .get(id) as Pick<StudioSession, 'createdAt' | 'modelKind'> | undefined
+    const existing = this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as
+      StudioSession | undefined
+    input = { ...existing, ...input }
+    if (!input.chatModel?.trim()) throw new Error('请先配置聊天模型')
     if (!existing && !this.db.prepare('SELECT 1 FROM providers WHERE id = ?').get(input.providerId))
       throw new Error('Provider 不存在')
     const modelKind = input.modelKind ?? existing?.modelKind ?? 'chat'
@@ -191,6 +189,8 @@ export class Store {
   }
 
   saveMessage(message: Message) {
+    if (!this.db.prepare('SELECT 1 FROM sessions WHERE id = ?').get(message.sessionId)) return
+
     this.db
       .prepare(
         `INSERT INTO messages (id,sessionId,role,kind,content,imageFiles,providerName,model,createdAt,status,error)

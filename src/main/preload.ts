@@ -15,9 +15,7 @@ contextBridge.exposeInMainWorld('studio', {
   load: (): Promise<StudioData> => ipcRenderer.invoke('data'),
   saveProvider: (input: ProviderInput) => ipcRenderer.invoke('provider:save', input),
   deleteProvider: (id: string) => ipcRenderer.invoke('provider:delete', id),
-  saveSession: (
-    session: Partial<StudioSession> & Pick<StudioSession, 'providerId' | 'chatModel'>,
-  ) => ipcRenderer.invoke('session:save', session),
+  saveSession: (session: Partial<StudioSession>) => ipcRenderer.invoke('session:save', session),
   deleteSession: (id: string) => ipcRenderer.invoke('session:delete', id),
   sendChat: (sessionId: string, text: string) => ipcRenderer.invoke('chat:send', sessionId, text),
   stopChat: (sessionId: string) => ipcRenderer.invoke('chat:stop', sessionId),

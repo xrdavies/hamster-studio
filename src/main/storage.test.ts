@@ -165,6 +165,54 @@ describe('Store', () => {
     }
   })
 
+  it('applies metadata patches without overwriting models or other session messages', () => {
+    const store = new Store(
+      ':memory:',
+      (value) => Buffer.from(value),
+      (value) => value.toString(),
+    )
+    try {
+      const providerId = store.saveProvider({
+        name: 'Relay',
+        baseUrl: 'https://example.com',
+        chatModels: ['chat'],
+        imageModels: ['image'],
+      })
+      const a = store.saveSession({ providerId, chatModel: 'chat' })
+      const b = store.saveSession({ providerId, chatModel: 'chat' })
+      store.saveSession({ id: a, modelKind: 'image', imageModel: 'image' })
+      store.saveSession({ id: a, title: 'Renamed', pinned: true })
+      expect(store.session(a)).toMatchObject({
+        modelKind: 'image',
+        imageModel: 'image',
+        title: 'Renamed',
+        pinned: 1,
+      })
+      const message = {
+        id: 'a-message',
+        sessionId: a,
+        role: 'assistant' as const,
+        kind: 'chat' as const,
+        content: 'A only',
+        imageFiles: [],
+        providerName: 'Relay',
+        model: 'chat',
+        createdAt: 1,
+        status: 'streaming' as const,
+        error: '',
+      }
+      store.saveMessage(message)
+      store.saveMessage({ ...message, id: 'b-message', sessionId: b, content: 'B only' })
+      store.failStreaming(a, 'Stopped')
+      expect(store.data().messages.find((item) => item.sessionId === b)?.status).toBe('streaming')
+      store.deleteSession(a)
+      expect(() => store.saveMessage(message)).not.toThrow()
+      expect(store.data().messages.map((item) => item.sessionId)).toEqual([b])
+    } finally {
+      store.close()
+    }
+  })
+
   it('normalizes legacy image model names once', () => {
     const file = '/tmp/hamster-studio-' + randomUUID() + '.db'
     files.push(file)
