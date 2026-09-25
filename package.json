@@ -1,6 +1,6 @@
 {
   "name": "hamster-studio",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A local desktop chat and image client for custom OpenAI Compatible providers",
   "scripts": {
     "dev": "tauri dev",
