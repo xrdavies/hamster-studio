@@ -65,6 +65,8 @@
   "名称": "Name",
   "我的中转站": "My provider",
   "留空则保留原 Key": "Leave blank to keep the existing key",
+  "清空模型": "Clear models",
+  "已清空模型列表，保存后生效": "Model list cleared. Save to apply changes.",
   "模型列表": "Models",
   "拉取中…": "Fetching…",
   "从 Provider 拉取模型": "Fetch provider models",

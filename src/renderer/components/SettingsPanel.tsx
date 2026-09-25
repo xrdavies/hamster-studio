@@ -200,6 +200,27 @@ export default function SettingsPanel({
             <button
               type="button"
               className="secondary"
+              disabled={
+                !current.chatModels.length &&
+                !current.imageModels.length &&
+                !current.unknownModels?.length
+              }
+              onClick={() =>
+                setEditing({
+                  ...current,
+                  chatModels: [],
+                  imageModels: [],
+                  unknownModels: [],
+                  fetchError: '',
+                  testResult: t('已清空模型列表，保存后生效'),
+                })
+              }
+            >
+              {t('清空模型')}
+            </button>
+            <button
+              type="button"
+              className="secondary"
               onClick={fetchModels}
               disabled={current.loading}
             >

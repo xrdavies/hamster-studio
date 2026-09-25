@@ -868,6 +868,8 @@ select:focus-visible {
 }
 .model-fetch-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
   color: #555660;

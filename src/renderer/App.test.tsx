@@ -27,6 +27,7 @@ import App from './App'
 import Composer from './components/Composer'
 import SessionSidebar from './components/SessionSidebar'
 import MessageBubble from './components/MessageBubble'
+import SettingsPanel, { makeEditing } from './components/SettingsPanel'
 
 function find(node: unknown, type: unknown): ReactElement<Record<string, any>> | undefined {
   if (!node || typeof node !== 'object') return
@@ -139,4 +140,44 @@ it('isolates drafts, pending requests, errors and image retries when switching s
   await find(render(), MessageBubble)!.props.onRetry(data.messages[1])
   expect(studio.generateImage).toHaveBeenLastCalledWith('a', 'draw')
   expect(studio.sendChat).toHaveBeenCalledTimes(1)
+})
+
+it('clears all provider model types in the draft without changing saved data', () => {
+  const provider = {
+    id: 'relay',
+    name: 'Relay',
+    baseUrl: 'https://example.com',
+    apiKey: 'secret',
+    chatModels: ['chat'],
+    imageModels: ['image'],
+    unknownModels: ['other'],
+  }
+  const setEditing = vi.fn()
+  const props = {
+    data: { providers: [], sessions: [], messages: [] } as StudioData,
+    page: 'providers' as const,
+    setPage: vi.fn(),
+    editing: makeEditing(provider),
+    setEditing,
+    close: vi.fn(),
+    refresh: vi.fn(),
+    askConfirm: vi.fn(),
+  }
+  const clearButton = () => {
+    hooks.index = 0
+    const fieldset = find(SettingsPanel(props), 'fieldset')!
+    const row = fieldset.props.children.find(
+      (child: any) => child?.props?.className === 'model-fetch-row',
+    )
+    return row.props.children.find((child: any) => child?.props?.children === '清空模型')
+  }
+  expect(clearButton().props.disabled).toBe(false)
+  clearButton().props.onClick()
+  const cleared = setEditing.mock.calls[0][0]
+  expect(cleared).toMatchObject({ ...provider, chatModels: [], imageModels: [], unknownModels: [] })
+  expect(provider.chatModels).toEqual(['chat'])
+  expect(provider.imageModels).toEqual(['image'])
+  expect(provider.unknownModels).toEqual(['other'])
+  props.editing = cleared
+  expect(clearButton().props.disabled).toBe(true)
 })
