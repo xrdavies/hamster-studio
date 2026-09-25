@@ -69,6 +69,8 @@ window.studio = {
   deleteSession: (id) => invoke('delete_session', { id }),
   sendChat: (sessionId, text, referenceFile) =>
     invoke('generate', { sessionId, text, kind: 'chat', referenceFile }),
+  continueAgent: (sessionId, messageId) =>
+    invoke('generate', { sessionId, text: 'continue', kind: 'chat', resumeId: messageId }),
   approveImageStep: (sessionId, stepId, allow) => invoke('approve', { sessionId, stepId, allow }),
   generateImage: (sessionId, text, referenceFile) =>
     invoke('generate', { sessionId, text, kind: 'image', referenceFile }),

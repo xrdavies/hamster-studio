@@ -300,7 +300,21 @@ export default function App() {
       .filter((item) => item.sessionId === message.sessionId)
       .sort((a, b) => a.createdAt - b.createdAt)
     const previous = history[history.findIndex((item) => item.id === message.id) - 1]
-    if (message.agent) return
+    if (message.agent) {
+      if (activeRequests.current.has(message.sessionId)) return
+      activeRequests.current.add(message.sessionId)
+      setPending((p) => ({ ...p, [message.sessionId]: true }))
+      try {
+        await window.studio.continueAgent(message.sessionId, message.id)
+        await refreshData()
+      } catch (error) {
+        setError(String(error), message.sessionId)
+      } finally {
+        activeRequests.current.delete(message.sessionId)
+        setPending((p) => ({ ...p, [message.sessionId]: false }))
+      }
+      return
+    }
     if (!target || !previous || previous.role !== 'user') return
     await runRequest(target, previous.content, message.kind, previous.referenceFile || '')
   }

@@ -21,6 +21,7 @@ declare global {
       deleteProvider(id: string): Promise<void>
       saveSession(session: Partial<StudioSession>): Promise<StudioData>
       deleteSession(id: string): Promise<StudioData>
+      continueAgent(sessionId: string, messageId: string): Promise<StudioData>
       approveImageStep(sessionId: string, stepId: string, allow: boolean): Promise<void>
       sendChat(sessionId: string, text: string, referenceFile?: string): Promise<StudioData>
       stopChat(sessionId: string): Promise<void>

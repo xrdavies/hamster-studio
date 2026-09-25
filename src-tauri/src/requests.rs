@@ -58,12 +58,13 @@ pub async fn generate(
     text: String,
     kind: String,
     reference_file: Option<String>,
+    resume_id: Option<String>,
 ) -> Result<Value> {
     if !["chat", "image"].contains(&kind.as_str()) || text.trim().is_empty() {
         return Err("Invalid request".into());
     }
     if kind == "chat" {
-        return crate::agent::generate(app, s, session_id, text, reference_file).await;
+        return crate::agent::generate(app, s, session_id, text, reference_file, resume_id).await;
     }
     let token = tokio_util::sync::CancellationToken::new();
     {

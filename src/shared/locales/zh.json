@@ -212,5 +212,7 @@
   "web.emptyContent": "未找到正文，网页可能需要登录或 JavaScript",
   "web.redirectLimit": "网页重定向次数过多",
   "web.userLinkRequired": "只能读取用户在当前会话中提供的链接",
-  "web.timeout": "网页读取超时"
+  "web.timeout": "网页读取超时",
+  "agent.retrying": "服务暂时不可用，{seconds} 秒后重试 · {attempt}/2",
+  "agent.continue": "继续此步骤"
 }

@@ -201,6 +201,19 @@ export default function MessageBubble({
             {message.webError && <span> · {translateMessage(message.webError)}</span>}
           </div>
         )}
+        {!!message.retryAttempt && message.status === 'streaming' && (
+          <p role="status" className="vision-context-note">
+            {t('agent.retrying', {
+              attempt: message.retryAttempt,
+              seconds: message.retryDelay || 0,
+            })}
+          </p>
+        )}
+        {message.canContinue && message.status === 'error' && (
+          <button className="secondary" disabled={busy} onClick={() => onRetry(message)}>
+            {t('agent.continue')}
+          </button>
+        )}
         {message.content && (
           <div className="markdown">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>

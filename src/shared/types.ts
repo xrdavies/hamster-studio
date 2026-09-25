@@ -52,6 +52,10 @@ export type ImageStep = {
 }
 
 export type Message = {
+  canContinue?: boolean
+  retryAttempt?: number
+  retryDelay?: number
+
   webStatus?: 'reading' | 'done' | 'error'
   webError?: string
 

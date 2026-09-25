@@ -47,6 +47,7 @@ impl Store {
             }
             if migrated { store.message(&message)?; }
             if message["status"] == "streaming" {
+                if message["steps"].as_array().is_some_and(|steps| steps.iter().any(|step| step["status"] == "running" || step["status"] == "waiting" || step["status"] == "error")) { message["canContinue"] = json!(false); }
                 message["status"] = json!("error");
                 message["error"] = json!("ui.previousGenerationWasInterrupted");
                 if let Some(steps) = message["steps"].as_array_mut() {

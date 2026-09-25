@@ -236,7 +236,18 @@ impl Tool for ReadWebpage {
                 return Err("web.userLinkRequired".into());
             }
             run.update(|o| o["webStatus"] = json!("reading"))?;
-            tokio::time::timeout(Duration::from_secs(30), fetch(url))
+            tokio::time::timeout(Duration::from_secs(30), async {
+                let mut attempt = 0;
+                loop {
+                    match fetch(url.clone()).await {
+                        Err(error) if attempt < 2 && (super::retry::transient(&error) || error == "web.networkError") => {
+                            attempt += 1;
+                            tokio::time::sleep(Duration::from_secs(if attempt == 1 {2} else {5})).await;
+                        }
+                        result => break result,
+                    }
+                }
+            })
                 .await
                 .map_err(|_| "web.timeout".to_string())?
         }
