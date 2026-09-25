@@ -121,16 +121,28 @@ async fn fetch_models(s: State<'_, AppState>, input: Value) -> Result<Value> {
     } else {
         string(&input, "apiKey").trim().to_owned()
     };
-    let response = s
-        .client
-        .get(requests::url(string(&input, "baseUrl"), "/models")?)
-        .bearer_auth(secret)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .error_for_status()
-        .map_err(|e| e.to_string())?;
-    let payload: Value = response.json().await.map_err(|e| e.to_string())?;
+    let payload: Value = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        for attempt in 0..3 {
+            let response = s.client.get(requests::url(string(&input,"baseUrl"), "/models")?)
+                .bearer_auth(&secret).send().await;
+            match response {
+                Ok(response) => {
+                    let status = response.status();
+                    let delay = response.headers().get("retry-after").and_then(|h| h.to_str().ok()).and_then(|h| h.parse::<u64>().ok());
+                    if status.is_success() { return response.json::<Value>().await.map_err(|e| e.to_string()); }
+                    let body = response.text().await.unwrap_or_default();
+                    let error = format!("HTTP {}: {}",status.as_u16(),body.chars().take(1500).collect::<String>());
+                    if attempt == 2 || !agent::retry::transient(&error) { return Err(error); }
+                    tokio::time::sleep(std::time::Duration::from_secs(delay.unwrap_or(if attempt == 0 {2} else {5}))).await;
+                }
+                Err(error) => {
+                    if attempt == 2 || !(error.is_connect() || error.is_timeout()) { return Err(error.to_string()); }
+                    tokio::time::sleep(std::time::Duration::from_secs(if attempt == 0 {2} else {5})).await;
+                }
+            }
+        }
+        Err("Model list request failed".into())
+    }).await.map_err(|_| "Model list request timed out".to_string())??;
     let rows = payload["data"]
         .as_array()
         .ok_or("Invalid provider models response")?;

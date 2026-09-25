@@ -5,7 +5,7 @@ use crate::{
 };
 mod assets;
 mod web;
-mod retry;
+pub(crate) mod retry;
 use assets::{ImageContext, ListImages, ViewImage};
 use futures_util::StreamExt;
 use rig::agent::{AgentHook, HookContext};

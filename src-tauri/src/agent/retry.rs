@@ -1,7 +1,7 @@
 use super::*;
 use rig::agent::{CompletionCallAction, CompletionCallEvent};
 
-pub(super) fn transient(error: &str) -> bool {
+pub(crate) fn transient(error: &str) -> bool {
     let lower = error.to_lowercase();
     if ["quota", "balance", "billing", "insufficient", "余额", "content_filter"].iter().any(|s| lower.contains(s)) { return false; }
     matches!(crate::diagnostics::status_from_error(error), Some(408 | 429 | 500 | 502 | 503 | 504 | 520 | 521 | 522 | 524))
