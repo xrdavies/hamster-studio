@@ -34,11 +34,18 @@ Use **Enter** to send and **Shift + Enter** for a new line. Change the interface
 
 Providers must support the OpenAI Compatible endpoints used by the app: `/models`, streaming `/chat/completions`, and `/images/generations` for image generation. Model availability and usage charges are determined by your provider. For image generation, select a supported model such as `gpt-image-2` if your provider offers it.
 
+## Images and webpages
+
+Use a tool-capable chat model to create and edit images conversationally; inspecting images also requires vision support. Select an image model in the composer settings. Attach or drag in PNG, JPEG or WebP files up to 10 MB. Click an image to preview it or use its export action.
+
+Provide a public webpage link and ask for a summary. HTML and plain text are supported; login pages, JavaScript rendering and PDFs are not. Interrupted replies can offer a continuation action; uncertain image requests require confirmation before another paid attempt.
+
 ## Data and privacy
 
 - Conversations and provider configuration are stored in `studio.db` within Tauri's application data directory; generated images are stored in its `images/` subdirectory.
 - AI requests go directly from the desktop app to your configured provider. Hamster Studio does not require an account or a hosted application backend.
 - API keys are stored in the system credential store (macOS Keychain); errors never fall back to plaintext.
+- Image inputs and extracted webpage text are sent to your configured conversation provider. Webpage reading contacts the target site; proxy Fake-IP resolution may query Cloudflare DNS over HTTPS with the hostname.
 - Update checks contact GitHub. Opening project or author links launches your system browser.
 
 Deleting a provider preserves existing conversations. Select another provider and model to continue them.
@@ -89,26 +96,4 @@ Thanks to Tauri, React, Vite, Lucide, rusqlite, react-markdown, and the other op
 
 From a clean `main` checkout, run `npm run release -- patch` (or `minor`, `major`, an explicit version). This updates versions, commits, tags and pushes; GitHub Actions builds and publishes. See [RELEASE.md](RELEASE.md) for signing setup.
 
-### Image agent workflow
-
-The conversation model can query session images (`list_images`), inspect them (`view_image`), and generate or edit a specific version (`create_images`, with `source_image_id`). For example: “Change the background of the second image to blue, then check the result.” Each edit keeps its source and creates a new image.
-
-Viewing images requires a conversation model that supports both tool calling and image input. Selected reference images and images requested by the agent are sent as multimodal user messages to the conversation provider. Images are stored locally; history stores references instead of base64 data. Past images can be loaded again with `view_image`. Generation results are not automatically treated as visually inspected.
-
-Each task allows 3 generated images, 6 model turns and 6 viewed images (20 MB each). Multiple images or additional generation require confirmation. Unsupported visual input produces a provider error; switch to a compatible model and retry.
-
-Local PNG, JPEG and WebP images (up to 10 MB) can be imported from the composer. A session-owned copy is retained in the app’s local storage and can be used for vision or image editing, including direct image-model requests. Removing an attachment only clears the composer selection.
-
-UI translations use typed semantic keys in `src/shared/locales/`, with `{name}` placeholders for dynamic values. Use `t(key, parameters)` for UI copy and `translateMessage` only for application error codes or external messages. Provider errors and user content are not reverse-translated.
-
-### Agent interruptions and retries
-
-Image steps persist their request identity and dispatch state before sending, and save each completed image. Identical completed calls within a task reuse their results. Recorded duplicates or unknown outcomes in the session require confirmation before another image operation. Restarting never automatically replays paid tools. Provider-side exactly-once execution is not guaranteed: cancellation or timeout may leave a remote request running. Check provider records before generating again.
-
-Timeouts: 30 seconds to connect, 10 minutes per model HTTP request, 10 minutes per complete image operation, 15 minutes for confirmation, and 30 minutes per task. Completed images survive failures. Errors distinguish model failures, image timeouts, and cancellation; technical details can be expanded. No automatic paid retries.
-
-Provide a public HTTP(S) link and ask the Agent to read or summarize it. No search API key is needed. Only user-supplied session links are allowed. The reader supports HTML/plain text, with a 30-second deadline, 2 MB response limit and 16,000-character excerpt. JavaScript, login and PDFs are not supported. Private networks and proxies are excluded; extracted content is sent to your conversation provider.
-
-When a domain resolves exclusively to proxy Fake-IP addresses (198.18.0.0/15), the webpage reader queries Cloudflare DNS over HTTPS for its public IPv4 addresses and validates them before connecting. Only the hostname is sent to the resolver; private and literal reserved IP addresses remain blocked.
-
-Transient model failures before any output in the current turn retry at most twice (about 2s and 5s with jitter). Checkpoints preserve the pending model prompt and completed tool results. Partial replies require “Continue this step”; image failures and cancellation are not replayed. Web reads retry within their existing 30s budget. Model Retry-After headers are not currently exposed by the Rig error interface; model-list fetching retries twice within a 30s budget and honors numeric Retry-After headers.
+Development changes are maintained in [CHANGELOG.md](CHANGELOG.md) (Chinese). The built-in Agent prompt lives in `src-tauri/prompts/image-agent.txt` and is embedded at compile time.

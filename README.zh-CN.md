@@ -24,7 +24,7 @@ Hamster Studio 是一款开源的桌面 AI 聊天与图片生成工具。通过 
 
 ## 快速开始
 
-1. 打开 **设置 → Providers → 添加**。
+1. 打开 **设置 → 模型服务 → 添加**。
 2. 填写名称、服务的 **Base URL** 和 **API Key**。常见 Base URL 格式为 `https://api.example.com/v1`。
 3. 点击 **从 Provider 拉取模型**。只有主动点击才会获取；也可以手动添加模型 ID、删除列表中的模型，然后保存 Provider。
 4. 新建会话，在输入区域选择 Provider 和模型。图标表示聊天或图片生成能力。
@@ -34,18 +34,25 @@ Hamster Studio 是一款开源的桌面 AI 聊天与图片生成工具。通过 
 
 Provider 需要支持应用使用的 OpenAI Compatible 接口：`/models`、流式 `/chat/completions`，以及用于图片生成的 `/images/generations`。模型是否可用及调用费用由服务商决定。生成图片时，请选择服务商支持的图片模型，例如其提供的 `gpt-image-2`。
 
+## 图片与网页
+
+选择支持工具调用的聊天模型，可通过对话创作和编辑图片；看图还需要模型支持视觉输入。在输入框的图片设置中选择图片模型，点击添加或拖入 PNG、JPEG、WebP 图片（不超过 10 MB）。点击图片可预览，也可通过导出按钮保存。
+
+提供公开网页链接并要求总结，即可读取 HTML 或纯文本；暂不支持登录页、JavaScript 渲染和 PDF。回复中断后可按提示继续；图片结果未知时，再次付费生成需要确认。
+
 ## 数据与隐私
 
 - 会话和 Provider 配置存放于 Tauri 应用数据目录的 `studio.db`，生成图片存放于其中的 `images/` 子目录。
 - AI 请求由桌面应用直接发送到配置的 Provider，无需 Hamster Studio 账号或托管应用后端。
-- API Key: macOS Keychain; no plaintext fallback.
+- API Key 保存在系统凭据库（macOS Keychain），不回退到明文存储。
+- 图片输入和网页提取正文会发送给配置的对话模型服务商。网页读取会访问目标网站；代理 Fake-IP 解析可能将域名发送至 Cloudflare 加密 DNS。
 - 更新检查会连接 GitHub；项目和作者链接通过系统浏览器打开。
 
 删除 Provider 不会删除已有会话。选择新的 Provider 和模型后即可继续使用。
 
 ## 本地开发
 
-使用与 CI 一致的 **Node.js 24** 和 npm。项目采用 Tauri、React、TypeScript 与 Vite。
+使用 **Node.js 24**、npm、Rust stable 和 Xcode Command Line Tools。项目采用 Tauri、React、TypeScript 与 Vite。
 
 ```bash
 git clone https://github.com/xrdavies/hamster-studio.git
@@ -54,16 +61,16 @@ npm ci
 npm run dev
 ```
 
-| 命令                     | 用途                                       |
-| ------------------------ | ------------------------------------------ |
-| `npm run dev`            | 启动桌面开发环境                           |
-| `npm run format`         | 使用 Prettier 格式化代码和文档             |
-| `npm run format:check`   | 检查代码格式                               |
-| `npm run typecheck`      | 检查 TypeScript 类型                       |
-| `npm test`               | 运行测试                                   |
-| `npm run build:renderer` | Build React frontend                       |
-| `npm run build:dir`      | Compile native executable without bundling |
-| `npm run build`          | Build Tauri application and DMG            |
+| 命令                     | 用途                           |
+| ------------------------ | ------------------------------ |
+| `npm run dev`            | 启动桌面开发环境               |
+| `npm run format`         | 使用 Prettier 格式化代码和文档 |
+| `npm run format:check`   | 检查代码格式                   |
+| `npm run typecheck`      | 检查 TypeScript 类型           |
+| `npm test`               | 运行测试                       |
+| `npm run build:renderer` | 构建 React 前端                |
+| `npm run build:dir`      | 编译原生程序，不打包           |
+| `npm run build`          | 构建 Tauri 应用与 DMG          |
 
 应用产物位于 `src-tauri/target/release/bundle/`。签名、发布与图标生成详见 [BUILD.md](BUILD.md)。翻译文案位于 `src/shared/locales/`，模型能力规则及更新方法见 [MODEL_CAPABILITIES.md](MODEL_CAPABILITIES.md)。
 
@@ -85,32 +92,8 @@ npm run dev
 
 [MIT](LICENSE) · Copyright © 2026 Frozen。
 
-Build prerequisites: Node.js 24, npm, Rust stable, Xcode Command Line Tools.
-
 ## 发布
 
 在干净的 `main` 分支执行 `npm run release -- patch`，也可使用 `minor`、`major` 或指定版本。命令更新版本、提交、打标签并推送；GitHub Actions 自动构建和发布。签名配置见 [RELEASE.md](RELEASE.md)。
 
-### 图片 Agent 工作流
-
-对话模型可以查询当前会话图片（`list_images`）、查看图片（`view_image`），以及生成或指定原图编辑（`create_images` 的 `source_image_id` 参数）。例如：“把第二张图的背景改成蓝色，再检查一下结果。”每次编辑都会保留原图并生成新版本。
-
-查看图片需要对话模型同时支持工具调用和视觉输入。用户选中的参考图、Agent 请求查看的图片，会作为多模态用户消息发送给对话模型的 Provider。图片保存在本地，历史记录仅保存引用，不保存 Base64；旧图可通过 `view_image` 再次加载。生成成功不代表 Agent 已经看过图片。
-
-每次任务最多生成 3 张、执行 6 轮模型调用、查看 6 张图片（每张不超过 20 MB）。多张或追加生成需要确认。不支持视觉输入的模型可能返回错误，此时需切换兼容模型后重试。
-
-可从输入框导入本地 PNG、JPEG、WebP 图片（不超过 10 MB）。应用保存当前会话专属的本地副本，可用于看图、Agent 编辑或直接调用图片模型编辑。移除附件只清除输入框的选择。
-
-界面翻译使用 `src/shared/locales/` 中的类型化语义键名，动态内容使用 `{name}` 占位符。界面文案通过 `t(key, parameters)` 获取，应用错误代码或外部消息通过 `translateMessage` 展示，不反向翻译用户内容或 Provider 错误。
-
-### Agent 中断与重试
-
-图片步骤在发送前持久化请求标识和发送状态，每张完成后保存结果。同一任务重复调用已完成的相同步骤会复用结果；当前会话存在相同请求或结果未知的步骤时，后续图片请求需确认。重启不会自动重放付费工具，已生成的图片仍保留。该保护不能替代 Provider 侧幂等：取消、断网或超时后服务端可能继续处理，请检查服务商记录后再生成。
-
-连接超时 30 秒，对话模型单次 HTTP 请求上限 10 分钟，单张图片完整请求上限 10 分钟，等待用户确认上限 15 分钟，整个任务上限 30 分钟。图片超时、模型错误和用户取消分别展示；错误详情可展开。部分图片成功时保留结果，不自动重试剩余请求。
-
-在聊天中提供公开 HTTP(S) 链接并要求读取或总结即可，无需搜索 API Key。仅允许读取当前会话用户提供的链接。支持 HTML 和纯文本，超时 30 秒，响应最多 2 MB，正文截取最多 16000 字符。不支持 JavaScript、登录和 PDF，不访问内网，也不走系统代理；提取内容会发送给对话模型服务商。
-
-当域名仅解析到代理 Fake-IP 网段（198.18.0.0/15）时，网页读取器通过 Cloudflare 加密 DNS 查询真实公网 IPv4 地址，校验后固定连接地址。仅域名发送给解析服务；内网和直接输入的保留 IP 仍被拦截。
-
-当前轮尚未输出内容时，对话模型临时错误最多自动重试两次（约 2 秒、5 秒并加入随机延迟）。检查点保留待执行模型消息和已完成工具结果。部分回复中断后可点击“继续此步骤”；图片失败和用户取消不重放。网页读取在原 30 秒预算内重试。Rig 当前错误接口未暴露 Retry-After 响应头，模型列表获取在 30 秒预算内最多重试两次，并遵循数值形式的 Retry-After。
+开发变更统一记录于 [CHANGELOG.md](CHANGELOG.md)。内置 Agent 提示词位于 `src-tauri/prompts/image-agent.txt`，构建时嵌入程序。
