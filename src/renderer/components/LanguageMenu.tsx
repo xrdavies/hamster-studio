@@ -3,7 +3,7 @@ import { Check, ChevronDown } from 'lucide-react'
 import { setLanguage, t, useLanguage } from '../i18n'
 
 const languages = [
-  { value: 'zh', label: 'ui.simplifiedChinese' },
+  { value: 'zh', label: '简体中文' },
   { value: 'en', label: 'English' },
 ] as const
 
