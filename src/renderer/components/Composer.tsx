@@ -7,6 +7,7 @@ import {
   Send,
   SlidersHorizontal,
   ImagePlus,
+  Info,
   X,
 } from 'lucide-react'
 import type { Provider, StudioSession } from '../../shared/types'
@@ -115,11 +116,10 @@ export default function Composer({
         </div>
         {showImageSettings && (
           <div className="creation-settings">
-            <p>
-              {t(
-                'ui.theChatModelPlansTheImageModelGeneratesAndEditsUpTo3ImagesPerTaskMultipleImagesOrAdditionalAttemptsRequireConfirmation',
-              )}
-            </p>
+            <span className="creation-settings-label">
+              <ImageIcon size={14} />
+              {t('composer.imageModel')}
+            </span>
             <ModelMenu
               choices={choices.filter((c) => c.kind === 'image')}
               selected={choices.find(
@@ -137,11 +137,18 @@ export default function Composer({
                   .finally(() => setSavingImageModel(false))
               }}
             />
-            <p className="vision-context-note">
-              {t(
+            <button
+              type="button"
+              className="creation-settings-help"
+              title={t(
                 'ui.viewingImagesRequiresAVisionCapableConversationModelImagesAreSentToThatModelSProvider',
               )}
-            </p>
+              aria-label={t(
+                'ui.viewingImagesRequiresAVisionCapableConversationModelImagesAreSentToThatModelSProvider',
+              )}
+            >
+              <Info size={14} />
+            </button>
             {savingImageModel && <span role="status">{t('ui.saving')}</span>}
             {imageSettingError && <p className="form-error">{imageSettingError}</p>}
           </div>

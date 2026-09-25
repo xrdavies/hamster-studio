@@ -1383,16 +1383,37 @@ fieldset.provider-form {
   gap: 10px;
 }
 .creation-settings {
-  padding: 10px;
-  background: #f7f5fc;
-  border-radius: 10px;
-  margin-bottom: 10px;
-}
-.creation-settings p {
-  color: #777;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  margin-bottom: 8px;
   font-size: 12px;
-  margin: 0 0 8px;
 }
+.creation-settings-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #555660;
+}
+.creation-settings-help {
+  display: inline-flex;
+  padding: 6px;
+  color: var(--muted);
+}
+.creation-settings-help:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.creation-settings .form-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .reference-chip {
   display: flex;
   align-items: center;

@@ -190,5 +190,6 @@
   "images.unsupportedFormat": "Select a PNG, JPEG or WebP image",
   "welcome.providerNotice": "Using {provider}. Your API key is stored only on this device.",
   "images.dropHere": "Drop to attach image · PNG / JPEG / WebP · ≤10 MB",
-  "images.dropOne": "Drop one reference image at a time"
+  "images.dropOne": "Drop one reference image at a time",
+  "composer.imageModel": "Image model"
 }
