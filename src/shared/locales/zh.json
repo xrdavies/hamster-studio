@@ -230,5 +230,11 @@
   "images.eraser": "橡皮擦",
   "images.undoStroke": "撤销上一步",
   "images.selectRegionFirst": "请先选择修改区域",
-  "images.viewRegion": "查看修改区域"
+  "images.viewRegion": "查看修改区域",
+  "images.batchProgress": "已完成 {done} / {total}",
+  "images.retryMissing": "补做失败项",
+  "images.retryNotice": "将使用当前图片模型，仅补做该步骤缺失的结果，保留已成功图片。若先前请求已完成但未返回，再次生成可能重复计费。",
+  "images.exportAll": "导出全部结果",
+  "images.resultNumber": "结果 {number}",
+  "images.viewSource": "查看原图"
 }

@@ -10,6 +10,7 @@ export default function MessageBubble({
   message,
   busy,
   onRetry,
+  onRetryStep,
   onCopy,
   onExport,
   onReference,
@@ -18,6 +19,7 @@ export default function MessageBubble({
 }: {
   busy: boolean
   message: Message
+  onRetryStep: (message: Message, stepId: string) => void
   onRetry: (message: Message) => void
   onCopy: () => void
   onExport: (file: string) => Promise<void>
@@ -27,6 +29,8 @@ export default function MessageBubble({
 }) {
   const [images, setImages] = useState<{ file: string; src: string }[]>([])
   const [references, setReferences] = useState<string[]>([])
+  const [exportStatus, setExportStatus] = useState('')
+  const [exporting, setExporting] = useState(false)
   const [showRegion, setShowRegion] = useState(false)
   const [preview, setPreview] = useState('')
   const [approving, setApproving] = useState('')
@@ -129,6 +133,14 @@ export default function MessageBubble({
                   )}
                 </strong>
               </div>
+              {steps.length > 0 && (
+                <p role="status" className="vision-context-note">
+                  {t('images.batchProgress', {
+                    done: message.imageFiles.length,
+                    total: steps.reduce((sum, step) => sum + step.count, 0),
+                  })}
+                </p>
+              )}
               {!!message.viewedImageIds?.length && (
                 <p className="vision-context-note">
                   {t('ui.imagesLoadedIntoVisualContext')} · {message.viewedImageIds.length}
@@ -137,7 +149,8 @@ export default function MessageBubble({
               {steps.length > 0 && (
                 <details>
                   <summary>
-                    {t('ui.viewSteps')} · {steps.length}
+                    {t('ui.viewSteps')} · {message.imageFiles.length}/
+                    {steps.reduce((sum, step) => sum + step.count, 0)}
                   </summary>
                   {steps.map((step) => (
                     <div className="creation-step" key={step.id}>
@@ -156,6 +169,21 @@ export default function MessageBubble({
                         )}
                       </span>
                       <p>{step.prompt}</p>
+                      <p>
+                        {t('images.batchProgress', {
+                          done: step.imageFiles.length,
+                          total: step.count,
+                        })}
+                      </p>
+                      {step.status === 'error' && step.imageFiles.length < step.count && (
+                        <button
+                          className="secondary"
+                          disabled={busy}
+                          onClick={() => onRetryStep(message, step.id)}
+                        >
+                          {t('images.retryMissing')}
+                        </button>
+                      )}
                       {step.dispatchState === 'unknown' && step.status === 'error' && (
                         <p className="form-error">{t('agent.unknownResult')}</p>
                       )}
@@ -254,8 +282,49 @@ export default function MessageBubble({
             <p className="form-error">{message.errorDetail}</p>
           </details>
         )}
-        {images.map((image) => (
+        {images.length > 1 && (
+          <button
+            className="secondary"
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true)
+              setExportStatus('')
+              try {
+                if (await window.studio.exportImages(images.map((image) => image.file)))
+                  setExportStatus(t('ui.imageExported'))
+              } catch (error) {
+                setExportStatus(String(error))
+              } finally {
+                setExporting(false)
+              }
+            }}
+          >
+            {t('images.exportAll')}
+          </button>
+        )}
+        {exportStatus && <p role="status">{exportStatus}</p>}
+        {images.map((image, index) => (
           <div className="generated-image-wrap" key={image.file}>
+            <div className="vision-context-note">
+              {t('images.resultNumber', { number: index + 1 })}
+              {steps.find((step) => step.imageFiles.includes(image.file))?.sourceImageId && (
+                <button
+                  className="source-image-link"
+                  onClick={async () =>
+                    setPreview(
+                      await window.studio
+                        .readImage(
+                          steps.find((step) => step.imageFiles.includes(image.file))!
+                            .sourceImageId!,
+                        )
+                        .catch(() => ''),
+                    )
+                  }
+                >
+                  {t('images.viewSource')}
+                </button>
+              )}
+            </div>
             <button
               className="image-preview-trigger"
               aria-label={t('ui.viewFullSize')}

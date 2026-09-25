@@ -302,6 +302,21 @@ async fn export_image(app: tauri::AppHandle, s: State<'_, AppState>, file: Strin
     Ok(false)
 }
 #[tauri::command]
+async fn export_images(app: tauri::AppHandle, s: State<'_, AppState>, files: Vec<String>) -> Result<bool> {
+    if files.is_empty() || files.len() > 100 { return Err("Invalid image selection".into()); }
+    let sources = files.iter().map(|file|image_path(&s, file)).collect::<Result<Vec<_>>>()?;
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog().file().pick_folder(move |path| { let _ = sender.send(path); });
+    let Some(folder) = receiver.await.map_err(|e|e.to_string())? else { return Ok(false) };
+    let directory = folder.into_path().map_err(|e|e.to_string())?.join(format!("hamster-images-{}",store::id()));
+    std::fs::create_dir(&directory).map_err(|e|e.to_string())?;
+    for (index, source) in sources.iter().enumerate() {
+        let extension = source.extension().and_then(|v|v.to_str()).unwrap_or("png");
+        std::fs::copy(source, directory.join(format!("{:02}.{extension}",index+1))).map_err(|e|e.to_string())?;
+    }
+    Ok(true)
+}
+#[tauri::command]
 fn stop_chat(s: State<AppState>, id: String) -> Result<()> {
     if let Some(token) = lock(&s.active)?.get(&id) {
         token.cancel()
@@ -425,6 +440,8 @@ fn main() {
             import_images,
             import_dropped_image,
             export_image,
+            export_images,
+            agent::retry_image_step,
             stop_chat,
             can_install,
             agent::approve,

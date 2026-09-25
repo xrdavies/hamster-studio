@@ -204,6 +204,57 @@ impl ImageTool {
         result
     }
 }
+fn remaining_images(step: &Value) -> Result<usize> {
+    let count = step["count"].as_u64().ok_or("Invalid image step")? as usize;
+    let completed = step["imageFiles"].as_array().map(Vec::len).unwrap_or(0);
+    if step["status"] != "error" || count <= completed || count > MAX_IMAGES { return Err("No failed images to retry".into()); }
+    Ok(count - completed)
+}
+#[tauri::command]
+pub async fn retry_image_step(app: tauri::AppHandle, state: State<'_, AppState>, session_id: String, message_id: String, step_id: String) -> Result<Value> {
+    let row = lock(&state.store)?.get("messages", &message_id)?;
+    if row["sessionId"] != session_id { return Err("Invalid session".into()); }
+    let step = row["steps"].as_array().and_then(|steps| steps.iter().find(|step| step["id"] == step_id)).ok_or("Unknown image step")?;
+    let count = remaining_images(step)?;
+    let session = lock(&state.store)?.get("sessions", &session_id)?;
+    let (provider, model) = image_config(&state, &session)?.ok_or("ui.configureAnImageModelFirst")?;
+    let secret = password(string(&provider,"id"))?;
+    let reference: Vec<String> = step["sourceImageIds"].as_array().map(|files| files.iter().filter_map(|f|f.as_str().map(str::to_owned)).collect()).unwrap_or_else(|| step["sourceImageId"].as_str().map(str::to_owned).into_iter().collect());
+    for file in &reference {
+        if !lock(&state.store)?.owns_image(&session_id, file)? { return Err("Invalid reference image".into()); }
+        crate::image_path(&state, file)?;
+    }
+    let mask_file = step["maskFile"].as_str().map(str::to_owned);
+    crate::validate_edit_mask(&state, &reference, mask_file.as_deref())?;
+    let token = tokio_util::sync::CancellationToken::new();
+    {
+        let mut active = lock(&state.active)?;
+        if active.contains_key(&session_id) { return Err("Session already has an active request".into()); }
+        active.insert(session_id.clone(), token.clone());
+    }
+    let output = json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":"chat","agent":true,"content":"","imageFiles":[],"steps":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"streaming","error":"","retryOfStep":step_id});
+    let run = Arc::new(Run {app:app.clone(), session_id:session_id.clone(),output:Mutex::new(output),image_provider:Some(provider),image_model:model,image_key:Some(Ok(secret)),reference:reference.clone(),mask_file,viewed:Mutex::new(vec![])});
+    let args = ImageArgs {prompt:string(step,"prompt").into(),count,output_mode:Some(if count > 1 {"variants"} else if reference.len() == 1 {"individual"} else {"compose"}.into()),source_image_ids:Some(reference),source_image_id:None};
+    let tool = ImageTool(run.clone());
+    let result = tokio::select! {
+        _ = token.cancelled() => Err("ui.generationStopped".to_owned()),
+        result = tool.execute(args) => result.and_then(|value| if let Some(error) = value["error"].as_str() {Err(error.to_owned())} else {Ok(())}),
+    };
+    lock(&state.approvals)?.retain(|_, (owner, _)| owner != &session_id);
+    lock(&state.active)?.remove(&session_id);
+    run.update(|output| {
+        output["status"] = json!(if result.is_ok() {"done"} else {"error"});
+        if let Err(error) = &result {
+            output["error"] = json!(error);
+            for step in output["steps"].as_array_mut().unwrap() {
+                if step["status"] == "running" || step["status"] == "waiting" {step["status"] = json!("error"); step["error"] = json!(error);}
+            }
+        }
+    })?;
+    result?;
+    data(&state)
+}
+
 fn requires_repeat_confirmation(rows: &[Value], session: &str, fingerprint: &Value) -> bool {
     rows.iter().any(|message| message["sessionId"] == session && message["steps"].as_array().is_some_and(|steps|
         steps.iter().any(|step| step["fingerprint"] == *fingerprint || step["dispatchState"] == "unknown")))
@@ -455,6 +506,12 @@ pub async fn generate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn retry_counts_only_missing_results() {
+        assert_eq!(remaining_images(&json!({"count":3,"status":"error","imageFiles":["done.png"]})).unwrap(),2);
+        assert!(remaining_images(&json!({"count":1,"status":"done","imageFiles":["done.png"]})).is_err());
+        assert!(remaining_images(&json!({"count":1,"status":"error","imageFiles":["done.png"]})).is_err());
+    }
     #[test]
     fn independent_edits_never_include_other_attached_assets() {
         let attached = vec!["bird.png".into(), "wordmark.png".into(), "hand.png".into()];

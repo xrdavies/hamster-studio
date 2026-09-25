@@ -454,6 +454,23 @@ export default function App() {
                     key={item.id}
                     message={item}
                     onRetry={retry}
+                    onRetryStep={(message, stepId) =>
+                      askConfirm(t('images.retryMissing'), t('images.retryNotice'), async () => {
+                        const targetId = message.sessionId
+                        if (activeRequests.current.has(targetId)) return
+                        activeRequests.current.add(targetId)
+                        setPending((current) => ({ ...current, [targetId]: true }))
+                        try {
+                          await window.studio.retryImageStep(targetId, message.id, stepId)
+                        } catch (error) {
+                          setError(String(error), targetId)
+                        } finally {
+                          activeRequests.current.delete(targetId)
+                          setPending((current) => ({ ...current, [targetId]: false }))
+                          await refreshData()
+                        }
+                      })
+                    }
                     busy={busy}
                     onReference={(file) => {
                       if (busy) return

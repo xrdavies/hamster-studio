@@ -230,5 +230,11 @@
   "images.eraser": "Eraser",
   "images.undoStroke": "Undo last stroke",
   "images.selectRegionFirst": "Select a region first",
-  "images.viewRegion": "View edited region"
+  "images.viewRegion": "View edited region",
+  "images.batchProgress": "Completed {done} / {total}",
+  "images.retryMissing": "Retry missing results",
+  "images.retryNotice": "Only missing results from this step will be generated using the current image model. Existing results are preserved. The provider may charge again if an earlier request completed without returning a result.",
+  "images.exportAll": "Export all results",
+  "images.resultNumber": "Result {number}",
+  "images.viewSource": "View source"
 }

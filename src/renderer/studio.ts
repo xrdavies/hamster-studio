@@ -96,6 +96,9 @@ window.studio = {
   stopChat: (id) => invoke('stop_chat', { id }),
   saveMask: (file, data) => invoke('save_mask', { file, data }),
   readImage: (file) => invoke('read_image', { file }),
+  exportImages: (files) => invoke('export_images', { files }),
+  retryImageStep: (sessionId, messageId, stepId) =>
+    invoke('retry_image_step', { sessionId, messageId, stepId }),
   exportImage: (file) => invoke('export_image', { file }),
   fetchModels: (input) => invoke('fetch_models', { input }),
   testProvider: async (input) => {

@@ -43,6 +43,8 @@ declare global {
       importImages(sessionId: string, remaining: number): Promise<string[]>
       saveMask(file: string, data: string): Promise<string>
       readImage(file: string): Promise<string>
+      exportImages(files: string[]): Promise<boolean>
+      retryImageStep(sessionId: string, messageId: string, stepId: string): Promise<StudioData>
       exportImage(file: string): Promise<boolean>
       fetchModels(input: ProviderInput): Promise<ProviderModels>
       testProvider(input: ProviderInput): Promise<boolean>
