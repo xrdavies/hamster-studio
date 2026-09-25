@@ -99,6 +99,6 @@ Build prerequisites: Node.js 24, npm, Rust stable, Xcode Command Line Tools.
 
 每次任务最多生成 3 张、执行 6 轮模型调用、查看 6 张图片（每张不超过 20 MB）。多张或追加生成需要确认。不支持视觉输入的模型可能返回错误，此时需切换兼容模型后重试。
 
-可从输入框导入本地 PNG、JPEG、WebP 图片（不超过 20 MB）。应用保存当前会话专属的本地副本，可用于看图、Agent 编辑或直接调用图片模型编辑。移除附件只清除输入框的选择。
+可从输入框导入本地 PNG、JPEG、WebP 图片（不超过 10 MB）。应用保存当前会话专属的本地副本，可用于看图、Agent 编辑或直接调用图片模型编辑。移除附件只清除输入框的选择。
 
 界面翻译使用 `src/shared/locales/` 中的类型化语义键名，动态内容使用 `{name}` 占位符。界面文案通过 `t(key, parameters)` 获取，应用错误代码或外部消息通过 `translateMessage` 展示，不反向翻译用户内容或 Provider 错误。

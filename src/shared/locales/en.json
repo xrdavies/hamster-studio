@@ -186,9 +186,9 @@
   "ui.viewingImagesRequiresAVisionCapableConversationModelImagesAreSentToThatModelSProvider": "Viewing images requires a vision-capable conversation model. Images are sent to that model’s provider.",
   "images.addLocal": "Add local image",
   "images.importing": "Importing…",
-  "images.tooLarge": "Images must be 20 MB or smaller",
+  "images.tooLarge": "Images must be 10 MB or smaller",
   "images.unsupportedFormat": "Select a PNG, JPEG or WebP image",
   "welcome.providerNotice": "Using {provider}. Your API key is stored only on this device.",
-  "images.dropHere": "Drop to attach image · PNG / JPEG / WebP · ≤20 MB",
+  "images.dropHere": "Drop to attach image · PNG / JPEG / WebP · ≤10 MB",
   "images.dropOne": "Drop one reference image at a time"
 }

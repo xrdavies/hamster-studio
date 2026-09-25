@@ -186,9 +186,9 @@
   "ui.viewingImagesRequiresAVisionCapableConversationModelImagesAreSentToThatModelSProvider": "查看图片需要当前对话模型支持视觉输入；图片将发送至该模型的 Provider。",
   "images.addLocal": "添加本地图片",
   "images.importing": "正在导入…",
-  "images.tooLarge": "图片不能超过 20 MB",
+  "images.tooLarge": "图片不能超过 10 MB",
   "images.unsupportedFormat": "请选择 PNG、JPEG 或 WebP 图片",
   "welcome.providerNotice": "当前使用 {provider}，你的 API Key 只保存在本机。",
-  "images.dropHere": "松开以添加参考图片 · PNG / JPEG / WebP · ≤20 MB",
+  "images.dropHere": "松开以添加参考图片 · PNG / JPEG / WebP · ≤10 MB",
   "images.dropOne": "每次请拖入一张参考图片"
 }

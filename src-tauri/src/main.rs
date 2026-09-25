@@ -192,7 +192,7 @@ fn image_mime(file: &str) -> &'static str {
     if file.ends_with(".jpg") { "image/jpeg" } else if file.ends_with(".webp") { "image/webp" } else { "image/png" }
 }
 fn imported_extension(bytes: &[u8]) -> Result<&'static str> {
-    if bytes.len() > 20 * 1024 * 1024 { return Err("images.tooLarge".into()); }
+    if bytes.len() > 10 * 1024 * 1024 { return Err("images.tooLarge".into()); }
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") { Ok("png") }
     else if bytes.starts_with(b"\xff\xd8\xff") { Ok("jpg") }
     else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") { Ok("webp") }
@@ -213,7 +213,7 @@ fn import_dropped_image(s: State<AppState>, session_id: String, path: PathBuf) -
 }
 fn save_imported_image(s: &AppState, session_id: &str, path: PathBuf) -> Result<String> {
     lock(&s.store)?.get("sessions", session_id)?;
-    if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 20 * 1024 * 1024 { return Err("images.tooLarge".into()); }
+    if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 10 * 1024 * 1024 { return Err("images.tooLarge".into()); }
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
     let extension = imported_extension(&bytes)?;
     let name = format!("{}.{}", store::id(), extension);
@@ -393,6 +393,10 @@ mod image_import_tests {
         assert_eq!(imported_extension(b"\x89PNG\r\n\x1a\n").unwrap(), "png");
         assert_eq!(imported_extension(b"\xff\xd8\xff").unwrap(), "jpg");
         assert!(imported_extension(b"not an image").is_err());
-        assert!(imported_extension(&vec![0; 20 * 1024 * 1024 + 1]).is_err());
+        let mut bytes = vec![0; 10 * 1024 * 1024];
+        bytes[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
+        assert_eq!(imported_extension(&bytes).unwrap(), "png");
+        bytes.push(0);
+        assert_eq!(imported_extension(&bytes).unwrap_err(), "images.tooLarge");
     }
 }
