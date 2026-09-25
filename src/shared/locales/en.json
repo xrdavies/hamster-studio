@@ -223,5 +223,6 @@
   "images.useRegion": "Use region",
   "images.regionSelected": "Region selected",
   "images.removeRegion": "Remove region",
-  "images.regionTooLarge": "Region editing supports up to 32 megapixels."
+  "images.regionTooLarge": "Region editing supports up to 32 megapixels.",
+  "ui.toggleSidebar": "Toggle sidebar"
 }

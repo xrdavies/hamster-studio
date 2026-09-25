@@ -1793,3 +1793,81 @@ button svg {
   touch-action: none;
   cursor: crosshair;
 }
+
+/* Keep the native macOS window controls alongside the app branding. */
+.app.desktop-layout {
+  display: grid;
+  grid-template-columns: 286px minmax(0, 1fr);
+  grid-template-rows: 48px minmax(0, 1fr);
+}
+.desktop-titlebar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  background: #f7f7f9;
+  user-select: none;
+}
+.sidebar-toggle {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  color: #686874;
+  background: transparent;
+}
+.sidebar-toggle:hover {
+  background: #eaeaf0;
+  color: var(--ink);
+}
+.desktop-window-title {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.platform-mac .desktop-window-title {
+  padding-left: 88px;
+}
+.desktop-window-title img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  pointer-events: none;
+}
+.desktop-titlebar-space {
+  flex: 1;
+  height: 100%;
+}
+.conversation-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.conversation-toolbar .title-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+.desktop-layout > .sidebar {
+  width: auto;
+  min-height: 0;
+  padding-top: 14px;
+}
+.desktop-layout > .main {
+  min-height: 0;
+}
+.desktop-layout.sidebar-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.desktop-layout.sidebar-collapsed > .sidebar {
+  display: none;
+}

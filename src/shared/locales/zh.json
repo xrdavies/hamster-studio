@@ -223,5 +223,6 @@
   "images.useRegion": "使用选区",
   "images.regionSelected": "已选择区域",
   "images.removeRegion": "移除选区",
-  "images.regionTooLarge": "局部修改支持最多 3200 万像素。"
+  "images.regionTooLarge": "局部修改支持最多 3200 万像素。",
+  "ui.toggleSidebar": "展开或收起侧栏"
 }

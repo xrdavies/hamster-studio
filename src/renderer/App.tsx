@@ -1,7 +1,8 @@
+import hamsterLogo from './assets/hamster-logo-256.png'
 import UpdateNotice from './components/UpdateNotice'
 import { translateMessage, t, useLanguage } from './i18n'
 import { useEffect, useRef, useState } from 'react'
-import { Check } from 'lucide-react'
+import { Check, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import type { Message, StudioData, StudioSession } from '../shared/types'
 import type { ModelKind } from '../shared/model-capabilities'
 import SessionTitle from './components/SessionTitle'
@@ -360,8 +361,19 @@ export default function App() {
     })
   }
 
+  const [sidebarVisible, setSidebarVisible] = useState(true)
+  const isMac = /Mac/.test(navigator.platform)
   return (
-    <div className="app">
+    <div
+      className={`app desktop-layout ${sidebarVisible ? '' : 'sidebar-collapsed'} ${isMac ? 'platform-mac' : ''}`}
+    >
+      <header className="desktop-titlebar" data-tauri-drag-region>
+        <div className="desktop-window-title" data-tauri-drag-region>
+          <img src={hamsterLogo} alt="" data-tauri-drag-region />
+          <span data-tauri-drag-region>Hamster Studio</span>
+        </div>
+        <div className="desktop-titlebar-space" data-tauri-drag-region />
+      </header>
       <SessionSidebar
         data={data}
         session={session}
@@ -385,6 +397,24 @@ export default function App() {
         onUpdate={updateSpecificSession}
       />
       <main className="main" ref={dropArea}>
+        <header className="conversation-toolbar">
+          <button
+            className="sidebar-toggle"
+            title={t('ui.toggleSidebar')}
+            aria-label={t('ui.toggleSidebar')}
+            aria-expanded={sidebarVisible}
+            onClick={() => setSidebarVisible((value) => !value)}
+          >
+            {sidebarVisible ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+          </button>
+          {session && (
+            <SessionTitle
+              key={session.id}
+              title={session.title}
+              onSave={(title) => updateSession({ title })}
+            />
+          )}
+        </header>
         {draggingImage && (
           <div className="image-drop-overlay" role="status">
             {t('images.dropHere')}
@@ -400,16 +430,6 @@ export default function App() {
           />
         ) : (
           <>
-            <header className="topbar">
-              <div className="title-block">
-                <SessionTitle
-                  key={session.id}
-                  title={session.title}
-                  onSave={(title) => updateSession({ title })}
-                />
-              </div>
-              <div className="local-badge">Local</div>
-            </header>
             {!provider && (
               <div className="missing-provider">
                 {t(

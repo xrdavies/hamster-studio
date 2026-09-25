@@ -1,16 +1,6 @@
 import { t } from '../i18n'
-import {
-  Archive,
-  MessageSquarePlus,
-  PanelLeftClose,
-  Pin,
-  PinOff,
-  Search,
-  Settings,
-  Trash2,
-} from 'lucide-react'
+import { Archive, MessageSquarePlus, Pin, PinOff, Search, Settings, Trash2 } from 'lucide-react'
 import type { StudioData, StudioSession } from '../../shared/types'
-import hamsterLogo from '../assets/hamster-logo-256.png'
 
 const time = (value: number) =>
   new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
@@ -46,11 +36,6 @@ export default function SessionSidebar({
 }) {
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <img src={hamsterLogo} className="brand-image" />
-        <span>Hamster Studio</span>
-        <PanelLeftClose size={16} className="muted" />
-      </div>
       <button className="new-chat" onClick={onNew}>
         <MessageSquarePlus size={17} />
         {t('ui.newConversationLabel')}
