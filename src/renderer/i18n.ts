@@ -7,10 +7,16 @@ const saved = localStorage.getItem('studio.language')
 let language: Language =
   saved === 'zh' || saved === 'en' ? saved : navigator.language.startsWith('zh') ? 'zh' : 'en'
 const listeners = new Set<() => void>()
-export function t(key: string): string {
-  const dictionary: Record<string, string> = language === 'en' ? en : zh
-  const source = Object.keys(en).find((source) => en[source as keyof typeof en] === key) ?? key
-  return dictionary[source] ?? key
+export type TranslationKey = keyof typeof en
+export function t(key: TranslationKey, params: Record<string, string | number> = {}): string {
+  const dictionary = language === 'en' ? en : zh
+  return dictionary[key].replace(/\{(\w+)\}/g, (match, name: string) =>
+    String(params[name] ?? match),
+  )
+}
+// Provider errors and user-authored content must never be reverse-translated.
+export function translateMessage(message: string): string {
+  return Object.hasOwn(en, message) ? t(message as TranslationKey) : message
 }
 export function setLanguage(next: Language) {
   localStorage.setItem('studio.language', next)

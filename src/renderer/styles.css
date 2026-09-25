@@ -258,7 +258,7 @@ select:focus-visible {
 .messages {
   flex: 1;
   overflow: auto;
-  padding: 38px max(34px, calc((100% - 900px) / 2)) 24px;
+  padding: 20px max(34px, calc((100% - 900px) / 2)) 16px;
   scroll-behavior: smooth;
 }
 .welcome {
@@ -313,8 +313,8 @@ select:focus-visible {
 }
 .message {
   display: flex;
-  gap: 13px;
-  margin: 0 auto 30px;
+  gap: 10px;
+  margin: 0 auto 18px;
   max-width: 900px;
   animation: message-in 0.18s ease-out;
 }
@@ -344,7 +344,7 @@ select:focus-visible {
 .message.user .message-body {
   background: #eeeef3;
   border-radius: 14px 4px 14px 14px;
-  padding: 11px 14px;
+  padding: 8px 12px;
 }
 .message-meta {
   display: flex;
@@ -352,7 +352,7 @@ select:focus-visible {
   gap: 8px;
   font-size: 11px;
   color: #858690;
-  margin: 1px 0 8px;
+  margin: 1px 0 4px;
 }
 .message-meta span {
   color: #b0b1b8;
@@ -365,11 +365,11 @@ select:focus-visible {
   justify-content: flex-end;
 }
 .markdown {
-  line-height: 1.7;
+  line-height: 1.55;
   color: #2e2f35;
 }
 .markdown p {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
 }
 .markdown p:last-child {
   margin-bottom: 0;
@@ -397,8 +397,8 @@ select:focus-visible {
 }
 .message-actions {
   display: flex;
-  gap: 12px;
-  margin-top: 10px;
+  gap: 10px;
+  margin-top: 4px;
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -416,7 +416,7 @@ select:focus-visible {
 }
 .generated-image {
   display: block;
-  max-width: 560px;
+  max-width: 480px;
   border-radius: 13px;
   margin-top: 9px;
   box-shadow: 0 5px 18px #20212616;
@@ -1104,8 +1104,11 @@ select:focus-visible {
   color: #666772;
   text-align: left;
 }
-.settings-nav button.active,
-.settings-nav button:hover {
+.settings-nav button:hover:not(.active) {
+  background: var(--soft);
+  color: var(--ink);
+}
+.settings-nav button.active {
   background: #e9e6fb;
   color: #4f3caa;
 }
@@ -1152,7 +1155,7 @@ select:focus-visible {
   scroll-behavior: auto;
 }
 .model-menu {
-  width: 270px;
+  width: 230px;
   max-width: 100%;
 }
 .model-trigger,
@@ -1198,7 +1201,7 @@ select:focus-visible {
   overflow-wrap: anywhere;
 }
 .generated-image {
-  max-width: min(560px, 100%);
+  max-width: min(480px, 100%);
 }
 .welcome {
   padding-top: 3vh;
@@ -1270,7 +1273,7 @@ select:focus-visible {
   cursor: pointer;
 }
 .about-footer details p {
-  line-height: 1.7;
+  line-height: 1.55;
 }
 
 .language-menu {
@@ -1321,11 +1324,393 @@ fieldset.provider-form {
   margin: 4px;
 }
 .catalog-settings {
-  padding: 16px 0;
-  border-bottom: 1px solid #eee;
-  margin-bottom: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
 }
+.catalog-settings-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.catalog-details {
+  flex: 1;
+  min-width: 0;
+}
+.catalog-details summary {
+  cursor: pointer;
+  color: #666772;
+  padding: 8px 0;
+}
+.catalog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.catalog-actions button {
+  margin: 0;
+}
+.catalog-settings .catalog-status {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
 .catalog-settings p {
   font-size: 13px;
   color: #666;
+}
+
+.creation-settings-toggle,
+.image-card-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: #555660;
+  font-size: 12px;
+  line-height: 18px;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.creation-settings-toggle svg,
+.image-card-actions button svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+.creation-settings-toggle:hover,
+.image-card-actions button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: #d9d2f7;
+  color: var(--accent);
+}
+.creation-settings-toggle:active,
+.image-card-actions button:active:not(:disabled) {
+  background: #e5dfff;
+}
+.image-card-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.creation-settings-toggle {
+  background: var(--soft);
+  border-color: transparent;
+}
+.creation-settings-toggle[aria-expanded='true'] {
+  background: var(--accent-soft);
+  border-color: #d9d2f7;
+  color: var(--accent);
+}
+.composer-modelbar {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.creation-settings {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 6;
+  width: max-content;
+  max-width: 100%;
+  box-shadow: 0 8px 24px #20212620;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  margin-bottom: 0;
+  font-size: 12px;
+}
+.creation-settings-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #555660;
+}
+.creation-settings-help {
+  display: inline-flex;
+  padding: 6px;
+  color: var(--muted);
+}
+.creation-settings-help:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.creation-settings .form-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.reference-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  font-size: 12px;
+}
+.reference-chip img,
+.message-reference {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.creation-task {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: #faf9fd;
+}
+.creation-task-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.creation-task details {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.creation-task summary {
+  cursor: pointer;
+  color: #777;
+}
+.creation-step {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.creation-step p,
+.creation-approval p {
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+.creation-approval > div {
+  display: flex;
+  gap: 8px;
+}
+.image-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0;
+}
+.image-preview-trigger {
+  padding: 0;
+  display: block;
+  cursor: zoom-in;
+  background: transparent;
+}
+.image-preview-dialog {
+  border: 0;
+  border-radius: 12px;
+  padding: 36px 12px 12px;
+  max-width: 92vw;
+  max-height: 92vh;
+}
+.image-preview-dialog::backdrop {
+  background: #0009;
+}
+.image-preview-dialog img {
+  display: block;
+  max-width: 85vw;
+  max-height: 80vh;
+  object-fit: contain;
+}
+.preview-close {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+}
+
+.source-image-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  margin-top: 6px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+}
+.source-image-link:hover:not(:disabled) {
+  background: #e5dfff;
+}
+.source-image-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.vision-context-note {
+  color: #777;
+  font-size: 12px;
+  margin: 8px 0;
+}
+
+/* Shared defaults also cover controls without a dedicated variant. */
+button {
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+button svg {
+  flex-shrink: 0;
+}
+.primary,
+.secondary,
+.update-notice > button,
+.about-update > button,
+.catalog-settings > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: none;
+}
+.primary {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+.primary.danger {
+  background: #b64040;
+  border-color: #b64040;
+  color: white;
+}
+.secondary:hover:not(:disabled),
+.update-notice > button:hover:not(:disabled),
+.about-update > button:hover:not(:disabled),
+.catalog-settings > button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: #d9d2f7;
+}
+.primary:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.reference-chip > button,
+.preview-close,
+.settings-head > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  color: #555660;
+  background: var(--soft);
+}
+.reference-chip > button:hover:not(:disabled),
+.preview-close:hover,
+.settings-head > button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.message:focus-within .message-actions,
+.session:focus-within .session-actions {
+  opacity: 1;
+}
+.message-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+}
+
+.main {
+  position: relative;
+}
+.image-drop-overlay {
+  position: absolute;
+  inset: 12px;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  border: 2px dashed var(--accent);
+  border-radius: 14px;
+  background: #efecfff2;
+  color: var(--accent);
+  pointer-events: none;
+}
+
+.composer-icon-button {
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+  flex-shrink: 0;
+}
+.composer-icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.image-card-actions button {
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+}
+.image-card-actions button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.composer .model-trigger {
+  gap: 8px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
+.composer {
+  position: relative;
+}
+
+.markdown :is(ul, ol, pre, blockquote) {
+  margin-block: 6px;
+}
+.markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 12px 6px;
+  line-height: 1.35;
+}
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+.markdown li > p {
+  margin-bottom: 3px;
+}
+.creation-step p,
+.creation-approval p {
+  margin-block: 6px;
+}
+.generated-image {
+  max-height: 320px;
+  width: auto;
+  object-fit: contain;
 }

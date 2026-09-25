@@ -1,5 +1,5 @@
 import UpdateNotice from './components/UpdateNotice'
-import { t, useLanguage } from './i18n'
+import { translateMessage, t, useLanguage } from './i18n'
 import { useEffect, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import type { Message, StudioData, StudioSession } from '../shared/types'
@@ -60,6 +60,7 @@ export default function App() {
   const messagesRef = useRef<HTMLDivElement>(null)
   const previousSession = useRef('')
   const followBottom = useRef(true)
+  const [references, setReferences] = useState<Record<string, string>>({})
   const scrollBottom = () => {
     const el = messagesRef.current
     if (el && followBottom.current) el.scrollTop = el.scrollHeight
@@ -70,7 +71,9 @@ export default function App() {
       .then((next) => {
         setSessionId(next.sessions[0]?.id || '')
       })
-      .catch((reason) => setError(reason instanceof Error ? reason.message : t('无法读取本地数据')))
+      .catch((reason) =>
+        setError(reason instanceof Error ? reason.message : t('ui.unableToLoadLocalData')),
+      )
   }, [])
   useEffect(
     () =>
@@ -103,7 +106,9 @@ export default function App() {
   const session = data.sessions.find((item) => item.id === sessionId) || data.sessions[0]
   const stateId = session?.id || ''
   const text = drafts[stateId] || ''
-  const busy = pending[stateId] || false
+  const busy =
+    pending[stateId] ||
+    data.messages.some((m) => m.sessionId === stateId && m.status === 'streaming')
   const error = errors[stateId] || errors[''] || ''
   const setText = (value: string) => setDrafts((current) => ({ ...current, [stateId]: value }))
   const setError = (value: string, id = stateId) =>
@@ -127,6 +132,41 @@ export default function App() {
     return () => cancelAnimationFrame(frame)
   }, [session?.id, messages.length, messages.at(-1)?.content])
 
+  const dropArea = useRef<HTMLElement>(null)
+  const [draggingImage, setDraggingImage] = useState(false)
+  const dropImporting = useRef(false)
+  useEffect(() => {
+    setDraggingImage(false)
+    return window.studio.onImageDrag((event) => {
+      if (event.type === 'leave') {
+        setDraggingImage(false)
+        return
+      }
+      const rect = dropArea.current?.getBoundingClientRect()
+      const x = event.position.x / window.devicePixelRatio
+      const y = event.position.y / window.devicePixelRatio
+      const inside =
+        !!rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+      const available =
+        inside && !!session && !busy && !settings && !confirm && !dropImporting.current
+      setDraggingImage(available && event.type !== 'drop')
+      if (event.type !== 'drop' || !available) return
+      if (event.paths.length !== 1) {
+        setError(t('images.dropOne'))
+        return
+      }
+      const targetId = session.id
+      dropImporting.current = true
+      void window.studio
+        .importDroppedImage(targetId, event.paths[0])
+        .then((file) => setReferences((current) => ({ ...current, [targetId]: file })))
+        .catch((reason) => setError(String(reason), targetId))
+        .finally(() => {
+          dropImporting.current = false
+        })
+    })
+  }, [session?.id, busy, settings, confirm])
+
   const notify = (message: string) => {
     setToast(message)
     window.setTimeout(() => setToast((current) => (current === message ? '' : current)), 1800)
@@ -137,7 +177,7 @@ export default function App() {
       await window.studio.saveSession({ id: session.id, ...values })
       await refreshData()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('保存会话失败'))
+      setError(reason instanceof Error ? reason.message : t('ui.failedToSaveConversation'))
     }
   }
   const updateSpecificSession = async (target: StudioSession, values: Partial<StudioSession>) => {
@@ -145,7 +185,10 @@ export default function App() {
       await window.studio.saveSession({ id: target.id, ...values })
       await refreshData()
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('保存会话失败'), target.id)
+      setError(
+        reason instanceof Error ? reason.message : t('ui.failedToSaveConversation'),
+        target.id,
+      )
     }
   }
   async function createSession() {
@@ -160,16 +203,17 @@ export default function App() {
       setSettingsPage('providers')
       setSettings(true)
       setEditing(makeEditing(first))
-      setError(t('请先为 Provider 配置可用模型'))
+      setError(t('ui.pleaseConfigureASupportedModelForThisProvider'))
       return
     }
     const next: StudioSession = {
       id: newId(),
-      title: t('新对话'),
+      title: t('ui.newConversation'),
       providerId: first.id,
       modelKind: first.chatModels.length ? 'chat' : 'image',
       chatModel: first.chatModels[0] || '',
       imageModel: first.imageModels[0] || '',
+      imageProviderId: first.id,
       systemPrompt: '',
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -191,39 +235,56 @@ export default function App() {
     })
   }
   function deleteSession(target: StudioSession) {
-    askConfirm(t('删除会话'), t('会删除这个会话及其全部消息，无法恢复。'), async () => {
-      await window.studio.deleteSession(target.id)
-      const next = await refreshData()
-      setSessionId((current) => (current === target.id ? next.sessions[0]?.id || '' : current))
-      setDrafts((current) => {
-        const next = { ...current }
-        delete next[target.id]
-        return next
-      })
-      setErrors((current) => {
-        const next = { ...current }
-        delete next[target.id]
-        return next
-      })
-    })
+    askConfirm(
+      t('ui.deleteConversation'),
+      t('ui.thisPermanentlyDeletesTheConversationAndAllItsMessages'),
+      async () => {
+        await window.studio.deleteSession(target.id)
+        const next = await refreshData()
+        setSessionId((current) => (current === target.id ? next.sessions[0]?.id || '' : current))
+        setDrafts((current) => {
+          const next = { ...current }
+          delete next[target.id]
+          return next
+        })
+        setErrors((current) => {
+          const next = { ...current }
+          delete next[target.id]
+          return next
+        })
+      },
+    )
   }
-  async function runRequest(target: StudioSession, prompt: string, kind: ModelKind) {
+  async function runRequest(
+    target: StudioSession,
+    prompt: string,
+    kind: ModelKind,
+    referenceFile = references[target.id],
+  ) {
     if (activeRequests.current.has(target.id)) return
     activeRequests.current.add(target.id)
     setPending((current) => ({ ...current, [target.id]: true }))
     setError('', target.id)
     try {
-      if (['新对话', 'New conversation'].includes(target.title))
+      if (['ui.newConversation', 'New conversation'].includes(target.title))
         await window.studio.saveSession({ id: target.id, title: prompt.slice(0, 28) })
-      if (kind === 'image') await window.studio.generateImage(target.id, prompt)
-      else await window.studio.sendChat(target.id, prompt)
+      if (kind === 'image') await window.studio.generateImage(target.id, prompt, referenceFile)
+      else {
+        const reference = referenceFile
+        if (reference) await window.studio.sendChat(target.id, prompt, reference)
+        else await window.studio.sendChat(target.id, prompt)
+        setReferences((current) => ({ ...current, [target.id]: '' }))
+      }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('请求失败'), target.id)
+      setError(reason instanceof Error ? reason.message : String(reason), target.id)
     } finally {
       activeRequests.current.delete(target.id)
       setPending((current) => ({ ...current, [target.id]: false }))
       await refreshData().catch((reason) =>
-        setError(reason instanceof Error ? reason.message : t('无法读取本地数据'), target.id),
+        setError(
+          reason instanceof Error ? reason.message : t('ui.unableToLoadLocalData'),
+          target.id,
+        ),
       )
     }
   }
@@ -239,8 +300,9 @@ export default function App() {
       .filter((item) => item.sessionId === message.sessionId)
       .sort((a, b) => a.createdAt - b.createdAt)
     const previous = history[history.findIndex((item) => item.id === message.id) - 1]
+    if (message.agent) return
     if (!target || !previous || previous.role !== 'user') return
-    await runRequest(target, previous.content, message.kind)
+    await runRequest(target, previous.content, message.kind, previous.referenceFile || '')
   }
   const changeModel = (providerId: string, model: string, kind: ModelKind) => {
     const next = data.providers.find((item) => item.id === providerId)
@@ -248,8 +310,12 @@ export default function App() {
       providerId,
       modelKind: kind,
       ...(kind === 'chat'
-        ? { chatModel: model, imageModel: next?.imageModels[0] || session?.imageModel || '' }
-        : { imageModel: model, chatModel: next?.chatModels[0] || session?.chatModel || '' }),
+        ? { chatModel: model, imageProviderId: session?.imageProviderId ?? session?.providerId }
+        : {
+            imageModel: model,
+            imageProviderId: providerId,
+            chatModel: next?.chatModels[0] || session?.chatModel || '',
+          }),
     })
   }
 
@@ -277,7 +343,12 @@ export default function App() {
         }}
         onUpdate={updateSpecificSession}
       />
-      <main className="main">
+      <main className="main" ref={dropArea}>
+        {draggingImage && (
+          <div className="image-drop-overlay" role="status">
+            {t('images.dropHere')}
+          </div>
+        )}
         {!session ? (
           <EmptyState
             onSettings={() => {
@@ -300,7 +371,9 @@ export default function App() {
             </header>
             {!provider && (
               <div className="missing-provider">
-                {t('当前会话的 Provider 已删除，历史消息仍保留。请在输入框中选择新的 Provider。')}
+                {t(
+                  'ui.thisProviderWasDeletedYourHistoryIsPreservedSelectAnotherProviderToContinue',
+                )}
               </div>
             )}
             <div
@@ -320,21 +393,52 @@ export default function App() {
                     key={item.id}
                     message={item}
                     onRetry={retry}
+                    busy={busy}
+                    onReference={(file) => {
+                      if (busy) return
+                      if (!data.providers.some((p) => p.chatModels.length)) {
+                        notify(t('ui.selectAChatModelFirst'))
+                        return
+                      }
+                      setReferences((current) => ({ ...current, [session.id]: file }))
+                      if (session.modelKind === 'image') {
+                        const chat = data.providers.find((p) => p.chatModels.length)
+                        if (chat)
+                          void updateSession({
+                            providerId: chat.id,
+                            chatModel: chat.chatModels[0],
+                            modelKind: 'chat',
+                          })
+                      }
+                    }}
+                    onRegenerate={(prompt) => {
+                      setReferences((current) => ({ ...current, [session.id]: '' }))
+                      setText(`${t('ui.pleaseGenerateTheImageAgain')} ${prompt}`)
+                    }}
+                    onApprove={async (stepId, allow) => {
+                      try {
+                        await window.studio.approveImageStep(session.id, stepId, allow)
+                      } catch (error) {
+                        setError(String(error), session.id)
+                      }
+                    }}
                     onCopy={() => {
                       navigator.clipboard.writeText(item.content)
-                      notify(t('已复制到剪贴板'))
+                      notify(t('ui.copiedToClipboard'))
                     }}
                     onExport={async (file) => {
                       try {
-                        if (await window.studio.exportImage(file)) notify(t('图片已导出'))
+                        if (await window.studio.exportImage(file)) notify(t('ui.imageExported'))
                       } catch (reason) {
-                        setError(reason instanceof Error ? reason.message : t('导出图片失败'))
+                        setError(
+                          reason instanceof Error ? reason.message : t('ui.failedToExportImage'),
+                        )
                       }
                     }}
                   />
                 ))
               )}
-              {error && <div className="error-banner">{t(error)}</div>}
+              {error && <div className="error-banner">{translateMessage(error)}</div>}
             </div>
             <Composer
               key={session.id}
@@ -346,6 +450,27 @@ export default function App() {
               text={text}
               setText={setText}
               onModel={changeModel}
+              onImportImage={async () => {
+                const targetId = session.id
+                try {
+                  const file = await window.studio.importImage(targetId)
+                  if (file) setReferences((current) => ({ ...current, [targetId]: file }))
+                } catch (reason) {
+                  setError(String(reason), targetId)
+                }
+              }}
+              referenceFile={references[session.id]}
+              onClearReference={() =>
+                setReferences((current) => ({ ...current, [session.id]: '' }))
+              }
+              onImageModel={async (providerId, model) => {
+                await window.studio.saveSession({
+                  id: session.id,
+                  imageProviderId: providerId,
+                  imageModel: model,
+                })
+                await refreshData()
+              }}
               onSubmit={submit}
               onStop={() => void window.studio.stopChat(session.id)}
             />
@@ -373,7 +498,7 @@ export default function App() {
       {toast && (
         <div className="toast">
           <Check size={15} />
-          {t(toast)}
+          {translateMessage(toast)}
         </div>
       )}
       {confirm && <ConfirmDialog state={confirm} onCancel={() => setConfirm(null)} />}

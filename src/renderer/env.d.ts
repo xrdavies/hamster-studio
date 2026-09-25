@@ -21,9 +21,15 @@ declare global {
       deleteProvider(id: string): Promise<void>
       saveSession(session: Partial<StudioSession>): Promise<StudioData>
       deleteSession(id: string): Promise<StudioData>
-      sendChat(sessionId: string, text: string): Promise<StudioData>
+      approveImageStep(sessionId: string, stepId: string, allow: boolean): Promise<void>
+      sendChat(sessionId: string, text: string, referenceFile?: string): Promise<StudioData>
       stopChat(sessionId: string): Promise<void>
-      generateImage(sessionId: string, prompt: string): Promise<StudioData>
+      generateImage(sessionId: string, prompt: string, referenceFile?: string): Promise<StudioData>
+      onImageDrag(
+        callback: (event: import('@tauri-apps/api/webview').DragDropEvent) => void,
+      ): () => void
+      importDroppedImage(sessionId: string, path: string): Promise<string>
+      importImage(sessionId: string): Promise<string | null>
       readImage(file: string): Promise<string>
       exportImage(file: string): Promise<boolean>
       fetchModels(input: ProviderInput): Promise<ProviderModels>

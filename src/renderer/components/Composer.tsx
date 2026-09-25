@@ -1,6 +1,15 @@
 import { t } from '../i18n'
-import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Image as ImageIcon, MessageSquare, Send } from 'lucide-react'
+import { useEffect, useId, useRef, useState } from 'react'
+import {
+  ChevronDown,
+  Image as ImageIcon,
+  MessageSquare,
+  Send,
+  SlidersHorizontal,
+  ImagePlus,
+  Info,
+  X,
+} from 'lucide-react'
 import type { Provider, StudioSession } from '../../shared/types'
 import type { ModelKind } from '../../shared/model-capabilities'
 
@@ -17,6 +26,10 @@ export default function Composer({
   onModel,
   onSubmit,
   onStop,
+  onImageModel,
+  referenceFile,
+  onClearReference,
+  onImportImage,
 }: {
   providers: Provider[]
   session: StudioSession
@@ -28,7 +41,48 @@ export default function Composer({
   onModel: (providerId: string, model: string, kind: ModelKind) => void
   onSubmit: () => void
   onStop: () => void
+  onImageModel: (providerId: string, model: string) => Promise<void>
+  referenceFile?: string
+  onImportImage: () => Promise<void>
+  onClearReference: () => void
 }) {
+  const [importing, setImporting] = useState(false)
+  const [savingImageModel, setSavingImageModel] = useState(false)
+  const [imageSettingError, setImageSettingError] = useState('')
+  const [showImageSettings, setShowImageSettings] = useState(false)
+  const [referenceSrc, setReferenceSrc] = useState('')
+  const settingsPanel = useRef<HTMLDivElement>(null)
+  const settingsButton = useRef<HTMLButtonElement>(null)
+  const settingsId = useId()
+  useEffect(() => {
+    if (!showImageSettings) return
+    settingsPanel.current?.querySelector<HTMLButtonElement>('.model-trigger')?.focus()
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!settingsPanel.current?.contains(target) && !settingsButton.current?.contains(target))
+        setShowImageSettings(false)
+    }
+    document.addEventListener('pointerdown', outside)
+    return () => document.removeEventListener('pointerdown', outside)
+  }, [showImageSettings])
+  useEffect(() => {
+    setShowImageSettings(false)
+  }, [session.id])
+
+  useEffect(() => {
+    let active = true
+    setReferenceSrc('')
+    if (referenceFile)
+      void window.studio
+        .readImage(referenceFile)
+        .then((src) => {
+          if (active) setReferenceSrc(src)
+        })
+        .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [referenceFile])
   const choices = providers.flatMap((provider) => [
     ...provider.chatModels.map((model) => ({
       providerId: provider.id,
@@ -53,8 +107,107 @@ export default function Composer({
     <div className="composer-wrap">
       <div className="composer">
         <div className="composer-modelbar">
-          <ModelMenu choices={choices} selected={selected} onSelect={onModel} />
+          <ModelMenu choices={choices} selected={selected} onSelect={onModel} disabled={busy} />
+          <button
+            type="button"
+            className="creation-settings-toggle composer-icon-button"
+            title={t('ui.imageCreationSettings')}
+            aria-label={t('ui.imageCreationSettings')}
+            ref={settingsButton}
+            aria-controls={showImageSettings ? settingsId : undefined}
+            aria-expanded={showImageSettings}
+            onClick={() => setShowImageSettings(!showImageSettings)}
+          >
+            <SlidersHorizontal size={16} />
+          </button>
+          <button
+            type="button"
+            className="creation-settings-toggle composer-icon-button"
+            title={t(importing ? 'images.importing' : 'images.addLocal')}
+            aria-label={t(importing ? 'images.importing' : 'images.addLocal')}
+            disabled={busy || importing}
+            onClick={() => {
+              setImporting(true)
+              void onImportImage().finally(() => setImporting(false))
+            }}
+          >
+            {importing ? <span className="spinner dark" /> : <ImagePlus size={16} />}
+          </button>
         </div>
+        {showImageSettings && (
+          <div
+            className="creation-settings"
+            ref={settingsPanel}
+            id={settingsId}
+            role="region"
+            aria-label={t('ui.imageCreationSettings')}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation()
+                setShowImageSettings(false)
+                settingsButton.current?.focus()
+              }
+            }}
+            onBlur={(event) => {
+              if (
+                event.relatedTarget &&
+                !event.currentTarget.contains(event.relatedTarget) &&
+                event.relatedTarget !== settingsButton.current
+              )
+                setShowImageSettings(false)
+            }}
+          >
+            <span className="creation-settings-label">
+              <ImageIcon size={14} />
+              {t('composer.imageModel')}
+            </span>
+            <ModelMenu
+              choices={choices.filter((c) => c.kind === 'image')}
+              selected={choices.find(
+                (c) =>
+                  c.kind === 'image' &&
+                  c.providerId === (session.imageProviderId ?? session.providerId) &&
+                  c.model === session.imageModel,
+              )}
+              disabled={savingImageModel}
+              onSelect={(providerId, model) => {
+                setSavingImageModel(true)
+                setImageSettingError('')
+                void onImageModel(providerId, model)
+                  .catch((error) => setImageSettingError(String(error)))
+                  .finally(() => setSavingImageModel(false))
+              }}
+            />
+            <button
+              type="button"
+              className="creation-settings-help"
+              title={t(
+                'ui.viewingImagesRequiresAVisionCapableConversationModelImagesAreSentToThatModelSProvider',
+              )}
+              aria-label={t(
+                'ui.viewingImagesRequiresAVisionCapableConversationModelImagesAreSentToThatModelSProvider',
+              )}
+            >
+              <Info size={14} />
+            </button>
+            {savingImageModel && <span role="status">{t('ui.saving')}</span>}
+            {imageSettingError && <p className="form-error">{imageSettingError}</p>}
+          </div>
+        )}
+        {referenceFile && (
+          <div className="reference-chip">
+            {referenceSrc && <img src={referenceSrc} alt={t('ui.referenceImage')} />}
+            <span>{t('ui.editThisImage')}</span>
+            <button
+              type="button"
+              aria-label={t('ui.removeReferenceImage')}
+              onClick={onClearReference}
+              disabled={busy}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
         <div className="composer-input">
           <textarea
             value={text}
@@ -67,7 +220,9 @@ export default function Composer({
               }
             }}
             placeholder={
-              modelKind === 'image' ? t('描述你想生成的图片…') : t('给 Hamster Studio 发消息…')
+              modelKind === 'image'
+                ? t('ui.describeTheImageYouWantToGenerate')
+                : t('ui.messageHamsterStudio')
             }
             disabled={busy}
           />
@@ -81,12 +236,12 @@ export default function Composer({
         </div>
         <div className="hint">
           {modelKind === 'image'
-            ? t('图片模型：') +
-              (session.imageModel || t('未配置')) +
-              t(' · Enter 发送 · Shift + Enter 换行')
-            : t('聊天模型：') +
-              (session.chatModel || t('未配置')) +
-              t(' · Enter 发送 · Shift + Enter 换行')}
+            ? t('ui.imageModel') +
+              (session.imageModel || t('ui.notConfigured')) +
+              t('ui.enterToSendShiftEnterForANewLine')
+            : t('ui.chatModel') +
+              (session.chatModel || t('ui.notConfigured')) +
+              t('ui.enterToSendShiftEnterForANewLine')}
         </div>
       </div>
     </div>
@@ -97,15 +252,22 @@ function ModelMenu({
   choices,
   selected,
   onSelect,
+  disabled = false,
 }: {
   choices: ModelChoice[]
+  disabled?: boolean
   selected?: ModelChoice
   onSelect: (providerId: string, model: string, kind: ModelKind) => void
 }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuId = useId()
   useEffect(() => {
     if (!open) return
+    menuRef.current
+      ?.querySelector<HTMLButtonElement>('[aria-selected="true"], [role="option"]')
+      ?.focus()
     const close = (event: MouseEvent) => {
       if (!menuRef.current?.contains(event.target as Node)) setOpen(false)
     }
@@ -113,15 +275,56 @@ function ModelMenu({
     return () => document.removeEventListener('mousedown', close)
   }, [open])
   return (
-    <div className="model-menu" ref={menuRef}>
+    <div
+      className="model-menu"
+      ref={menuRef}
+      onBlur={(event) => {
+        // WebKit can report no next focus target during a mouse click.
+        // Outside pointer events handle dismissal in that case.
+        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget))
+          setOpen(false)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && open) {
+          event.stopPropagation()
+          setOpen(false)
+          triggerRef.current?.focus()
+        }
+        if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+          event.preventDefault()
+          if (!open) {
+            setOpen(true)
+            return
+          }
+          const options = Array.from(
+            menuRef.current!.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+          )
+          if (!options.length) return
+          const index = options.indexOf(document.activeElement as HTMLButtonElement)
+          const next =
+            event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? options.length - 1
+                : (index + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length
+          options[next]?.focus()
+        }
+      }}
+    >
       <button
         className="model-trigger"
+        ref={triggerRef}
+        title={selected ? `${selected.providerName} · ${selected.model}` : undefined}
+        aria-haspopup="listbox"
+        aria-controls={open ? menuId : undefined}
         type="button"
         onClick={() => setOpen(!open)}
+        aria-label={t('ui.selectProviderModel')}
+        disabled={disabled}
         aria-expanded={open}
       >
         <span>
-          {selected ? `${selected.providerName} · ${selected.model}` : t('选择 Provider · 模型')}
+          {selected ? `${selected.providerName} · ${selected.model}` : t('ui.selectProviderModel')}
         </span>
         <span className="model-trigger-icon">
           {selected?.kind === 'image' ? <ImageIcon size={15} /> : <MessageSquare size={15} />}
@@ -129,18 +332,25 @@ function ModelMenu({
         </span>
       </button>
       {open && (
-        <div className="model-menu-panel" role="listbox">
+        <div
+          id={menuId}
+          className="model-menu-panel"
+          role="listbox"
+          aria-label={t('ui.selectProviderModel')}
+        >
           {choices.length ? (
             choices.map((choice) => (
               <button
                 className="model-option"
                 type="button"
+                title={`${choice.providerName} · ${choice.model}`}
                 role="option"
                 aria-selected={choice === selected}
                 key={`${choice.providerId}:${choice.kind}:${choice.model}`}
                 onClick={() => {
                   onSelect(choice.providerId, choice.model, choice.kind)
                   setOpen(false)
+                  triggerRef.current?.focus()
                 }}
               >
                 <span>
@@ -150,7 +360,7 @@ function ModelMenu({
               </button>
             ))
           ) : (
-            <div className="model-empty">{t('请先在设置中配置模型')}</div>
+            <div className="model-empty">{t('ui.configureModelsInSettingsFirst')}</div>
           )}
         </div>
       )}

@@ -1,4 +1,4 @@
-import { t } from '../i18n'
+import { translateMessage, t } from '../i18n'
 import LanguageMenu from './LanguageMenu'
 import { useEffect, useState } from 'react'
 import {
@@ -68,7 +68,7 @@ export default function SettingsPanel({
     try {
       await window.studio.openAboutLink(key)
     } catch {
-      setLinkError(t('无法打开浏览器，请稍后重试。'))
+      setLinkError(t('ui.unableToOpenBrowserPleaseTryAgain'))
     }
   }
   const [version, setVersion] = useState('')
@@ -76,7 +76,7 @@ export default function SettingsPanel({
     window.studio
       .version()
       .then(setVersion)
-      .catch(() => setVersion(t('未知')))
+      .catch(() => setVersion(t('ui.unknown')))
   }, [])
   const fetchModels = async () => {
     if (!current) return
@@ -104,13 +104,13 @@ export default function SettingsPanel({
         ]),
         loading: false,
         fetchError: '',
-        testResult: t('已更新模型列表'),
+        testResult: t('ui.modelListUpdated'),
       })
     } catch (reason) {
       setEditing({
         ...current,
         loading: false,
-        fetchError: reason instanceof Error ? reason.message : t('模型拉取失败'),
+        fetchError: reason instanceof Error ? reason.message : t('ui.failedToFetchModels'),
       })
     }
   }
@@ -128,7 +128,7 @@ export default function SettingsPanel({
     } catch (reason) {
       setEditing({
         ...current,
-        fetchError: reason instanceof Error ? reason.message : t('保存失败'),
+        fetchError: reason instanceof Error ? reason.message : t('ui.failedToSave'),
       })
     }
   }
@@ -136,20 +136,20 @@ export default function SettingsPanel({
     if (!current) return
     try {
       await window.studio.testProvider(current)
-      setEditing({ ...current, testResult: t('连接成功'), fetchError: '' })
+      setEditing({ ...current, testResult: t('ui.connectionSuccessful'), fetchError: '' })
     } catch (reason) {
       setEditing({
         ...current,
         testResult: '',
-        fetchError: reason instanceof Error ? reason.message : t('连接失败'),
+        fetchError: reason instanceof Error ? reason.message : t('ui.connectionFailed'),
       })
     }
   }
   const remove = () => {
     if (!current?.id) return
     askConfirm(
-      t('删除 Provider'),
-      t('删除后原有 Session 和消息会保留，但需要选择新的 Provider 才能继续请求。'),
+      t('ui.deleteProvider'),
+      t('ui.conversationsAndMessagesWillBePreservedSelectAnotherProviderToContinue'),
       async () => {
         await window.studio.deleteProvider(current.id!)
         refresh(await window.studio.load())
@@ -160,7 +160,7 @@ export default function SettingsPanel({
   const providerEditor = current && (
     <>
       <div className="settings-head">
-        <h2>{current.id ? t('编辑 Provider') : t('添加 Provider')}</h2>
+        <h2>{current.id ? t('ui.editProvider') : t('ui.addProvider')}</h2>
         <button onClick={() => setEditing(null)}>
           <X />
         </button>
@@ -168,12 +168,12 @@ export default function SettingsPanel({
       <form onSubmit={save}>
         <fieldset className="provider-form" disabled={current.loading}>
           <label>
-            {t('名称')}
+            {t('ui.name')}
             <input
               required
               value={current.name}
               onChange={(event) => setEditing({ ...current, name: event.target.value })}
-              placeholder={t('我的中转站')}
+              placeholder={t('ui.myProvider')}
             />
           </label>
           <label>
@@ -192,11 +192,11 @@ export default function SettingsPanel({
               type="password"
               value={current.apiKey || ''}
               onChange={(event) => setEditing({ ...current, apiKey: event.target.value })}
-              placeholder={current.id ? t('留空则保留原 Key') : 'sk-…'}
+              placeholder={current.id ? t('ui.leaveBlankToKeepTheExistingKey') : 'sk-…'}
             />
           </label>
           <div className="model-fetch-row">
-            <span>{t('模型列表')}</span>
+            <span>{t('ui.models')}</span>
             <button
               type="button"
               className="secondary"
@@ -212,11 +212,11 @@ export default function SettingsPanel({
                   imageModels: [],
                   unknownModels: [],
                   fetchError: '',
-                  testResult: t('已清空模型列表，保存后生效'),
+                  testResult: t('ui.modelListClearedSaveToApplyChanges'),
                 })
               }
             >
-              {t('清空模型')}
+              {t('ui.clearModels')}
             </button>
             <button
               type="button"
@@ -224,17 +224,21 @@ export default function SettingsPanel({
               onClick={fetchModels}
               disabled={current.loading}
             >
-              {current.loading ? t('拉取中…') : t('从 Provider 拉取模型')}
+              {current.loading ? t('ui.fetching') : t('ui.fetchProviderModels')}
             </button>
           </div>
-          {current.fetchError && <div className="form-error">{t(current.fetchError)}</div>}
-          {current.testResult && <div className="form-success">{t(current.testResult)}</div>}
+          {current.fetchError && (
+            <div className="form-error">{translateMessage(current.fetchError)}</div>
+          )}
+          {current.testResult && (
+            <div className="form-success">{translateMessage(current.testResult)}</div>
+          )}
           <label>
-            {t('手动补充模型')}
+            {t('ui.addModelsManually')}
             <input
               value={manualModel}
               onChange={(event) => setManualModel(event.target.value)}
-              placeholder={t('输入模型 ID，多个模型用逗号分隔')}
+              placeholder={t('ui.enterModelIDsSeparatedByCommas')}
             />
           </label>
           <button
@@ -271,7 +275,7 @@ export default function SettingsPanel({
               }
             }}
           >
-            {t('添加到模型列表')}
+            {t('ui.addToModelList')}
           </button>
           <div className="capability-chips edit">
             {unique([
@@ -284,8 +288,8 @@ export default function SettingsPanel({
                 <button
                   type="button"
                   className="remove-model"
-                  aria-label={`${t('删除')} ${model}`}
-                  title={`${t('删除')} ${model}`}
+                  aria-label={`${t('ui.delete')} ${model}`}
+                  title={`${t('ui.delete')} ${model}`}
                   onClick={() =>
                     setEditing({
                       ...current,
@@ -303,16 +307,16 @@ export default function SettingsPanel({
           </div>
           <div className="form-actions">
             <button type="button" className="secondary" onClick={test}>
-              {t('测试连接')}
+              {t('ui.testConnection')}
             </button>
-            <button type="submit">{t('保存 Provider')}</button>
+            <button type="submit">{t('ui.saveProvider')}</button>
           </div>
         </fieldset>
       </form>
       {current.id && (
         <button className="danger-link" onClick={remove}>
           <Trash2 size={14} />
-          {t('删除 Provider')}
+          {t('ui.deleteProvider')}
         </button>
       )}
     </>
@@ -321,30 +325,27 @@ export default function SettingsPanel({
     <>
       <div className="settings-title">
         <div>
-          <h3>Providers</h3>
-          <p>{t('点击获取模型，也可以手动添加或删除。保存后生效。')}</p>
+          <h3>{t('settings.providers')}</h3>
+          <p>{t('ui.fetchModelsOnDemandOrAddAndRemoveThemManuallySaveToApplyChanges')}</p>
         </div>
         <button onClick={() => setEditing(makeEditing(emptyProvider))}>
           <Plus size={16} />
-          {t('添加')}
+          {t('ui.add')}
         </button>
       </div>
-      <CatalogSettings
-        onApplied={async () => {
-          refresh(await window.studio.load())
-        }}
-      />
-      {data.providers.length === 0 && <div className="settings-empty">{t('还没有 Provider')}</div>}
+      {data.providers.length === 0 && (
+        <div className="settings-empty">{t('ui.noProvidersYet')}</div>
+      )}
       {data.providers.map((item) => (
         <div className="provider-row" key={item.id}>
           <div>
             <strong>{item.name}</strong>
             <small>
-              {item.baseUrl} · {item.hasKey ? t('已配置 Key') : t('未配置 Key')}
+              {item.baseUrl} · {item.hasKey ? t('ui.keyConfigured') : t('ui.noKeyConfigured')}
             </small>
             <div className="capability-chips">
               {item.unknownModels?.map((model) => (
-                <span key={model} title={t('能力未知，暂不可用于生成')}>
+                <span key={model} title={t('ui.unknownCapabilityUnavailableForGeneration')}>
                   ? {model}
                 </span>
               ))}
@@ -362,7 +363,7 @@ export default function SettingsPanel({
               ))}
             </div>
           </div>
-          <button onClick={() => setEditing(makeEditing(item))}>{t('编辑')}</button>
+          <button onClick={() => setEditing(makeEditing(item))}>{t('ui.edit')}</button>
         </div>
       ))}
     </>
@@ -372,27 +373,36 @@ export default function SettingsPanel({
   ) : (
     <>
       <div className="settings-head">
-        <h2>{t('设置')}</h2>
+        <h2>{t('ui.settings')}</h2>
         <button onClick={close}>
           <X />
         </button>
       </div>
       <div className="settings-layout">
         <nav className="settings-nav">
-          <button className={page === 'general' ? 'active' : ''} onClick={() => setPage('general')}>
+          <button
+            aria-current={page === 'general' ? 'page' : undefined}
+            className={page === 'general' ? 'active' : ''}
+            onClick={() => setPage('general')}
+          >
             <Languages size={16} />
-            {t('通用')}
+            {t('ui.general')}
           </button>
           <button
+            aria-current={page === 'providers' ? 'page' : undefined}
             className={page === 'providers' ? 'active' : ''}
             onClick={() => setPage('providers')}
           >
             <Globe size={16} />
-            Providers
+            {t('settings.providers')}
           </button>
-          <button className={page === 'about' ? 'active' : ''} onClick={() => setPage('about')}>
+          <button
+            aria-current={page === 'about' ? 'page' : undefined}
+            className={page === 'about' ? 'active' : ''}
+            onClick={() => setPage('about')}
+          >
             <Info size={16} />
-            About
+            {t('settings.about')}
           </button>
         </nav>
         <div className="settings-content">
@@ -400,41 +410,48 @@ export default function SettingsPanel({
             <>
               <div className="settings-title">
                 <div>
-                  <h3>{t('通用设置')}</h3>
-                  <p>{t('Hamster Studio 的本地使用偏好。')}</p>
+                  <h3>{t('ui.generalSettings')}</h3>
+                  <p>{t('ui.localPreferencesForHamsterStudio')}</p>
                 </div>
               </div>
               <div className="setting-item">
-                <span>{t('语言')}</span>
+                <span>{t('ui.language')}</span>
                 <LanguageMenu />
               </div>
+              <CatalogSettings
+                onApplied={async () => {
+                  refresh(await window.studio.load())
+                }}
+              />
               <div className="setting-item">
-                <span>{t('数据存储')}</span>
-                <strong>{t('仅保存在本机')}</strong>
+                <span>{t('ui.dataStorage')}</span>
+                <strong>{t('ui.storedOnThisDeviceOnly')}</strong>
               </div>
             </>
           )}
           {page === 'providers' && providerList}
           {page === 'about' && (
-            <section className="about-page" aria-label={t('关于 Hamster Studio')}>
+            <section className="about-page" aria-label={t('ui.aboutHamsterStudio')}>
               <img className="about-logo" src={hamsterLogo} alt="Hamster Studio Logo" />
               <h2>Hamster Studio</h2>
               <span className="about-version">
-                {t('版本')}
-                {version || t('读取中…')}
+                {t('ui.version')}
+                {version || t('ui.loading')}
               </span>
-              <p className="about-intro">{t('一款开源的桌面 AI 聊天与图片生成工具。')}</p>
+              <p className="about-intro">
+                {t('ui.anOpenSourceDesktopAppForAIChatAndImageGeneration')}
+              </p>
               <p className="about-description">
                 {t(
-                  '支持接入自定义 OpenAI Compatible 服务，通过 API Key 使用模型，无需注册登录。会话历史保存在本机，生成请求直接发送到你配置的服务。',
+                  'ui.connectToCustomOpenAICompatibleProvidersUsingAPIKeysWithoutSigningUpConversationHistoryStaysOnYourDeviceGenerationRequestsGoDirectlyToYourConfiguredProvider',
                 )}
               </p>
               <div className="about-links">
                 {(
                   [
-                    ['repository', t('GitHub 仓库')],
-                    ['issues', t('问题反馈')],
-                    ['releases', t('更新日志')],
+                    ['repository', t('ui.githubRepository')],
+                    ['issues', t('ui.reportAnIssue')],
+                    ['releases', t('ui.releaseNotes')],
                   ] as const
                 ).map(([key, label]) => (
                   <a
@@ -451,7 +468,7 @@ export default function SettingsPanel({
               </div>
               {linkError && (
                 <p role="alert" className="form-error">
-                  {t(linkError)}
+                  {translateMessage(linkError)}
                 </p>
               )}
               <UpdateNotice manual />
@@ -466,15 +483,15 @@ export default function SettingsPanel({
                 >
                   Frozen · X ↗
                 </a>
-                <p>{t('许可证：MIT')}</p>
+                <p>{t('ui.licenseMIT')}</p>
                 <details>
-                  <summary>{t('开源致谢')}</summary>
+                  <summary>{t('ui.openSourceAcknowledgments')}</summary>
                   <p>
                     {t(
-                      '感谢 Tauri、React、Vite、Lucide、rusqlite、react-markdown 和其他开源项目。',
+                      'ui.thanksToTauriReactViteLucideRusqliteReactMarkdownAndOtherOpenSourceProjects',
                     )}
                   </p>
-                  <p>{t('各依赖遵循其各自的许可证。')}</p>
+                  <p>{t('ui.dependenciesAreDistributedUnderTheirRespectiveLicenses')}</p>
                 </details>
               </footer>
             </section>

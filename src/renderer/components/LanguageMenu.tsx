@@ -27,7 +27,8 @@ export default function LanguageMenu() {
       className="model-menu language-menu"
       ref={root}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget))
+          setOpen(false)
       }}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && open) {
@@ -59,7 +60,7 @@ export default function LanguageMenu() {
         ref={trigger}
         type="button"
         className="model-trigger"
-        aria-label={t('语言')}
+        aria-label={t('ui.language')}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
@@ -69,7 +70,7 @@ export default function LanguageMenu() {
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && (
-        <div id={id} className="model-menu-panel" role="menu" aria-label={t('语言')}>
+        <div id={id} className="model-menu-panel" role="menu" aria-label={t('ui.language')}>
           {languages.map((item) => (
             <button
               key={item.value}

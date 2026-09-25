@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { t } from '../i18n'
+import { translateMessage, t } from '../i18n'
 import type { CatalogState } from '../../shared/updates'
 
 export default function CatalogSettings({ onApplied }: { onApplied: () => Promise<void> }) {
@@ -22,10 +22,10 @@ export default function CatalogSettings({ onApplied }: { onApplied: () => Promis
       setState(next)
       setStatus(
         install
-          ? '模型能力表已更新'
+          ? 'ui.modelCapabilitiesUpdated'
           : next.availableVersion
-            ? '发现新版模型能力表'
-            : '模型能力表已是最新',
+            ? 'ui.newModelCapabilitiesAvailable'
+            : 'ui.modelCapabilitiesAreUpToDate',
       )
       if (install) await onApplied()
     } catch (error) {
@@ -36,19 +36,29 @@ export default function CatalogSettings({ onApplied }: { onApplied: () => Promis
   }
   return (
     <div className="catalog-settings">
-      <strong>
-        {t('模型能力表')} {state ? `v${state.version}` : ''}
-      </strong>
-      <p>{t('从 GitHub 检查规则更新，确认后应用；离线使用本地规则。')}</p>
-      <button className="secondary" disabled={busy} onClick={() => run(false)}>
-        {t(busy ? '检查中…' : '检查规则更新')}
-      </button>
-      {state?.availableVersion && (
-        <button disabled={busy} onClick={() => run(true)}>
-          {t('下载并应用')} v{state.availableVersion}
-        </button>
+      <div className="catalog-settings-row">
+        <details className="catalog-details">
+          <summary>
+            {t('ui.modelCapabilities')} {state ? `v${state.version}` : ''}
+          </summary>
+          <p>{t('ui.checkGitHubForRuleUpdatesAndApplyAfterConfirmationLocalRulesWorkOffline')}</p>
+        </details>
+        <div className="catalog-actions">
+          <button className="secondary" disabled={busy} onClick={() => run(false)}>
+            {t(busy ? 'ui.checking' : 'ui.checkRuleUpdates')}
+          </button>
+          {state?.availableVersion && (
+            <button className="secondary" disabled={busy} onClick={() => run(true)}>
+              {t('ui.downloadAndApply')} v{state.availableVersion}
+            </button>
+          )}
+        </div>
+      </div>
+      {status && (
+        <p className="catalog-status" role="status">
+          {translateMessage(status)}
+        </p>
       )}
-      <p role="status">{t(status)}</p>
     </div>
   )
 }

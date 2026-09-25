@@ -1,3 +1,4 @@
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getVersion } from '@tauri-apps/api/app'
@@ -57,8 +58,30 @@ window.studio = {
   deleteProvider: (id) => invoke('delete_provider', { id }),
   saveSession: (session) => invoke('save_session', { session }),
   deleteSession: (id) => invoke('delete_session', { id }),
-  sendChat: (sessionId, text) => invoke('generate', { sessionId, text, kind: 'chat' }),
-  generateImage: (sessionId, text) => invoke('generate', { sessionId, text, kind: 'image' }),
+  sendChat: (sessionId, text, referenceFile) =>
+    invoke('generate', { sessionId, text, kind: 'chat', referenceFile }),
+  approveImageStep: (sessionId, stepId, allow) => invoke('approve', { sessionId, stepId, allow }),
+  generateImage: (sessionId, text, referenceFile) =>
+    invoke('generate', { sessionId, text, kind: 'image', referenceFile }),
+  onImageDrag: (callback) => {
+    let disposed = false
+    let off: (() => void) | undefined
+    void getCurrentWebview()
+      .onDragDropEvent(({ payload }) => {
+        if (!disposed) callback(payload)
+      })
+      .then((unlisten) => {
+        if (disposed) unlisten()
+        else off = unlisten
+      })
+      .catch(() => {})
+    return () => {
+      disposed = true
+      off?.()
+    }
+  },
+  importDroppedImage: (sessionId, path) => invoke('import_dropped_image', { sessionId, path }),
+  importImage: (sessionId) => invoke('import_image', { sessionId }),
   stopChat: (id) => invoke('stop_chat', { id }),
   readImage: (file) => invoke('read_image', { file }),
   exportImage: (file) => invoke('export_image', { file }),
@@ -81,7 +104,7 @@ window.studio = {
     }
   },
   downloadUpdate: async () => {
-    if (!update || state.status !== 'available') throw new Error('请先检查更新')
+    if (!update || state.status !== 'available') throw new Error('ui.checkForUpdatesFirst')
     set({ status: 'downloading', version: update.version, percent: 0 })
     let total = 0
     let received = 0
@@ -97,7 +120,8 @@ window.studio = {
     }
   },
   installUpdate: async () => {
-    if (!update || state.status !== 'downloaded') throw new Error('更新尚未下载完成')
+    if (!update || state.status !== 'downloaded')
+      throw new Error('ui.theUpdateHasNotFinishedDownloading')
     await invoke('can_install')
     try {
       await update.install()

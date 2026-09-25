@@ -1,4 +1,4 @@
-import { t } from '../i18n'
+import { translateMessage, t } from '../i18n'
 export type ConfirmState = { title: string; message: string; confirm: () => void }
 
 export default function ConfirmDialog({
@@ -11,14 +11,14 @@ export default function ConfirmDialog({
   return (
     <div className="confirm-backdrop">
       <section className="confirm-dialog">
-        <h3>{t(state.title)}</h3>
-        <p>{t(state.message)}</p>
+        <h3>{translateMessage(state.title)}</h3>
+        <p>{translateMessage(state.message)}</p>
         <div>
           <button className="secondary" onClick={onCancel}>
-            {t('取消')}
+            {t('ui.cancel')}
           </button>
           <button className="primary danger" onClick={state.confirm}>
-            {t('确认')}
+            {t('ui.confirm')}
           </button>
         </div>
       </section>

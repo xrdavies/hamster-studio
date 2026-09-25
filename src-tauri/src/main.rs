@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod agent;
 mod catalog;
 mod requests;
 mod store;
@@ -16,6 +17,7 @@ struct AppState {
     catalog: Mutex<Catalog>,
     candidate: Mutex<Option<Catalog>>,
     active: Mutex<HashMap<String, CancellationToken>>,
+    approvals: Mutex<HashMap<String, (String, tokio::sync::oneshot::Sender<bool>)>>,
     directory: PathBuf,
     client: reqwest::Client,
 }
@@ -33,7 +35,7 @@ fn password(id: &str) -> Result<String> {
     key(id)?.get_password().map_err(|e| e.to_string())
 }
 fn image_path(s: &AppState, name: &str) -> Result<PathBuf> {
-    if name.is_empty() || name.contains('/') || name.contains('\\') || !name.ends_with(".png") {
+    if name.is_empty() || name.contains('/') || name.contains('\\') || ![".png", ".jpg", ".webp"].iter().any(|ext| name.ends_with(ext)) {
         return Err("Invalid image file".into());
     }
     let path = s.directory.join("images").join(name);
@@ -73,7 +75,7 @@ fn save_provider(s: State<AppState>, input: Value) -> Result<()> {
         .unwrap_or_else(store::id);
     let name = string(&input, "name").trim();
     if name.is_empty() {
-        return Err("Provider 名称不能为空".into());
+        return Err("ui.providerNameIsRequired".into());
     }
     requests::url(string(&input, "baseUrl"), "/models")?;
     let mut p = json!({"id":id,"name":name,"baseUrl":string(&input,"baseUrl").trim().trim_end_matches('/')});
@@ -173,7 +175,7 @@ async fn check_catalog(s: State<'_, AppState>) -> Result<Value> {
 #[tauri::command]
 fn install_catalog(s: State<AppState>) -> Result<Value> {
     let mut candidate = lock(&s.candidate)?;
-    let table = candidate.as_ref().ok_or("请先检查模型能力表更新")?;
+    let table = candidate.as_ref().ok_or("ui.checkModelCapabilitiesUpdatesFirst")?;
     let file = s.directory.join("model-capabilities.json");
     std::fs::write(
         file.with_extension("tmp"),
@@ -186,10 +188,50 @@ fn install_catalog(s: State<AppState>) -> Result<Value> {
     drop(candidate);
     catalog_state(s)
 }
+fn image_mime(file: &str) -> &'static str {
+    if file.ends_with(".jpg") { "image/jpeg" } else if file.ends_with(".webp") { "image/webp" } else { "image/png" }
+}
+fn imported_extension(bytes: &[u8]) -> Result<&'static str> {
+    if bytes.len() > 10 * 1024 * 1024 { return Err("images.tooLarge".into()); }
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") { Ok("png") }
+    else if bytes.starts_with(b"\xff\xd8\xff") { Ok("jpg") }
+    else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") { Ok("webp") }
+    else { Err("images.unsupportedFormat".into()) }
+}
+#[tauri::command]
+async fn import_image(app: tauri::AppHandle, s: State<'_, AppState>, session_id: String) -> Result<Option<String>> {
+    lock(&s.store)?.get("sessions", &session_id)?;
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.dialog().file().add_filter("Images", &["png", "jpg", "jpeg", "webp"]).pick_file(move |path| { let _ = sender.send(path); });
+    let Some(file) = receiver.await.map_err(|e| e.to_string())? else { return Ok(None) };
+    let path = file.into_path().map_err(|e| e.to_string())?;
+    save_imported_image(&s, &session_id, path).map(Some)
+}
+#[tauri::command]
+fn import_dropped_image(s: State<AppState>, session_id: String, path: PathBuf) -> Result<String> {
+    save_imported_image(&s, &session_id, path)
+}
+fn save_imported_image(s: &AppState, session_id: &str, path: PathBuf) -> Result<String> {
+    lock(&s.store)?.get("sessions", session_id)?;
+    if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 10 * 1024 * 1024 { return Err("images.tooLarge".into()); }
+    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    let extension = imported_extension(&bytes)?;
+    let name = format!("{}.{}", store::id(), extension);
+    let directory = s.directory.join("images");
+    std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let destination = directory.join(&name);
+    std::fs::write(&destination, bytes).map_err(|e| e.to_string())?;
+    if let Err(error) = lock(&s.store)?.import_image(&session_id, &name) {
+        let _ = std::fs::remove_file(destination);
+        return Err(error);
+    }
+    Ok(name)
+}
 #[tauri::command]
 fn read_image(s: State<AppState>, file: String) -> Result<String> {
     Ok(format!(
-        "data:image/png;base64,{}",
+        "data:{};base64,{}",
+        image_mime(&file),
         base64::engine::general_purpose::STANDARD
             .encode(std::fs::read(image_path(&s, &file)?).map_err(|e| e.to_string())?)
     ))
@@ -200,8 +242,7 @@ async fn export_image(app: tauri::AppHandle, s: State<'_, AppState>, file: Strin
     let (sender, receiver) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
-        .set_file_name("hamster-image.png")
-        .add_filter("PNG", &["png"])
+        .set_file_name(format!("hamster-image.{}", file.rsplit('.').next().unwrap_or("png")))
         .save_file(move |path| {
             let _ = sender.send(path);
         });
@@ -222,7 +263,7 @@ fn stop_chat(s: State<AppState>, id: String) -> Result<()> {
 #[tauri::command]
 fn can_install(s: State<AppState>) -> Result<()> {
     if !lock(&s.active)?.is_empty() {
-        return Err("请等待生成完成或停止生成后再更新".into());
+        return Err("ui.waitForGenerationToFinishOrStopItBeforeUpdating".into());
     }
     Ok(())
 }
@@ -310,6 +351,7 @@ fn main() {
                 catalog: Mutex::new(catalog),
                 candidate: Mutex::new(None),
                 active: Mutex::new(HashMap::new()),
+                approvals: Mutex::new(HashMap::new()),
                 directory,
                 client: reqwest::Client::builder()
                     .connect_timeout(std::time::Duration::from_secs(30))
@@ -331,11 +373,30 @@ fn main() {
             check_catalog,
             install_catalog,
             read_image,
+            import_image,
+            import_dropped_image,
             export_image,
             stop_chat,
             can_install,
+            agent::approve,
             requests::generate
         ])
         .run(tauri::generate_context!())
         .expect("Failed to run Hamster Studio");
+}
+
+#[cfg(test)]
+mod image_import_tests {
+    use super::*;
+    #[test]
+    fn validates_import_content_and_size() {
+        assert_eq!(imported_extension(b"\x89PNG\r\n\x1a\n").unwrap(), "png");
+        assert_eq!(imported_extension(b"\xff\xd8\xff").unwrap(), "jpg");
+        assert!(imported_extension(b"not an image").is_err());
+        let mut bytes = vec![0; 10 * 1024 * 1024];
+        bytes[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
+        assert_eq!(imported_extension(&bytes).unwrap(), "png");
+        bytes.push(0);
+        assert_eq!(imported_extension(&bytes).unwrap_err(), "images.tooLarge");
+    }
 }

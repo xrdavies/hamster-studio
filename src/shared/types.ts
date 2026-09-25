@@ -24,6 +24,7 @@ export type StudioSession = {
   providerId: string
   modelKind: ModelKind
   chatModel: string
+  imageProviderId?: string
   imageModel: string
   systemPrompt: string
   createdAt: number
@@ -32,7 +33,27 @@ export type StudioSession = {
   archived?: boolean
 }
 
+export type ImageStep = {
+  sourceImageId?: string
+
+  id: string
+  prompt: string
+  count: number
+  status: 'waiting' | 'running' | 'done' | 'error'
+  needsConfiguration: boolean
+  operation: 'generate' | 'edit'
+  imageFiles: string[]
+  error: string
+  model?: string
+  providerName?: string
+}
+
 export type Message = {
+  viewedImageIds?: string[]
+
+  agent?: boolean
+  referenceFile?: string
+  steps?: ImageStep[]
   id: string
   sessionId: string
   role: 'user' | 'assistant'

@@ -88,3 +88,15 @@ Thanks to Tauri, React, Vite, Lucide, rusqlite, react-markdown, and the other op
 ## Release
 
 From a clean `main` checkout, run `npm run release -- patch` (or `minor`, `major`, an explicit version). This updates versions, commits, tags and pushes; GitHub Actions builds and publishes. See [RELEASE.md](RELEASE.md) for signing setup.
+
+### Image agent workflow
+
+The conversation model can query session images (`list_images`), inspect them (`view_image`), and generate or edit a specific version (`create_images`, with `source_image_id`). For example: “Change the background of the second image to blue, then check the result.” Each edit keeps its source and creates a new image.
+
+Viewing images requires a conversation model that supports both tool calling and image input. Selected reference images and images requested by the agent are sent as multimodal user messages to the conversation provider. Images are stored locally; history stores references instead of base64 data. Past images can be loaded again with `view_image`. Generation results are not automatically treated as visually inspected.
+
+Each task allows 3 generated images, 6 model turns and 6 viewed images (20 MB each). Multiple images or additional generation require confirmation. Unsupported visual input produces a provider error; switch to a compatible model and retry.
+
+Local PNG, JPEG and WebP images (up to 10 MB) can be imported from the composer. A session-owned copy is retained in the app’s local storage and can be used for vision or image editing, including direct image-model requests. Removing an attachment only clears the composer selection.
+
+UI translations use typed semantic keys in `src/shared/locales/`, with `{name}` placeholders for dynamic values. Use `t(key, parameters)` for UI copy and `translateMessage` only for application error codes or external messages. Provider errors and user content are not reverse-translated.
