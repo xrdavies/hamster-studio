@@ -1383,6 +1383,13 @@ fieldset.provider-form {
   gap: 10px;
 }
 .creation-settings {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 6;
+  width: max-content;
+  max-width: 100%;
+  box-shadow: 0 8px 24px #20212620;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1391,7 +1398,7 @@ fieldset.provider-form {
   background: var(--soft);
   border: 1px solid var(--line);
   border-radius: 9px;
-  margin-bottom: 8px;
+  margin-bottom: 0;
   font-size: 12px;
 }
 .creation-settings-label {
@@ -1645,4 +1652,8 @@ button svg {
   gap: 8px;
   padding: 6px 9px;
   font-size: 12px;
+}
+
+.composer {
+  position: relative;
 }

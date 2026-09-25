@@ -51,6 +51,24 @@ export default function Composer({
   const [imageSettingError, setImageSettingError] = useState('')
   const [showImageSettings, setShowImageSettings] = useState(false)
   const [referenceSrc, setReferenceSrc] = useState('')
+  const settingsPanel = useRef<HTMLDivElement>(null)
+  const settingsButton = useRef<HTMLButtonElement>(null)
+  const settingsId = useId()
+  useEffect(() => {
+    if (!showImageSettings) return
+    settingsPanel.current?.querySelector<HTMLButtonElement>('.model-trigger')?.focus()
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!settingsPanel.current?.contains(target) && !settingsButton.current?.contains(target))
+        setShowImageSettings(false)
+    }
+    document.addEventListener('pointerdown', outside)
+    return () => document.removeEventListener('pointerdown', outside)
+  }, [showImageSettings])
+  useEffect(() => {
+    setShowImageSettings(false)
+  }, [session.id])
+
   useEffect(() => {
     let active = true
     setReferenceSrc('')
@@ -95,6 +113,8 @@ export default function Composer({
             className="creation-settings-toggle composer-icon-button"
             title={t('ui.imageCreationSettings')}
             aria-label={t('ui.imageCreationSettings')}
+            ref={settingsButton}
+            aria-controls={showImageSettings ? settingsId : undefined}
             aria-expanded={showImageSettings}
             onClick={() => setShowImageSettings(!showImageSettings)}
           >
@@ -115,7 +135,27 @@ export default function Composer({
           </button>
         </div>
         {showImageSettings && (
-          <div className="creation-settings">
+          <div
+            className="creation-settings"
+            ref={settingsPanel}
+            id={settingsId}
+            role="region"
+            aria-label={t('ui.imageCreationSettings')}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation()
+                setShowImageSettings(false)
+                settingsButton.current?.focus()
+              }
+            }}
+            onBlur={(event) => {
+              if (
+                !event.currentTarget.contains(event.relatedTarget) &&
+                event.relatedTarget !== settingsButton.current
+              )
+                setShowImageSettings(false)
+            }}
+          >
             <span className="creation-settings-label">
               <ImageIcon size={14} />
               {t('composer.imageModel')}
