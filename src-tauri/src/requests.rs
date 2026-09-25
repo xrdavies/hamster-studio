@@ -57,14 +57,16 @@ pub async fn generate(
     session_id: String,
     text: String,
     kind: String,
-    reference_file: Option<String>,
+    reference_files: Option<Vec<String>>,
     resume_id: Option<String>,
 ) -> Result<Value> {
+    let reference_files = reference_files.unwrap_or_default();
+    if reference_files.len() > 6 { return Err("images.referenceLimit".into()); }
     if !["chat", "image"].contains(&kind.as_str()) || text.trim().is_empty() {
         return Err("Invalid request".into());
     }
     if kind == "chat" {
-        return crate::agent::generate(app, s, session_id, text, reference_file, resume_id).await;
+        return crate::agent::generate(app, s, session_id, text, reference_files, resume_id).await;
     }
     let token = tokio_util::sync::CancellationToken::new();
     {
@@ -79,7 +81,7 @@ pub async fn generate(
         _=token.cancelled()=>Err("ui.generationStopped".to_owned()),
         result=async {
             let session=lock(&s.store)?.get("sessions",&session_id)?;
-            if let Some(file) = &reference_file {
+            for file in &reference_files {
                 if !lock(&s.store)?.owns_image(&session_id, file)? { return Err("Invalid reference image".into()); }
             }
             let mut provider=lock(&s.store)?.get("providers",string(&session,"providerId"))?;
@@ -89,12 +91,12 @@ pub async fn generate(
             if !models.as_array().map(|v|v.contains(&json!(model))).unwrap_or(false) {return Err("ui.modelCapabilityChangedOrIsUnavailableSelectAModelAgain".into())}
             let secret=password(string(&provider,"id"))?;
             let mut history=lock(&s.store)?.history(&session_id)?;
-            let user=json!({"id":id(),"sessionId":session_id,"role":"user","kind":kind,"content":text.trim(),"referenceFile":reference_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"done","error":""});
+            let user=json!({"id":id(),"sessionId":session_id,"role":"user","kind":kind,"content":text.trim(),"referenceFiles":reference_files,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"done","error":""});
             emit(&app,&s,&user)?;
             assistant=Some(json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":kind,"content":"","imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"streaming","error":""}));
             let output=assistant.as_mut().unwrap(); emit(&app,&s,output)?;
             if kind=="image" {
-                let name = create_image(&s, &provider, model, &secret, text.trim(), reference_file.as_deref()).await?;
+                let name = create_image(&s, &provider, model, &secret, text.trim(), &reference_files).await?;
                 output["imageFiles"]=json!([name]);
             } else {
                 if !string(&session,"systemPrompt").is_empty() {history.insert(0,json!({"role":"system","content":session["systemPrompt"]}));}
@@ -133,32 +135,24 @@ pub(crate) async fn create_image(
     model: &str,
     secret: &str,
     prompt: &str,
-    reference: Option<&str>,
+    references: &[String],
 ) -> Result<String> {
-    image_deadline(std::time::Duration::from_secs(600), create_image_request(s, provider, model, secret, prompt, reference)).await
+    image_deadline(std::time::Duration::from_secs(600), create_image_request(s, provider, model, secret, prompt, references)).await
 }
 async fn image_deadline<T>(duration: std::time::Duration, request: impl std::future::Future<Output = Result<T>>) -> Result<T> {
     tokio::time::timeout(duration, request).await.map_err(|_| "agent.imageTimeout".to_string())?
 }
 async fn create_image_request(
-    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, reference: Option<&str>,
+    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, references: &[String],
 ) -> Result<String> {
-    let request = if let Some(file) = reference {
-        let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?;
-        let part = reqwest::multipart::Part::bytes(bytes)
-            .file_name(format!("reference.{}", file.rsplit('.').next().unwrap_or("png")))
-            .mime_str(crate::image_mime(file))
-            .map_err(|e| e.to_string())?;
-        s.client
-            .post(url(string(provider, "baseUrl"), "/images/edits")?)
-            .multipart(
-                reqwest::multipart::Form::new()
-                    .text("model", model.to_owned())
-                    .text("prompt", prompt.to_owned())
-                    .text("n", "1")
-                    .text("response_format", "b64_json")
-                    .part("image", part),
-            )
+    let request = if !references.is_empty() {
+        let mut form = reqwest::multipart::Form::new().text("model", model.to_owned()).text("prompt", prompt.to_owned()).text("n", "1").text("response_format", "b64_json");
+        for (index, file) in references.iter().enumerate() {
+            let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?;
+            let part = reqwest::multipart::Part::bytes(bytes).file_name(format!("reference-{index}.{}", file.rsplit('.').next().unwrap_or("png"))).mime_str(crate::image_mime(file)).map_err(|e| e.to_string())?;
+            form = form.part(if references.len() == 1 { "image" } else { "image[]" }, part);
+        }
+        s.client.post(url(string(provider, "baseUrl"), "/images/edits")?).multipart(form)
     } else {
         s.client
             .post(url(string(provider, "baseUrl"), "/images/generations")?)
@@ -275,7 +269,9 @@ mod tests {
                     .contains("authorization: bearer test-key"));
                 if index == 1 {
                     assert!(request.starts_with("POST /v1/images/edits"));
-                    assert!(request.contains("reference.png"));
+                    assert!(request.contains("reference-0.png"));
+                    assert!(request.contains("reference-1.png"));
+                    assert_eq!(request.matches("name=\"image[]\"").count(), 2);
                 } else {
                     assert!(request.starts_with("POST /v1/images/generations"));
                     assert!(request.contains("b64_json"));
@@ -305,7 +301,7 @@ mod tests {
             client: reqwest::Client::new(),
         };
         let provider = json!({"baseUrl":format!("http://{address}")});
-        let first = create_image(&state, &provider, "image-model", "test-key", "draw", None)
+        let first = create_image(&state, &provider, "image-model", "test-key", "draw", &[])
             .await
             .unwrap();
         assert_eq!(
@@ -318,13 +314,13 @@ mod tests {
             "image-model",
             "test-key",
             "edit",
-            Some(&first),
+            &[first.clone(), first.clone()],
         )
         .await
         .unwrap();
         assert_ne!(first, second);
         assert!(
-            create_image(&state, &provider, "image-model", "test-key", "draw", None)
+            create_image(&state, &provider, "image-model", "test-key", "draw", &[])
                 .await
                 .unwrap_err()
                 .contains("unsupported model")

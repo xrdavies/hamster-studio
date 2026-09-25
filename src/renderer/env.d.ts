@@ -23,9 +23,13 @@ declare global {
       deleteSession(id: string): Promise<StudioData>
       continueAgent(sessionId: string, messageId: string): Promise<StudioData>
       approveImageStep(sessionId: string, stepId: string, allow: boolean): Promise<void>
-      sendChat(sessionId: string, text: string, referenceFile?: string): Promise<StudioData>
+      sendChat(sessionId: string, text: string, referenceFiles?: string[]): Promise<StudioData>
       stopChat(sessionId: string): Promise<void>
-      generateImage(sessionId: string, prompt: string, referenceFile?: string): Promise<StudioData>
+      generateImage(
+        sessionId: string,
+        prompt: string,
+        referenceFiles?: string[],
+      ): Promise<StudioData>
       onImageDrag(
         callback: (event: import('@tauri-apps/api/webview').DragDropEvent) => void,
       ): () => void

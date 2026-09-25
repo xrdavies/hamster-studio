@@ -25,7 +25,7 @@ export default function MessageBubble({
   onApprove: (stepId: string, allow: boolean) => Promise<void>
 }) {
   const [images, setImages] = useState<{ file: string; src: string }[]>([])
-  const [reference, setReference] = useState('')
+  const [references, setReferences] = useState<string[]>([])
   const [preview, setPreview] = useState('')
   const [approving, setApproving] = useState('')
   const dialog = useRef<HTMLDialogElement>(null)
@@ -39,17 +39,22 @@ export default function MessageBubble({
     ).then((values) => {
       if (!cancelled) setImages(values.filter((item) => item.src))
     })
-    if (message.referenceFile)
-      void window.studio
-        .readImage(message.referenceFile)
-        .then((src) => {
-          if (!cancelled) setReference(src)
-        })
-        .catch(() => {})
+    void Promise.all(
+      (message.referenceFiles || (message.referenceFile ? [message.referenceFile] : [])).map(
+        (file) => window.studio.readImage(file).catch(() => ''),
+      ),
+    ).then((values) => {
+      if (!cancelled) setReferences(values.filter(Boolean))
+    })
     return () => {
       cancelled = true
     }
-  }, [message.id, message.imageFiles.join('|'), message.referenceFile])
+  }, [
+    message.id,
+    message.imageFiles.join('|'),
+    message.referenceFile,
+    message.referenceFiles?.join('|'),
+  ])
   useEffect(() => {
     if (preview) dialog.current?.showModal()
   }, [preview])
@@ -71,9 +76,14 @@ export default function MessageBubble({
           {message.role === 'user' ? t('ui.you') : message.providerName}
           <span>{message.model}</span>
         </div>
-        {reference && (
-          <img className="message-reference" src={reference} alt={t('ui.referenceImage')} />
-        )}
+        {references.map((reference, index) => (
+          <img
+            key={index}
+            className="message-reference"
+            src={reference}
+            alt={t('ui.referenceImage')}
+          />
+        ))}
         {message.agent &&
           (steps.length > 0 ||
             !!message.viewedImageIds?.length ||

@@ -27,7 +27,7 @@ export default function Composer({
   onSubmit,
   onStop,
   onImageModel,
-  referenceFile,
+  referenceFiles,
   onClearReference,
   onImportImage,
 }: {
@@ -42,15 +42,15 @@ export default function Composer({
   onSubmit: () => void
   onStop: () => void
   onImageModel: (providerId: string, model: string) => Promise<void>
-  referenceFile?: string
+  referenceFiles: string[]
   onImportImage: () => Promise<void>
-  onClearReference: () => void
+  onClearReference: (file: string) => void
 }) {
   const [importing, setImporting] = useState(false)
   const [savingImageModel, setSavingImageModel] = useState(false)
   const [imageSettingError, setImageSettingError] = useState('')
   const [showImageSettings, setShowImageSettings] = useState(false)
-  const [referenceSrc, setReferenceSrc] = useState('')
+  const [referenceSrc, setReferenceSrc] = useState<Record<string, string>>({})
   const settingsPanel = useRef<HTMLDivElement>(null)
   const settingsButton = useRef<HTMLButtonElement>(null)
   const settingsId = useId()
@@ -71,18 +71,18 @@ export default function Composer({
 
   useEffect(() => {
     let active = true
-    setReferenceSrc('')
-    if (referenceFile)
-      void window.studio
-        .readImage(referenceFile)
-        .then((src) => {
-          if (active) setReferenceSrc(src)
-        })
-        .catch(() => {})
+    void Promise.all(
+      referenceFiles.map(async (file) => [
+        file,
+        await window.studio.readImage(file).catch(() => ''),
+      ]),
+    ).then((entries) => {
+      if (active) setReferenceSrc(Object.fromEntries(entries))
+    })
     return () => {
       active = false
     }
-  }, [referenceFile])
+  }, [referenceFiles.join('|')])
   const choices = providers.flatMap((provider) => [
     ...provider.chatModels.map((model) => ({
       providerId: provider.id,
@@ -194,20 +194,22 @@ export default function Composer({
             {imageSettingError && <p className="form-error">{imageSettingError}</p>}
           </div>
         )}
-        {referenceFile && (
-          <div className="reference-chip">
-            {referenceSrc && <img src={referenceSrc} alt={t('ui.referenceImage')} />}
-            <span>{t('ui.editThisImage')}</span>
+        {referenceFiles.map((file, index) => (
+          <div className="reference-chip" key={file}>
+            {referenceSrc[file] && <img src={referenceSrc[file]} alt={t('ui.referenceImage')} />}
+            <span>
+              {t('ui.referenceImage')} {index + 1}
+            </span>
             <button
               type="button"
               aria-label={t('ui.removeReferenceImage')}
-              onClick={onClearReference}
+              onClick={() => onClearReference(file)}
               disabled={busy}
             >
               <X size={14} />
             </button>
           </div>
-        )}
+        ))}
         <div className="composer-input">
           <textarea
             value={text}

@@ -60,7 +60,7 @@ export default function App() {
   const messagesRef = useRef<HTMLDivElement>(null)
   const previousSession = useRef('')
   const followBottom = useRef(true)
-  const [references, setReferences] = useState<Record<string, string>>({})
+  const [references, setReferences] = useState<Record<string, string[]>>({})
   const scrollBottom = () => {
     const el = messagesRef.current
     if (el && followBottom.current) el.scrollTop = el.scrollHeight
@@ -151,21 +151,29 @@ export default function App() {
         inside && !!session && !busy && !settings && !confirm && !dropImporting.current
       setDraggingImage(available && event.type !== 'drop')
       if (event.type !== 'drop' || !available) return
-      if (event.paths.length !== 1) {
-        setError(t('images.dropOne'))
+      if (event.paths.length + (references[session.id]?.length || 0) > 6) {
+        setError(t('images.referenceLimit'))
         return
       }
       const targetId = session.id
       dropImporting.current = true
-      void window.studio
-        .importDroppedImage(targetId, event.paths[0])
-        .then((file) => setReferences((current) => ({ ...current, [targetId]: file })))
-        .catch((reason) => setError(String(reason), targetId))
-        .finally(() => {
+      void (async () => {
+        try {
+          for (const path of event.paths) {
+            const file = await window.studio.importDroppedImage(targetId, path)
+            setReferences((current) => ({
+              ...current,
+              [targetId]: [...(current[targetId] || []), file].slice(0, 6),
+            }))
+          }
+        } catch (reason) {
+          setError(String(reason), targetId)
+        } finally {
           dropImporting.current = false
-        })
+        }
+      })()
     })
-  }, [session?.id, busy, settings, confirm])
+  }, [session?.id, busy, settings, confirm, references])
 
   const notify = (message: string) => {
     setToast(message)
@@ -259,7 +267,7 @@ export default function App() {
     target: StudioSession,
     prompt: string,
     kind: ModelKind,
-    referenceFile = references[target.id],
+    referenceFiles = references[target.id] || [],
   ) {
     if (activeRequests.current.has(target.id)) return
     activeRequests.current.add(target.id)
@@ -268,12 +276,12 @@ export default function App() {
     try {
       if (['ui.newConversation', 'New conversation'].includes(target.title))
         await window.studio.saveSession({ id: target.id, title: prompt.slice(0, 28) })
-      if (kind === 'image') await window.studio.generateImage(target.id, prompt, referenceFile)
+      if (kind === 'image') await window.studio.generateImage(target.id, prompt, referenceFiles)
       else {
-        const reference = referenceFile
-        if (reference) await window.studio.sendChat(target.id, prompt, reference)
+        const reference = referenceFiles
+        if (reference.length) await window.studio.sendChat(target.id, prompt, reference)
         else await window.studio.sendChat(target.id, prompt)
-        setReferences((current) => ({ ...current, [target.id]: '' }))
+        setReferences((current) => ({ ...current, [target.id]: [] }))
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason), target.id)
@@ -316,7 +324,12 @@ export default function App() {
       return
     }
     if (!target || !previous || previous.role !== 'user') return
-    await runRequest(target, previous.content, message.kind, previous.referenceFile || '')
+    await runRequest(
+      target,
+      previous.content,
+      message.kind,
+      previous.referenceFiles || (previous.referenceFile ? [previous.referenceFile] : []),
+    )
   }
   const changeModel = (providerId: string, model: string, kind: ModelKind) => {
     const next = data.providers.find((item) => item.id === providerId)
@@ -414,7 +427,13 @@ export default function App() {
                         notify(t('ui.selectAChatModelFirst'))
                         return
                       }
-                      setReferences((current) => ({ ...current, [session.id]: file }))
+                      setReferences((current) => ({
+                        ...current,
+                        [session.id]: [...new Set([...(current[session.id] || []), file])].slice(
+                          0,
+                          6,
+                        ),
+                      }))
                       if (session.modelKind === 'image') {
                         const chat = data.providers.find((p) => p.chatModels.length)
                         if (chat)
@@ -426,7 +445,7 @@ export default function App() {
                       }
                     }}
                     onRegenerate={(prompt) => {
-                      setReferences((current) => ({ ...current, [session.id]: '' }))
+                      setReferences((current) => ({ ...current, [session.id]: [] }))
                       setText(`${t('ui.pleaseGenerateTheImageAgain')} ${prompt}`)
                     }}
                     onApprove={async (stepId, allow) => {
@@ -467,15 +486,26 @@ export default function App() {
               onImportImage={async () => {
                 const targetId = session.id
                 try {
+                  if ((references[targetId]?.length || 0) >= 6) {
+                    notify(t('images.referenceLimit'))
+                    return
+                  }
                   const file = await window.studio.importImage(targetId)
-                  if (file) setReferences((current) => ({ ...current, [targetId]: file }))
+                  if (file)
+                    setReferences((current) => ({
+                      ...current,
+                      [targetId]: [...(current[targetId] || []), file].slice(0, 6),
+                    }))
                 } catch (reason) {
                   setError(String(reason), targetId)
                 }
               }}
-              referenceFile={references[session.id]}
-              onClearReference={() =>
-                setReferences((current) => ({ ...current, [session.id]: '' }))
+              referenceFiles={references[session.id] || []}
+              onClearReference={(file) =>
+                setReferences((current) => ({
+                  ...current,
+                  [session.id]: (current[session.id] || []).filter((item) => item !== file),
+                }))
               }
               onImageModel={async (providerId, model) => {
                 await window.studio.saveSession({

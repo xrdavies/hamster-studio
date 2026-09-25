@@ -38,6 +38,7 @@ export type ImageStep = {
   dispatchState?: 'not_sent' | 'unknown' | 'received'
 
   sourceImageId?: string
+  sourceImageIds?: string[]
 
   id: string
   prompt: string
@@ -65,6 +66,7 @@ export type Message = {
 
   agent?: boolean
   referenceFile?: string
+  referenceFiles?: string[]
   steps?: ImageStep[]
   id: string
   sessionId: string

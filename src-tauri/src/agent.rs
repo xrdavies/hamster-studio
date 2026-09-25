@@ -25,7 +25,7 @@ struct Run {
     image_provider: Option<Value>,
     image_model: String,
     image_key: Option<Result<String>>,
-    reference: Option<String>,
+    reference: Vec<String>,
     viewed: Mutex<Vec<String>>,
 }
 impl Run {
@@ -44,6 +44,8 @@ struct ImageArgs {
     count: usize,
     #[serde(default)]
     source_image_id: Option<String>,
+    #[serde(default)]
+    source_image_ids: Option<Vec<String>>,
 }
 fn one() -> usize {
     1
@@ -77,10 +79,10 @@ impl Tool for ImageTool {
     type Output = Value;
     type Error = std::io::Error;
     fn description(&self) -> String {
-        "Generate images, or edit source_image_id from list_images or a previous create_images result. Omit source_image_id to use the attached reference; use an empty string for a new image. Use count for requested variants (1–3). The app asks approval for multiple images or additional attempts. If image configuration is missing the app asks the user to configure it. Returns image file IDs, not visual observations.".into()
+        "Generate images, or edit source_image_id from list_images or a previous create_images result. Use source_image_ids for multiple ordered references. Omit both source fields to use all attached references; use an empty string for a new image. Use count for requested variants (1–3). The app asks approval for multiple images or additional attempts. If image configuration is missing the app asks the user to configure it. Returns image file IDs, not visual observations.".into()
     }
     fn parameters(&self) -> Value {
-        json!({"type":"object","properties":{"prompt":{"type":"string"},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_id":{"type":"string","description":"Session image ID to edit; empty string generates a new image"}},"required":["prompt","count"],"additionalProperties":false})
+        json!({"type":"object","properties":{"prompt":{"type":"string"},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_ids":{"type":"array","items":{"type":"string"},"maxItems":6,"description":"Ordered reference image IDs; empty array generates a new image"},"source_image_id":{"type":"string","description":"Session image ID to edit; empty string generates a new image"}},"required":["prompt","count"],"additionalProperties":false})
     }
     async fn call(
         &self,
@@ -101,17 +103,13 @@ impl ImageTool {
             .map(|s| s["count"].as_u64().unwrap_or(0) as usize)
             .sum();
 
-        let source = args
-            .source_image_id
-            .as_deref()
-            .or(run.reference.as_deref())
-            .filter(|s| !s.is_empty());
-        if let Some(file) = source {
-            if assets::owned_path(run, file).is_err() {
-                return Ok(assets::invalid_reference());
-            }
+        let sources = args.source_image_ids.clone().unwrap_or_else(|| args.source_image_id.as_ref().map(|s| if s.is_empty() {vec![]} else {vec![s.clone()]}).unwrap_or_else(|| run.reference.clone()));
+        if sources.len() > 6 { return Err("images.referenceLimit".into()); }
+        let source = sources.first();
+        for file in &sources {
+            if assets::owned_path(run, file).is_err() { return Ok(assets::invalid_reference()); }
         }
-        let fingerprint = json!([run.image_provider.as_ref().map(|p| &p["id"]), run.image_model, args.prompt.trim(), source, args.count]);
+        let fingerprint = json!([run.image_provider.as_ref().map(|p| &p["id"]), run.image_model, args.prompt.trim(), sources, args.count]);
         if let Some(step) = lock(&run.output)?["steps"].as_array().unwrap().iter().find(|step| step["fingerprint"] == fingerprint && step["status"] == "done") {
             return Ok(json!({"imageFiles":step["imageFiles"],"reused":true}));
         }
@@ -133,7 +131,7 @@ impl ImageTool {
                 "status":if needs_approval {"waiting"} else {"running"},
                 "needsConfiguration":run.image_provider.is_none(),
                 "operation":if source.is_some(){"edit"}else{"generate"},
-                "sourceImageId":source,"imageFiles":[],"error":""
+                "sourceImageId":source,"sourceImageIds":sources,"imageFiles":[],"error":""
             }));
         })?;
         let step_started = std::time::Instant::now();
@@ -151,11 +149,11 @@ impl ImageTool {
                 let secret = password(string(&provider,"id"))?;
                 (provider, model, secret)
             };
-            run.update(|o| { let step = step_mut(o, &step_id); step["status"] = json!("running"); step["model"] = json!(model); step["providerName"] = provider["name"].clone(); step["fingerprint"] = json!([provider["id"], model, args.prompt.trim(), source, args.count]); })?;
+            run.update(|o| { let step = step_mut(o, &step_id); step["status"] = json!("running"); step["model"] = json!(model); step["providerName"] = provider["name"].clone(); step["fingerprint"] = json!([provider["id"], model, args.prompt.trim(), sources, args.count]); })?;
             let mut files = Vec::new();
             for _ in 0..args.count {
                 run.update(|o| { let step = step_mut(o, &step_id); step["dispatchState"] = json!("unknown"); step["dispatchedAt"] = json!(now()); })?;
-                let file = requests::create_image(&state, &provider, &model, &secret, &args.prompt, source).await?;
+                let file = requests::create_image(&state, &provider, &model, &secret, &args.prompt, &sources).await?;
                 files.push(file.clone());
                 run.update(|o| {
                     o["imageFiles"].as_array_mut().unwrap().push(json!(file));
@@ -163,7 +161,7 @@ impl ImageTool {
                     step_mut(o,&step_id)["dispatchState"] = json!("received");
                 })?;
             }
-            Ok(json!({"imageFiles":files,"prompt":args.prompt,"sourceImageId":source,"operation":if source.is_some(){"edit"}else{"generate"}}))
+            Ok(json!({"imageFiles":files,"prompt":args.prompt,"sourceImageId":source,"sourceImageIds":sources,"operation":if source.is_some(){"edit"}else{"generate"}}))
         }.await;
         run.update(|o| {
             let step = step_mut(o, &step_id);
@@ -227,6 +225,10 @@ fn resolve_approval(
     sender.send(allow).map_err(|_| "ui.taskFinished".into())
 }
 
+fn reference_files(row: &Value) -> Vec<String> {
+    row["referenceFiles"].as_array().map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect()).unwrap_or_else(|| row["referenceFile"].as_str().map(str::to_owned).into_iter().collect())
+}
+
 fn history(state: &AppState, session_id: &str) -> Result<Vec<Message>> {
     history_rows(lock(&state.store)?.rows("messages")?, session_id)
 }
@@ -240,12 +242,7 @@ fn history_rows(rows: Vec<Value>, session_id: &str) -> Result<Vec<Message>> {
             result.push(Message::user(format!(
                 "{}{}",
                 string(&row, "content"),
-                row["referenceFile"]
-                    .as_str()
-                    .map(|file| format!(
-                        "\nAttached image ID: {file}. Call view_image to inspect it again."
-                    ))
-                    .unwrap_or_default()
+                if reference_files(&row).is_empty() { String::new() } else { format!("\nAttached image IDs: {:?}. Call view_image to inspect them again.", reference_files(&row)) }
             )));
         } else if let Some(transcript) = row["agentTranscript"].as_array() {
             for message in transcript {
@@ -273,7 +270,7 @@ pub async fn generate(
     state: State<'_, AppState>,
     session_id: String,
     text: String,
-    reference: Option<String>,
+    reference: Vec<String>,
     resume_id: Option<String>,
 ) -> Result<Value> {
     let started = std::time::Instant::now();
@@ -291,7 +288,7 @@ pub async fn generate(
         _ = token.cancelled() => Err("ui.generationStopped".to_owned()),
         result = tokio::time::timeout(std::time::Duration::from_secs(1800), async {
             let session = lock(&state.store)?.get("sessions",&session_id)?;
-            if let Some(file) = &reference {
+            for file in &reference {
                 let owned = lock(&state.store)?.owns_image(&session_id, file)?;
                 if !owned {return Err("Invalid reference image".into())}
                 crate::image_path(&state,file)?;
@@ -312,8 +309,8 @@ pub async fn generate(
             let created_at = now();
             let output = json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":"chat","content":"","imageFiles":[],"steps":[],"agent":true,"viewedImageIds":reference.iter().collect::<Vec<_>>(),"providerName":provider["name"],"model":model,"createdAt":created_at+1,"status":"streaming","error":""});
             let mut output = resumed.clone().unwrap_or(output);
-            let reference = if resumed.is_some() { output["referenceFile"].as_str().map(str::to_owned) } else {reference.clone()};
-            output["referenceFile"] = json!(reference);
+            let reference = if resumed.is_some() { reference_files(&output) } else {reference.clone()};
+            output["referenceFiles"] = json!(reference);
             let history_offset = output["historyOffset"].as_u64().map(|n|n as usize).unwrap_or(past.len());
             output["historyOffset"] = json!(history_offset);
             let mut initial_prompt = Message::user(text.trim());
@@ -330,8 +327,8 @@ pub async fn generate(
             }
             let current = Arc::new(Run {app:app.clone(),session_id:session_id.clone(),output:Mutex::new(output),image_provider:image.as_ref().map(|(p,_)|p.clone()),image_model:image.map(|(_,m)|m).unwrap_or_default(),image_key,reference:reference.clone(),viewed:Mutex::new(reference.iter().cloned().collect())});
             run = Some(current.clone());
-            crate::diagnostics::record(&app, "agent.start", json!({"sessionId":session_id,"messageId":lock(&current.output)?["id"],"providerId":provider["id"],"model":model,"historyMessages":past.len(),"hasReference":reference.is_some()}));
-            if resumed.is_none() { requests::emit(&app,&state,&json!({"id":id(),"sessionId":session_id,"role":"user","kind":"chat","content":text.trim(),"referenceFile":reference,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":created_at,"status":"done","error":""}))?; }
+            crate::diagnostics::record(&app, "agent.start", json!({"sessionId":session_id,"messageId":lock(&current.output)?["id"],"providerId":provider["id"],"model":model,"historyMessages":past.len(),"hasReference":!reference.is_empty()}));
+            if resumed.is_none() { requests::emit(&app,&state,&json!({"id":id(),"sessionId":session_id,"role":"user","kind":"chat","content":text.trim(),"referenceFiles":reference,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":created_at,"status":"done","error":""}))?; }
             current.update(|_|{})?;
             let http = rig::http_client::ReqwestClient::builder()
                 .connect_timeout(std::time::Duration::from_secs(30))
@@ -340,7 +337,7 @@ pub async fn generate(
             let client = rig::providers::openai::Client::builder().api_key(key).http_client(http)
                 .base_url(requests::url(string(&provider,"baseUrl"),"")?).build().map_err(|e|e.to_string())?.completions_api();
             let preamble = format!("{}\nReference image ID for editing (use exactly this ID, never invent IDs): {}.\nSession instructions:\n{}",
-                include_str!("../prompts/image-agent.txt"), reference.as_deref().unwrap_or("none"), string(&session,"systemPrompt"));
+                include_str!("../prompts/image-agent.txt"), serde_json::to_string(&reference).unwrap(), string(&session,"systemPrompt"));
             let agent = client.agent(model).preamble(&preamble).tool(ImageTool(current.clone())).tool(ListImages(current.clone())).tool(ViewImage(current.clone())).tool(web::ReadWebpage(current.clone())).add_hook(retry::Checkpoint(current.clone())).add_hook(ImageContext(current.clone())).add_hook(StopOnToolError).build();
             let mut prompt = initial_prompt;
             let mut prior = past;
@@ -438,6 +435,7 @@ mod tests {
             &ImageArgs {
                 prompt: "draw".into(),
                 count: 2,
+                source_image_ids: None,
                 source_image_id: None
             },
             1
@@ -447,6 +445,7 @@ mod tests {
             &ImageArgs {
                 prompt: "draw".into(),
                 count: 2,
+                source_image_ids: None,
                 source_image_id: None
             },
             2
@@ -456,6 +455,7 @@ mod tests {
             &ImageArgs {
                 prompt: " ".into(),
                 count: 1,
+                source_image_ids: None,
                 source_image_id: None
             },
             0
@@ -465,6 +465,7 @@ mod tests {
             &ImageArgs {
                 prompt: "draw".into(),
                 count: 0,
+                source_image_ids: None,
                 source_image_id: None
             },
             0

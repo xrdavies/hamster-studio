@@ -67,13 +67,13 @@ window.studio = {
   deleteProvider: (id) => invoke('delete_provider', { id }),
   saveSession: (session) => invoke('save_session', { session }),
   deleteSession: (id) => invoke('delete_session', { id }),
-  sendChat: (sessionId, text, referenceFile) =>
-    invoke('generate', { sessionId, text, kind: 'chat', referenceFile }),
+  sendChat: (sessionId, text, referenceFiles) =>
+    invoke('generate', { sessionId, text, kind: 'chat', referenceFiles }),
   continueAgent: (sessionId, messageId) =>
     invoke('generate', { sessionId, text: 'continue', kind: 'chat', resumeId: messageId }),
   approveImageStep: (sessionId, stepId, allow) => invoke('approve', { sessionId, stepId, allow }),
-  generateImage: (sessionId, text, referenceFile) =>
-    invoke('generate', { sessionId, text, kind: 'image', referenceFile }),
+  generateImage: (sessionId, text, referenceFiles) =>
+    invoke('generate', { sessionId, text, kind: 'image', referenceFiles }),
   onImageDrag: (callback) => {
     let disposed = false
     let off: (() => void) | undefined

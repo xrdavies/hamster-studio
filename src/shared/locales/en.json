@@ -214,5 +214,6 @@
   "web.userLinkRequired": "Only links supplied by the user in this session can be read",
   "web.timeout": "Webpage reading timed out",
   "agent.retrying": "Service unavailable. Retrying in {seconds}s · {attempt}/2",
-  "agent.continue": "Continue this step"
+  "agent.continue": "Continue this step",
+  "images.referenceLimit": "Attach up to 6 reference images."
 }

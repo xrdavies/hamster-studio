@@ -214,5 +214,6 @@
   "web.userLinkRequired": "只能读取用户在当前会话中提供的链接",
   "web.timeout": "网页读取超时",
   "agent.retrying": "服务暂时不可用，{seconds} 秒后重试 · {attempt}/2",
-  "agent.continue": "继续此步骤"
+  "agent.continue": "继续此步骤",
+  "images.referenceLimit": "最多添加 6 张参考图。"
 }
