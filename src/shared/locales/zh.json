@@ -224,5 +224,11 @@
   "images.regionSelected": "已选择区域",
   "images.removeRegion": "移除选区",
   "images.regionTooLarge": "局部修改支持最多 3200 万像素。",
-  "ui.toggleSidebar": "展开或收起侧栏"
+  "ui.toggleSidebar": "展开或收起侧栏",
+  "images.zoom": "缩放",
+  "images.brush": "画笔",
+  "images.eraser": "橡皮擦",
+  "images.undoStroke": "撤销上一步",
+  "images.selectRegionFirst": "请先选择修改区域",
+  "images.viewRegion": "查看修改区域"
 }

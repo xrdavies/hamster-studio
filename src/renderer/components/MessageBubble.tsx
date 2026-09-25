@@ -1,3 +1,4 @@
+import RegionEditor from './RegionEditor'
 import { translateMessage, t } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -26,6 +27,7 @@ export default function MessageBubble({
 }) {
   const [images, setImages] = useState<{ file: string; src: string }[]>([])
   const [references, setReferences] = useState<string[]>([])
+  const [showRegion, setShowRegion] = useState(false)
   const [preview, setPreview] = useState('')
   const [approving, setApproving] = useState('')
   const dialog = useRef<HTMLDialogElement>(null)
@@ -72,6 +74,17 @@ export default function MessageBubble({
     <div className={message.role === 'user' ? 'message user' : 'message assistant'}>
       <div className="avatar">{message.role === 'user' ? t('ui.you') : 'H'}</div>
       <div className="message-body">
+        {showRegion &&
+          message.maskFile &&
+          (message.referenceFiles?.[0] || message.referenceFile) && (
+            <RegionEditor
+              file={(message.referenceFiles?.[0] || message.referenceFile)!}
+              initialMask={message.maskFile}
+              readOnly
+              onClose={() => setShowRegion(false)}
+              onSave={() => {}}
+            />
+          )}
         <div className="message-meta">
           {message.role === 'user' ? t('ui.you') : message.providerName}
           <span>{message.model}</span>
@@ -85,7 +98,9 @@ export default function MessageBubble({
           />
         ))}
         {message.role === 'user' && message.maskFile && (
-          <p className="vision-context-note">{t('images.regionSelected')}</p>
+          <button className="secondary" onClick={() => setShowRegion(true)}>
+            {t('images.viewRegion')}
+          </button>
         )}
         {message.agent &&
           (steps.length > 0 ||

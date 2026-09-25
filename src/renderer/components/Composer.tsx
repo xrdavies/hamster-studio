@@ -115,6 +115,7 @@ export default function Composer({
       {editing && (
         <RegionEditor
           file={editing}
+          initialMask={mask?.file === editing ? mask.mask : undefined}
           onClose={() => setEditing('')}
           onSave={(value) => onMask({ file: editing, mask: value })}
         />

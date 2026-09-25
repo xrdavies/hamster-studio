@@ -224,5 +224,11 @@
   "images.regionSelected": "Region selected",
   "images.removeRegion": "Remove region",
   "images.regionTooLarge": "Region editing supports up to 32 megapixels.",
-  "ui.toggleSidebar": "Toggle sidebar"
+  "ui.toggleSidebar": "Toggle sidebar",
+  "images.zoom": "Zoom",
+  "images.brush": "Brush",
+  "images.eraser": "Eraser",
+  "images.undoStroke": "Undo last stroke",
+  "images.selectRegionFirst": "Select a region first",
+  "images.viewRegion": "View edited region"
 }

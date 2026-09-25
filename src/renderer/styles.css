@@ -1871,3 +1871,18 @@ button svg {
 .desktop-layout.sidebar-collapsed > .sidebar {
   display: none;
 }
+
+.region-viewport {
+  max-height: 55vh;
+  overflow: auto;
+  background: var(--soft);
+}
+.region-viewport .region-stage {
+  margin: 0;
+  min-width: 100%;
+}
+.region-viewport .region-stage img {
+  display: block;
+  width: 100%;
+  max-height: none;
+}
