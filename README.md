@@ -108,3 +108,5 @@ Image steps persist their request identity and dispatch state before sending, an
 Timeouts: 30 seconds to connect, 10 minutes per model HTTP request, 10 minutes per complete image operation, 15 minutes for confirmation, and 30 minutes per task. Completed images survive failures. Errors distinguish model failures, image timeouts, and cancellation; technical details can be expanded. No automatic paid retries.
 
 Provide a public HTTP(S) link and ask the Agent to read or summarize it. No search API key is needed. Only user-supplied session links are allowed. The reader supports HTML/plain text, with a 30-second deadline, 2 MB response limit and 16,000-character excerpt. JavaScript, login and PDFs are not supported. Private networks and proxies are excluded; extracted content is sent to your conversation provider.
+
+When a domain resolves exclusively to proxy Fake-IP addresses (198.18.0.0/15), the webpage reader queries Cloudflare DNS over HTTPS for its public IPv4 addresses and validates them before connecting. Only the hostname is sent to the resolver; private and literal reserved IP addresses remain blocked.

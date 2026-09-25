@@ -88,6 +88,53 @@ fn extract(html: &str) -> (String, String) {
     }
     (title.chars().take(300).collect(), parts.join("\n"))
 }
+fn fake_ip(ip: IpAddr) -> bool {
+    matches!(ip, IpAddr::V4(ip) if ip.octets()[0] == 198 && matches!(ip.octets()[1], 18 | 19))
+}
+async fn resolve_public(host: &str, port: u16) -> Result<Vec<std::net::SocketAddr>> {
+    let mut addresses: Vec<_> = tokio::net::lookup_host((host, port))
+        .await
+        .map_err(|_| "web.networkError")?
+        .collect();
+    // Fake-IP proxies use this reserved subnet. Resolve domains independently,
+    // never connect to the synthetic address or relax private-network checks.
+    if host.parse::<IpAddr>().is_err()
+        && !addresses.is_empty()
+        && addresses.iter().all(|a| fake_ip(a.ip()))
+    {
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .resolve("cloudflare-dns.com", "1.1.1.1:443".parse().unwrap())
+            .timeout(Duration::from_secs(8))
+            .build()
+            .map_err(|_| "web.networkError")?;
+        let answer: Value = client
+            .get("https://cloudflare-dns.com/dns-query")
+            .query(&[("name", host), ("type", "A")])
+            .header("accept", "application/dns-json")
+            .send()
+            .await
+            .map_err(|_| "web.networkError")?
+            .error_for_status()
+            .map_err(|_| "web.networkError")?
+            .json()
+            .await
+            .map_err(|_| "web.networkError")?;
+        addresses = answer["Answer"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|r| r["type"] == 1)
+            .filter_map(|r| r["data"].as_str()?.parse::<std::net::Ipv4Addr>().ok())
+            .map(|ip| std::net::SocketAddr::new(ip.into(), port))
+            .collect();
+    }
+    if addresses.is_empty() || addresses.iter().any(|a| !public(a.ip())) {
+        return Err("web.blockedAddress".into());
+    }
+    Ok(addresses)
+}
 async fn fetch(mut url: reqwest::Url) -> Result<Value> {
     for _ in 0..4 {
         let host = url
@@ -95,14 +142,7 @@ async fn fetch(mut url: reqwest::Url) -> Result<Value> {
             .ok_or("web.invalidUrl")?
             .trim_matches(['[', ']'])
             .to_owned();
-        let addresses: Vec<_> =
-            tokio::net::lookup_host((host.as_str(), url.port_or_known_default().unwrap()))
-                .await
-                .map_err(|_| "web.networkError")?
-                .collect();
-        if addresses.is_empty() || addresses.iter().any(|a| !public(a.ip())) {
-            return Err("web.blockedAddress".into());
-        }
+        let addresses = resolve_public(&host, url.port_or_known_default().unwrap()).await?;
         // Pin validated DNS answers; redirects are separately resolved and validated.
         let client = reqwest::Client::builder()
             .no_proxy()
@@ -220,6 +260,27 @@ impl Tool for ReadWebpage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    #[ignore = "manual public network smoke test"]
+    async fn reads_tokshare_with_system_dns() {
+        let page = tokio::time::timeout(
+            Duration::from_secs(30),
+            fetch(parse_url("https://tokshare.org").unwrap()),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(!page["text"].as_str().unwrap().is_empty());
+    }
+    #[test]
+    fn fake_ip_is_detected_but_never_public() {
+        for ip in ["198.18.0.148", "198.19.255.1"] {
+            let ip = ip.parse().unwrap();
+            assert!(fake_ip(ip));
+            assert!(!public(ip));
+        }
+        assert!(!fake_ip("10.0.0.1".parse().unwrap()));
+    }
     #[test]
     fn blocks_local_and_special_networks() {
         for ip in [
