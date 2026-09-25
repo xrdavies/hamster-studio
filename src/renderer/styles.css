@@ -1334,9 +1334,49 @@ fieldset.provider-form {
 .image-card-actions button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  color: #65558e;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: #555660;
   font-size: 12px;
+  line-height: 18px;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.creation-settings-toggle svg,
+.image-card-actions button svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+.creation-settings-toggle:hover,
+.image-card-actions button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: #d9d2f7;
+  color: var(--accent);
+}
+.creation-settings-toggle:active,
+.image-card-actions button:active:not(:disabled) {
+  background: #e5dfff;
+}
+.image-card-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.creation-settings-toggle {
+  background: var(--soft);
+  border-color: transparent;
+}
+.creation-settings-toggle[aria-expanded='true'] {
+  background: var(--accent-soft);
+  border-color: #d9d2f7;
+  color: var(--accent);
 }
 .composer-modelbar {
   flex-wrap: wrap;
@@ -1405,7 +1445,7 @@ fieldset.provider-form {
 .image-card-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 8px;
   padding: 10px 0;
 }
 .image-preview-trigger {
