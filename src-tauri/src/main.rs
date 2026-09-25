@@ -235,7 +235,9 @@ fn main() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             {
-                use tauri::menu::{AboutMetadata, Menu, PredefinedMenuItem, HELP_SUBMENU_ID};
+                use tauri::menu::{
+                    AboutMetadata, Menu, MenuItem, PredefinedMenuItem, HELP_SUBMENU_ID,
+                };
                 let menu = Menu::default(app.handle())?;
                 if let Some(application_menu) =
                     menu.items()?.first().and_then(|item| item.as_submenu())
@@ -275,7 +277,28 @@ fn main() {
                         menu.remove(&help)?;
                     }
                 }
+                for item in menu.items()? {
+                    if let Some(submenu) = item.as_submenu() {
+                        if submenu.text()? == "View" {
+                            submenu.append(&PredefinedMenuItem::separator(app)?)?;
+                            submenu.append(&MenuItem::with_id(
+                                app,
+                                "open-devtools",
+                                "Developer Tools",
+                                true,
+                                Some("Cmd+Alt+I"),
+                            )?)?;
+                        }
+                    }
+                }
                 app.set_menu(menu)?;
+                app.on_menu_event(|app, event| {
+                    if event.id().as_ref() == "open-devtools" {
+                        if let Some(window) = app.get_webview_window("main") {
+                            window.open_devtools();
+                        }
+                    }
+                });
             }
 
             let directory = app.path().app_data_dir()?;
