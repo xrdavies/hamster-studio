@@ -31,14 +31,28 @@ impl Store {
             CREATE INDEX IF NOT EXISTS messages_session ON messages(session_id);").map_err(|e| e.to_string())?;
         let store = Self { db };
         for mut message in store.rows("messages")? {
+            let mut migrated = false;
+            if let Some(error) = message["error"].as_str() {
+                let key = legacy_error(error);
+                if key != error { message["error"] = json!(key); migrated = true; }
+            }
+            if let Some(steps) = message["steps"].as_array_mut() {
+                for step in steps {
+                    if let Some(error) = step["error"].as_str() {
+                        let key = legacy_error(error);
+                        if key != error { step["error"] = json!(key); migrated = true; }
+                    }
+                }
+            }
+            if migrated { store.message(&message)?; }
             if message["status"] == "streaming" {
                 message["status"] = json!("error");
-                message["error"] = json!("上次生成中断");
+                message["error"] = json!("ui.previousGenerationWasInterrupted");
                 if let Some(steps) = message["steps"].as_array_mut() {
                     for step in steps {
                         if step["status"] == "running" || step["status"] == "waiting" {
                             step["status"] = json!("error");
-                            step["error"] = json!("上次生成中断");
+                            step["error"] = json!("ui.previousGenerationWasInterrupted");
                         }
                     }
                 }
@@ -135,7 +149,7 @@ impl Store {
             return Err("Invalid model kind".into());
         }
         if string(&value, "chatModel").is_empty() && string(&value, "imageModel").is_empty() {
-            return Err("请先配置可用模型".into());
+            return Err("ui.configureASupportedModelFirst".into());
         }
         if self.get("sessions", &session_id).is_err() {
             self.get("providers", string(&value, "providerId"))?;
@@ -222,5 +236,29 @@ mod tests {
         );
         drop(store);
         std::fs::remove_file(file).unwrap();
+    }
+}
+
+fn legacy_error(error: &str) -> &str {
+    match error {
+        "Provider 未返回图片" => "ui.providerReturnedNoImage",
+        "已停止生成" => "ui.generationStopped",
+        "Provider 名称不能为空" => "ui.providerNameIsRequired",
+        "上次生成中断" => "ui.previousGenerationWasInterrupted",
+        "请等待生成完成或停止生成后再更新" => "ui.waitForGenerationToFinishOrStopItBeforeUpdating",
+        "请先检查模型能力表更新" => "ui.checkModelCapabilitiesUpdatesFirst",
+        "请先配置可用模型" => "ui.configureASupportedModelFirst",
+        "模型能力已变化或不可用，请重新选择模型" => "ui.modelCapabilityChangedOrIsUnavailableSelectAModelAgain",
+        "用户取消了图片生成" => "ui.imageGenerationCancelledByUser",
+        "请先配置图片模型" => "ui.configureAnImageModelFirst",
+        "请先选择聊天模型" => "ui.selectAChatModelFirst",
+        "任务超时，已停止" => "ui.taskTimedOutAndStopped",
+        "Agent 未返回完整结果" => "ui.theAgentDidNotReturnACompleteResult",
+        "每次任务最多生成 3 张图片" => "ui.eachTaskCanGenerateUpTo3Images",
+        "图片提示词不能为空或超过 16000 字节" => "ui.imagePromptMustBeNonemptyAndNoLongerThan16000Bytes",
+        "任务已结束或已确认" => "ui.taskFinishedOrAlreadyConfirmed",
+        "任务已结束" => "ui.taskFinished",
+        "任务已停止" => "ui.taskStopped",
+        _ => error,
     }
 }

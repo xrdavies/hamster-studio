@@ -22,7 +22,11 @@ vi.mock('react', async (importOriginal) => ({
     return hooks.values[index]
   },
 }))
-vi.mock('./i18n', () => ({ t: (text: string) => text, useLanguage: () => 'en' }))
+vi.mock('./i18n', () => ({
+  t: (text: string) => text,
+  translateMessage: (text: string) => text,
+  useLanguage: () => 'en',
+}))
 import App from './App'
 import Composer from './components/Composer'
 import SessionSidebar from './components/SessionSidebar'
@@ -169,7 +173,7 @@ it('clears all provider model types in the draft without changing saved data', (
     const row = fieldset.props.children.find(
       (child: any) => child?.props?.className === 'model-fetch-row',
     )
-    return row.props.children.find((child: any) => child?.props?.children === '清空模型')
+    return row.props.children.find((child: any) => child?.props?.children === 'ui.clearModels')
   }
   expect(clearButton().props.disabled).toBe(false)
   clearButton().props.onClick()

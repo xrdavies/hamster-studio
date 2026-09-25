@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { t, useLanguage } from '../i18n'
+import { translateMessage, t, useLanguage } from '../i18n'
 import type { UpdateState } from '../../shared/updates'
 import ConfirmDialog from './ConfirmDialog'
 
@@ -42,15 +42,15 @@ export default function UpdateNotice({ manual = false }: { manual?: boolean }) {
   )
     return null
   const labels = {
-    idle: '尚未检查更新',
-    disabled: '开发版本不支持自动更新，请使用安装版检查更新。',
-    checking: '检查中…',
-    current: '当前已是最新版本',
-    available: '发现新版本',
-    downloading: '正在下载更新',
-    downloaded: '更新已下载',
-    error: '检查更新失败',
-  }
+    idle: 'ui.updatesNotCheckedYet',
+    disabled: 'ui.automaticUpdatesAreUnavailableInDevelopmentBuildsUseAnInstalledRelease',
+    checking: 'ui.checking',
+    current: 'ui.youAreUpToDate',
+    available: 'ui.newVersionAvailable',
+    downloading: 'ui.downloadingUpdate',
+    downloaded: 'ui.updateDownloaded',
+    error: 'ui.failedToCheckForUpdates',
+  } as const
   return (
     <div className={manual ? 'about-update' : 'update-notice'} role="status">
       <p>
@@ -58,34 +58,36 @@ export default function UpdateNotice({ manual = false }: { manual?: boolean }) {
         {state.status === 'downloading' ? `${state.percent || 0}%` : ''}
       </p>
       {state.status === 'error' && <p className="form-error">{state.error}</p>}
-      {error && <p className="form-error">{t(error)}</p>}
+      {error && <p className="form-error">{translateMessage(error)}</p>}
       {manual && (
         <button
           className="secondary"
           disabled={['checking', 'downloading', 'downloaded'].includes(state.status)}
           onClick={() => action(() => window.studio.checkUpdates())}
         >
-          {t('检查更新')}
+          {t('ui.checkForUpdates')}
         </button>
       )}
       {state.status === 'available' && (
         <button onClick={() => action(() => window.studio.downloadUpdate())}>
-          {t('下载更新')}
+          {t('ui.downloadUpdate')}
         </button>
       )}
       {state.status === 'downloaded' && (
-        <button onClick={() => setConfirm(true)}>{t('重启并安装')}</button>
+        <button onClick={() => setConfirm(true)}>{t('ui.restartAndInstall')}</button>
       )}
       {!manual && (
         <button className="secondary" onClick={() => setDismissed(key)}>
-          {t('稍后')}
+          {t('ui.later')}
         </button>
       )}
       {confirm && (
         <ConfirmDialog
           state={{
-            title: t('重启并安装'),
-            message: t('应用将退出并安装更新。请先保存设置；未发送的草稿会丢失。'),
+            title: t('ui.restartAndInstall'),
+            message: t(
+              'ui.theAppWillCloseToInstallTheUpdateSaveYourSettingsFirstUnsentDraftsWillBeLost',
+            ),
             confirm: () => {
               setConfirm(false)
               void action(() => window.studio.installUpdate())

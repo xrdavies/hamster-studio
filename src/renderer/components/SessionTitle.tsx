@@ -31,7 +31,7 @@ export default function SessionTitle({
     <input
       ref={input}
       className="title-input"
-      aria-label={t('会话标题')}
+      aria-label={t('ui.conversationTitle')}
       defaultValue={title}
       onFocus={() => {
         pendingBlur.current = false

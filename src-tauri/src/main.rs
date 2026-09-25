@@ -75,7 +75,7 @@ fn save_provider(s: State<AppState>, input: Value) -> Result<()> {
         .unwrap_or_else(store::id);
     let name = string(&input, "name").trim();
     if name.is_empty() {
-        return Err("Provider 名称不能为空".into());
+        return Err("ui.providerNameIsRequired".into());
     }
     requests::url(string(&input, "baseUrl"), "/models")?;
     let mut p = json!({"id":id,"name":name,"baseUrl":string(&input,"baseUrl").trim().trim_end_matches('/')});
@@ -175,7 +175,7 @@ async fn check_catalog(s: State<'_, AppState>) -> Result<Value> {
 #[tauri::command]
 fn install_catalog(s: State<AppState>) -> Result<Value> {
     let mut candidate = lock(&s.candidate)?;
-    let table = candidate.as_ref().ok_or("请先检查模型能力表更新")?;
+    let table = candidate.as_ref().ok_or("ui.checkModelCapabilitiesUpdatesFirst")?;
     let file = s.directory.join("model-capabilities.json");
     std::fs::write(
         file.with_extension("tmp"),
@@ -224,7 +224,7 @@ fn stop_chat(s: State<AppState>, id: String) -> Result<()> {
 #[tauri::command]
 fn can_install(s: State<AppState>) -> Result<()> {
     if !lock(&s.active)?.is_empty() {
-        return Err("请等待生成完成或停止生成后再更新".into());
+        return Err("ui.waitForGenerationToFinishOrStopItBeforeUpdating".into());
     }
     Ok(())
 }

@@ -92,14 +92,14 @@ export default function Composer({
             onClick={() => setShowImageSettings(!showImageSettings)}
           >
             <SlidersHorizontal size={14} />
-            {t('图片创作设置')}
+            {t('ui.imageCreationSettings')}
           </button>
         </div>
         {showImageSettings && (
           <div className="creation-settings">
             <p>
               {t(
-                '对话模型负责规划，图片模型负责生成和编辑。每次任务最多生成 3 张，多图或追加生成需确认。',
+                'ui.theChatModelPlansTheImageModelGeneratesAndEditsUpTo3ImagesPerTaskMultipleImagesOrAdditionalAttemptsRequireConfirmation',
               )}
             </p>
             <ModelMenu
@@ -120,19 +120,21 @@ export default function Composer({
               }}
             />
             <p className="vision-context-note">
-              {t('查看图片需要当前对话模型支持视觉输入；图片将发送至该模型的 Provider。')}
+              {t(
+                'ui.viewingImagesRequiresAVisionCapableConversationModelImagesAreSentToThatModelSProvider',
+              )}
             </p>
-            {savingImageModel && <span role="status">{t('保存中…')}</span>}
+            {savingImageModel && <span role="status">{t('ui.saving')}</span>}
             {imageSettingError && <p className="form-error">{imageSettingError}</p>}
           </div>
         )}
         {referenceFile && (
           <div className="reference-chip">
-            {referenceSrc && <img src={referenceSrc} alt={t('参考图片')} />}
-            <span>{t('基于此图修改')}</span>
+            {referenceSrc && <img src={referenceSrc} alt={t('ui.referenceImage')} />}
+            <span>{t('ui.editThisImage')}</span>
             <button
               type="button"
-              aria-label={t('移除参考图片')}
+              aria-label={t('ui.removeReferenceImage')}
               onClick={onClearReference}
               disabled={busy}
             >
@@ -152,7 +154,9 @@ export default function Composer({
               }
             }}
             placeholder={
-              modelKind === 'image' ? t('描述你想生成的图片…') : t('给 Hamster Studio 发消息…')
+              modelKind === 'image'
+                ? t('ui.describeTheImageYouWantToGenerate')
+                : t('ui.messageHamsterStudio')
             }
             disabled={busy}
           />
@@ -166,12 +170,12 @@ export default function Composer({
         </div>
         <div className="hint">
           {modelKind === 'image'
-            ? t('图片模型：') +
-              (session.imageModel || t('未配置')) +
-              t(' · Enter 发送 · Shift + Enter 换行')
-            : t('聊天模型：') +
-              (session.chatModel || t('未配置')) +
-              t(' · Enter 发送 · Shift + Enter 换行')}
+            ? t('ui.imageModel') +
+              (session.imageModel || t('ui.notConfigured')) +
+              t('ui.enterToSendShiftEnterForANewLine')
+            : t('ui.chatModel') +
+              (session.chatModel || t('ui.notConfigured')) +
+              t('ui.enterToSendShiftEnterForANewLine')}
         </div>
       </div>
     </div>
@@ -245,12 +249,12 @@ function ModelMenu({
         aria-controls={open ? menuId : undefined}
         type="button"
         onClick={() => setOpen(!open)}
-        aria-label={t('选择 Provider · 模型')}
+        aria-label={t('ui.selectProviderModel')}
         disabled={disabled}
         aria-expanded={open}
       >
         <span>
-          {selected ? `${selected.providerName} · ${selected.model}` : t('选择 Provider · 模型')}
+          {selected ? `${selected.providerName} · ${selected.model}` : t('ui.selectProviderModel')}
         </span>
         <span className="model-trigger-icon">
           {selected?.kind === 'image' ? <ImageIcon size={15} /> : <MessageSquare size={15} />}
@@ -262,7 +266,7 @@ function ModelMenu({
           id={menuId}
           className="model-menu-panel"
           role="listbox"
-          aria-label={t('选择 Provider · 模型')}
+          aria-label={t('ui.selectProviderModel')}
         >
           {choices.length ? (
             choices.map((choice) => (
@@ -285,7 +289,7 @@ function ModelMenu({
               </button>
             ))
           ) : (
-            <div className="model-empty">{t('请先在设置中配置模型')}</div>
+            <div className="model-empty">{t('ui.configureModelsInSettingsFirst')}</div>
           )}
         </div>
       )}

@@ -73,14 +73,14 @@ pub async fn generate(
     }
     let mut assistant: Option<Value> = None;
     let result = tokio::select! {
-        _=token.cancelled()=>Err("已停止生成".to_owned()),
+        _=token.cancelled()=>Err("ui.generationStopped".to_owned()),
         result=async {
             let session=lock(&s.store)?.get("sessions",&session_id)?;
             let mut provider=lock(&s.store)?.get("providers",string(&session,"providerId"))?;
             lock(&s.catalog)?.provider(&mut provider);
             let model=string(&session,if kind=="image" {"imageModel"} else {"chatModel"});
             let models=&provider[if kind=="image" {"imageModels"} else {"chatModels"}];
-            if !models.as_array().map(|v|v.contains(&json!(model))).unwrap_or(false) {return Err("模型能力已变化或不可用，请重新选择模型".into())}
+            if !models.as_array().map(|v|v.contains(&json!(model))).unwrap_or(false) {return Err("ui.modelCapabilityChangedOrIsUnavailableSelectAModelAgain".into())}
             let secret=password(string(&provider,"id"))?;
             let mut history=lock(&s.store)?.history(&session_id)?;
             let user=json!({"id":id(),"sessionId":session_id,"role":"user","kind":kind,"content":text.trim(),"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"done","error":""});
@@ -187,10 +187,10 @@ pub(crate) async fn create_image(
             .map_err(|e| e.to_string())?
             .to_vec()
     } else {
-        return Err("Provider 未返回图片".into());
+        return Err("ui.providerReturnedNoImage".into());
     };
     if bytes.is_empty() {
-        return Err("Provider 未返回图片".into());
+        return Err("ui.providerReturnedNoImage".into());
     }
     let name = format!("{}.png", id());
     std::fs::write(s.directory.join("images").join(&name), bytes).map_err(|e| e.to_string())?;

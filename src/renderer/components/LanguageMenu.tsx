@@ -3,7 +3,7 @@ import { Check, ChevronDown } from 'lucide-react'
 import { setLanguage, t, useLanguage } from '../i18n'
 
 const languages = [
-  { value: 'zh', label: '简体中文' },
+  { value: 'zh', label: 'ui.simplifiedChinese' },
   { value: 'en', label: 'English' },
 ] as const
 
@@ -59,7 +59,7 @@ export default function LanguageMenu() {
         ref={trigger}
         type="button"
         className="model-trigger"
-        aria-label={t('语言')}
+        aria-label={t('ui.language')}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
@@ -69,7 +69,7 @@ export default function LanguageMenu() {
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && (
-        <div id={id} className="model-menu-panel" role="menu" aria-label={t('语言')}>
+        <div id={id} className="model-menu-panel" role="menu" aria-label={t('ui.language')}>
           {languages.map((item) => (
             <button
               key={item.value}

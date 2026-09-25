@@ -83,7 +83,7 @@ window.studio = {
     }
   },
   downloadUpdate: async () => {
-    if (!update || state.status !== 'available') throw new Error('请先检查更新')
+    if (!update || state.status !== 'available') throw new Error('ui.checkForUpdatesFirst')
     set({ status: 'downloading', version: update.version, percent: 0 })
     let total = 0
     let received = 0
@@ -99,7 +99,8 @@ window.studio = {
     }
   },
   installUpdate: async () => {
-    if (!update || state.status !== 'downloaded') throw new Error('更新尚未下载完成')
+    if (!update || state.status !== 'downloaded')
+      throw new Error('ui.theUpdateHasNotFinishedDownloading')
     await invoke('can_install')
     try {
       await update.install()

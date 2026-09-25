@@ -48,10 +48,10 @@ fn one() -> usize {
 }
 fn validate(args: &ImageArgs, used: usize) -> Result<()> {
     if args.prompt.trim().is_empty() || args.prompt.len() > 16000 {
-        return Err("图片提示词不能为空或超过 16000 字节".into());
+        return Err("ui.imagePromptMustBeNonemptyAndNoLongerThan16000Bytes".into());
     }
     if args.count == 0 || args.count > MAX_IMAGES.saturating_sub(used) {
-        return Err("每次任务最多生成 3 张图片".into());
+        return Err("ui.eachTaskCanGenerateUpTo3Images".into());
     }
     Ok(())
 }
@@ -128,14 +128,14 @@ impl ImageTool {
         })?;
         let result: Result<Value> = async {
             if let Some(receiver) = receiver {
-                if !receiver.await.map_err(|_| "任务已停止")? {return Err("用户取消了图片生成".into())}
+                if !receiver.await.map_err(|_| "ui.taskStopped")? {return Err("ui.imageGenerationCancelledByUser".into())}
             }
             // Existing settings are snapshotted per run. Only missing configuration is filled on approval.
             let (provider, model, secret) = if let Some(provider) = &run.image_provider {
                 (provider.clone(), run.image_model.clone(), run.image_key.clone().unwrap()?)
             } else {
                 let session = lock(&state.store)?.get("sessions", &run.session_id)?;
-                let (provider, model) = image_config(&state, &session)?.ok_or("请先配置图片模型")?;
+                let (provider, model) = image_config(&state, &session)?.ok_or("ui.configureAnImageModelFirst")?;
                 let secret = password(string(&provider,"id"))?;
                 (provider, model, secret)
             };
@@ -200,12 +200,12 @@ fn resolve_approval(
     step_id: &str,
     allow: bool,
 ) -> Result<()> {
-    let (owner, _) = approvals.get(step_id).ok_or("任务已结束或已确认")?;
+    let (owner, _) = approvals.get(step_id).ok_or("ui.taskFinishedOrAlreadyConfirmed")?;
     if owner != session_id {
         return Err("Invalid session".into());
     }
     let (_, sender) = approvals.remove(step_id).unwrap();
-    sender.send(allow).map_err(|_| "任务已结束".into())
+    sender.send(allow).map_err(|_| "ui.taskFinished".into())
 }
 
 fn history(state: &AppState, session_id: &str) -> Result<Vec<Message>> {
@@ -267,7 +267,7 @@ pub async fn generate(
     let mut run: Option<Arc<Run>> = None;
     let result = tokio::select! {
         biased;
-        _ = token.cancelled() => Err("已停止生成".to_owned()),
+        _ = token.cancelled() => Err("ui.generationStopped".to_owned()),
         result = tokio::time::timeout(std::time::Duration::from_secs(1800), async {
             let session = lock(&state.store)?.get("sessions",&session_id)?;
             if let Some(file) = &reference {
@@ -278,7 +278,7 @@ pub async fn generate(
             let mut provider = lock(&state.store)?.get("providers",string(&session,"providerId"))?;
             lock(&state.catalog)?.provider(&mut provider);
             let model = string(&session,"chatModel");
-            if !provider["chatModels"].as_array().is_some_and(|m|m.contains(&json!(model))) {return Err("请先选择聊天模型".into())}
+            if !provider["chatModels"].as_array().is_some_and(|m|m.contains(&json!(model))) {return Err("ui.selectAChatModelFirst".into())}
             let key = password(string(&provider,"id"))?;
             let image = image_config(&state,&session)?;
             let image_key = image.as_ref().map(|(p,_)|password(string(p,"id")));
@@ -313,10 +313,10 @@ pub async fn generate(
                     _ => {}
                 }
             }
-            if !finished {return Err("Agent 未返回完整结果".into())}
+            if !finished {return Err("ui.theAgentDidNotReturnACompleteResult".into())}
             current.update(|o| o["status"]=json!("done"))?;
             Ok(())
-        }) => result.unwrap_or_else(|_|Err("任务超时，已停止".into()))
+        }) => result.unwrap_or_else(|_|Err("ui.taskTimedOutAndStopped".into()))
     };
     lock(&state.approvals)?.retain(|_, (owner, _)| owner != &session_id);
 

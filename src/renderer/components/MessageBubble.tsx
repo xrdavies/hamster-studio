@@ -1,4 +1,4 @@
-import { t } from '../i18n'
+import { translateMessage, t } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -65,18 +65,20 @@ export default function MessageBubble({
   }
   return (
     <div className={message.role === 'user' ? 'message user' : 'message assistant'}>
-      <div className="avatar">{message.role === 'user' ? t('你') : 'H'}</div>
+      <div className="avatar">{message.role === 'user' ? t('ui.you') : 'H'}</div>
       <div className="message-body">
         <div className="message-meta">
-          {message.role === 'user' ? t('你') : message.providerName}
+          {message.role === 'user' ? t('ui.you') : message.providerName}
           <span>{message.model}</span>
         </div>
-        {reference && <img className="message-reference" src={reference} alt={t('参考图片')} />}
+        {reference && (
+          <img className="message-reference" src={reference} alt={t('ui.referenceImage')} />
+        )}
         {message.agent &&
           (steps.length > 0 ||
             !!message.viewedImageIds?.length ||
             message.status === 'streaming') && (
-            <section className="creation-task" aria-label={t('图片创作任务')}>
+            <section className="creation-task" aria-label={t('ui.imageCreationTask')}>
               <div className="creation-task-title" role="status">
                 {message.status === 'streaming' ? (
                   <span className="spinner dark" />
@@ -88,38 +90,41 @@ export default function MessageBubble({
                 <strong>
                   {t(
                     current?.status === 'waiting'
-                      ? '等待确认'
+                      ? 'ui.awaitingConfirmation'
                       : current?.status === 'running'
-                        ? '正在制作图片…'
+                        ? 'ui.creatingImages'
                         : message.status === 'streaming'
-                          ? '正在处理任务…'
+                          ? 'ui.working'
                           : message.status === 'done'
-                            ? '任务完成'
-                            : '任务已停止或失败',
+                            ? 'ui.taskComplete'
+                            : 'ui.taskStoppedOrFailed',
                   )}
                 </strong>
               </div>
               {!!message.viewedImageIds?.length && (
                 <p className="vision-context-note">
-                  {t('已载入视觉上下文的图片')} · {message.viewedImageIds.length}
+                  {t('ui.imagesLoadedIntoVisualContext')} · {message.viewedImageIds.length}
                 </p>
               )}
               {steps.length > 0 && (
                 <details>
                   <summary>
-                    {t('查看执行步骤')} · {steps.length}
+                    {t('ui.viewSteps')} · {steps.length}
                   </summary>
                   {steps.map((step) => (
                     <div className="creation-step" key={step.id}>
                       <span>
-                        {t(step.operation === 'edit' ? '修改图片' : '生成图片')} × {step.count} ·{' '}
+                        {t(step.operation === 'edit' ? 'ui.editImage' : 'ui.generateImage')} ×{' '}
+                        {step.count} ·{' '}
                         {t(
-                          {
-                            waiting: '等待确认',
-                            running: '执行中',
-                            done: '已完成',
-                            error: '未完成',
-                          }[step.status],
+                          (
+                            {
+                              waiting: 'ui.awaitingConfirmation',
+                              running: 'ui.running',
+                              done: 'ui.completed',
+                              error: 'ui.incomplete',
+                            } as const
+                          )[step.status],
                         )}
                       </span>
                       <p>{step.prompt}</p>
@@ -135,10 +140,10 @@ export default function MessageBubble({
                           onClick={() => onReference(step.sourceImageId!)}
                         >
                           <Pencil size={13} />
-                          {t('使用此步骤的原图')}
+                          {t('ui.useThisStepSSourceImage')}
                         </button>
                       )}
-                      {step.error && <p className="form-error">{t(step.error)}</p>}
+                      {step.error && <p className="form-error">{translateMessage(step.error)}</p>}
                     </div>
                   ))}
                 </details>
@@ -147,10 +152,12 @@ export default function MessageBubble({
                 <div className="creation-approval">
                   <p>{current.prompt}</p>
                   <p>
-                    {t('本次生成数量')}：{current.count}
+                    {t('ui.imagesInThisStep')}：{current.count}
                   </p>
                   {current.needsConfiguration && (
-                    <p>{t('请在输入框的图片创作设置中选择图片模型，保存后继续。')}</p>
+                    <p>
+                      {t('ui.chooseAnImageModelInTheComposerSImageCreationSettingsThenContinue')}
+                    </p>
                   )}
                   <div>
                     <button
@@ -158,14 +165,14 @@ export default function MessageBubble({
                       disabled={approving === current.id}
                       onClick={() => void approve(current.id, false)}
                     >
-                      {t('取消')}
+                      {t('ui.cancel')}
                     </button>
                     <button
                       className="primary"
                       disabled={approving === current.id}
                       onClick={() => void approve(current.id, true)}
                     >
-                      {t('确认生成')}
+                      {t('ui.confirmGeneration')}
                     </button>
                   </div>
                 </div>
@@ -175,7 +182,7 @@ export default function MessageBubble({
         {!message.agent && message.status === 'streaming' && !message.content && (
           <div className="thinking">
             <span className="spinner dark" />
-            {t(message.kind === 'image' ? '正在生成图片…' : '正在思考…')}
+            {t(message.kind === 'image' ? 'ui.generatingImage' : 'ui.thinking')}
           </div>
         )}
         {message.content && (
@@ -183,24 +190,24 @@ export default function MessageBubble({
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
         )}
-        {message.error && <div className="form-error">{t(message.error)}</div>}
+        {message.error && <div className="form-error">{translateMessage(message.error)}</div>}
         {images.map((image) => (
           <div className="generated-image-wrap" key={image.file}>
             <button
               className="image-preview-trigger"
-              aria-label={t('放大查看')}
+              aria-label={t('ui.viewFullSize')}
               onClick={() => setPreview(image.src)}
             >
-              <img className="generated-image" src={image.src} alt={t('生成的图片')} />
+              <img className="generated-image" src={image.src} alt={t('ui.generatedImage')} />
             </button>
             <div className="image-card-actions">
               <button onClick={() => void onExport(image.file)}>
                 <Download size={13} />
-                {t('导出图片')}
+                {t('ui.exportImage')}
               </button>
               <button disabled={busy} onClick={() => onReference(image.file)}>
                 <Pencil size={13} />
-                {t('基于此图修改')}
+                {t('ui.editThisImage')}
               </button>
               <button
                 onClick={() =>
@@ -210,7 +217,7 @@ export default function MessageBubble({
                 }
               >
                 <RefreshCw size={13} />
-                {t('重新生成')}
+                {t('ui.generateAgain')}
               </button>
             </div>
           </div>
@@ -219,12 +226,12 @@ export default function MessageBubble({
           <div className="message-actions">
             <button onClick={onCopy}>
               <Copy size={13} />
-              {t('复制')}
+              {t('ui.copy')}
             </button>
             {!message.agent && message.status !== 'streaming' && (
               <button onClick={() => onRetry(message)}>
                 <RefreshCw size={13} />
-                {t('重试')}
+                {t('ui.retry')}
               </button>
             )}
           </div>
@@ -239,12 +246,12 @@ export default function MessageBubble({
         >
           <button
             className="preview-close"
-            aria-label={t('关闭')}
+            aria-label={t('ui.close')}
             onClick={() => dialog.current?.close()}
           >
             <X />
           </button>
-          {preview && <img src={preview} alt={t('生成的图片')} />}
+          {preview && <img src={preview} alt={t('ui.generatedImage')} />}
         </dialog>
       </div>
     </div>
