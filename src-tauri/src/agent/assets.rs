@@ -24,6 +24,9 @@ fn assets(rows: &[Value], session: &str) -> Vec<Value> {
     result.sort_by_key(|a| a["createdAt"].as_i64().unwrap_or(0));
     result
 }
+pub(super) fn invalid_reference() -> Value {
+    json!({"error":"Image is unavailable in this session. Call list_images and use an exact imageId from its result, or ask the user to attach an image. Do not guess IDs or use IDs from other sessions.","recoverable":true})
+}
 pub(super) fn owned_path(run: &Run, file: &str) -> Result<PathBuf> {
     let state = run.app.state::<AppState>();
     let rows = lock(&state.store)?.image_rows()?;
@@ -139,7 +142,9 @@ impl Tool for ViewImage {
         _: &mut ToolContext,
         args: ViewArgs,
     ) -> std::result::Result<Value, Self::Error> {
-        owned_path(&self.0, &args.image_id).map_err(std::io::Error::other)?;
+        if owned_path(&self.0, &args.image_id).is_err() {
+            return Ok(invalid_reference());
+        }
         let mut viewed = lock(&self.0.viewed).map_err(std::io::Error::other)?;
         if !viewed.contains(&args.image_id) {
             if viewed.len() >= 6 {
@@ -244,6 +249,13 @@ mod tests {
         let image = image_message("source.png", b"\x89PNG\r\n\x1a\n".to_vec()).unwrap();
         let wire = Vec::<rig::providers::openai::completion::Message>::try_from(image).unwrap();
         assert!(serde_json::to_string(&wire).unwrap().contains("image_url"));
+    }
+    #[test]
+    fn invalid_reference_is_recoverable_without_exposing_other_sessions() {
+        let result = invalid_reference();
+        assert_eq!(result["recoverable"], true);
+        assert!(result["error"].as_str().unwrap().contains("list_images"));
+        assert!(result.get("imageFiles").is_none());
     }
     #[test]
     fn assets_preserve_lineage_and_isolate_sessions() {
