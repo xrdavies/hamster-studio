@@ -1499,3 +1499,84 @@ fieldset.provider-form {
   font-size: 12px;
   margin: 8px 0;
 }
+
+/* Shared defaults also cover controls without a dedicated variant. */
+button {
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+button svg {
+  flex-shrink: 0;
+}
+.primary,
+.secondary,
+.update-notice > button,
+.about-update > button,
+.catalog-settings > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: none;
+}
+.primary {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+.primary.danger {
+  background: #b64040;
+  border-color: #b64040;
+  color: white;
+}
+.secondary:hover:not(:disabled),
+.update-notice > button:hover:not(:disabled),
+.about-update > button:hover:not(:disabled),
+.catalog-settings > button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: #d9d2f7;
+}
+.primary:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.reference-chip > button,
+.preview-close,
+.settings-head > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  color: #555660;
+  background: var(--soft);
+}
+.reference-chip > button:hover:not(:disabled),
+.preview-close:hover,
+.settings-head > button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.message:focus-within .message-actions,
+.session:focus-within .session-actions {
+  opacity: 1;
+}
+.message-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+}

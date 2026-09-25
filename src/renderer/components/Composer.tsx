@@ -1,5 +1,5 @@
 import { t } from '../i18n'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import {
   ChevronDown,
   Image as ImageIcon,
@@ -191,8 +191,13 @@ function ModelMenu({
 }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuId = useId()
   useEffect(() => {
     if (!open) return
+    menuRef.current
+      ?.querySelector<HTMLButtonElement>('[aria-selected="true"], [role="option"]')
+      ?.focus()
     const close = (event: MouseEvent) => {
       if (!menuRef.current?.contains(event.target as Node)) setOpen(false)
     }
@@ -200,9 +205,44 @@ function ModelMenu({
     return () => document.removeEventListener('mousedown', close)
   }, [open])
   return (
-    <div className="model-menu" ref={menuRef}>
+    <div
+      className="model-menu"
+      ref={menuRef}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && open) {
+          event.stopPropagation()
+          setOpen(false)
+          triggerRef.current?.focus()
+        }
+        if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+          event.preventDefault()
+          if (!open) {
+            setOpen(true)
+            return
+          }
+          const options = Array.from(
+            menuRef.current!.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+          )
+          if (!options.length) return
+          const index = options.indexOf(document.activeElement as HTMLButtonElement)
+          const next =
+            event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? options.length - 1
+                : (index + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length
+          options[next]?.focus()
+        }
+      }}
+    >
       <button
         className="model-trigger"
+        ref={triggerRef}
+        aria-haspopup="listbox"
+        aria-controls={open ? menuId : undefined}
         type="button"
         onClick={() => setOpen(!open)}
         aria-label={t('选择 Provider · 模型')}
@@ -218,7 +258,12 @@ function ModelMenu({
         </span>
       </button>
       {open && (
-        <div className="model-menu-panel" role="listbox">
+        <div
+          id={menuId}
+          className="model-menu-panel"
+          role="listbox"
+          aria-label={t('选择 Provider · 模型')}
+        >
           {choices.length ? (
             choices.map((choice) => (
               <button
@@ -230,6 +275,7 @@ function ModelMenu({
                 onClick={() => {
                   onSelect(choice.providerId, choice.model, choice.kind)
                   setOpen(false)
+                  triggerRef.current?.focus()
                 }}
               >
                 <span>
