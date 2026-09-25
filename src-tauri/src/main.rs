@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod agent;
 mod catalog;
 mod requests;
 mod store;
@@ -16,6 +17,7 @@ struct AppState {
     catalog: Mutex<Catalog>,
     candidate: Mutex<Option<Catalog>>,
     active: Mutex<HashMap<String, CancellationToken>>,
+    approvals: Mutex<HashMap<String, (String, tokio::sync::oneshot::Sender<bool>)>>,
     directory: PathBuf,
     client: reqwest::Client,
 }
@@ -310,6 +312,7 @@ fn main() {
                 catalog: Mutex::new(catalog),
                 candidate: Mutex::new(None),
                 active: Mutex::new(HashMap::new()),
+                approvals: Mutex::new(HashMap::new()),
                 directory,
                 client: reqwest::Client::builder()
                     .connect_timeout(std::time::Duration::from_secs(30))
@@ -334,6 +337,7 @@ fn main() {
             export_image,
             stop_chat,
             can_install,
+            agent::approve,
             requests::generate
         ])
         .run(tauri::generate_context!())

@@ -15,10 +15,16 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "multipart"] }
 tokio = { version = "1", features = ["sync", "time", "macros"] }
 tokio-util = "0.7"
 futures-util = "0.3"
 base64 = "0.22"
 uuid = { version = "1", features = ["v4"] }
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+rig = { version = "=0.42.0", default-features = false, features = ["agent", "rustls"] }
+
+reqwest_rig = { package = "reqwest", version = "0.13", default-features = false }
+
+[dev-dependencies]
+rig = { version = "=0.42.0", default-features = false, features = ["agent", "rustls", "test-utils"] }

@@ -34,12 +34,20 @@ impl Store {
             if message["status"] == "streaming" {
                 message["status"] = json!("error");
                 message["error"] = json!("上次生成中断");
+                if let Some(steps) = message["steps"].as_array_mut() {
+                    for step in steps {
+                        if step["status"] == "running" || step["status"] == "waiting" {
+                            step["status"] = json!("error");
+                            step["error"] = json!("上次生成中断");
+                        }
+                    }
+                }
                 store.message(&message)?;
             }
         }
         Ok(store)
     }
-    fn rows(&self, table: &str) -> Result<Vec<Value>> {
+    pub(crate) fn rows(&self, table: &str) -> Result<Vec<Value>> {
         let mut stmt = self
             .db
             .prepare(&format!("SELECT data FROM {table} ORDER BY rowid"))
@@ -93,6 +101,7 @@ impl Store {
             "chatModel",
             "imageModel",
             "modelKind",
+            "imageProviderId",
             "systemPrompt",
             "pinned",
             "archived",
@@ -115,6 +124,11 @@ impl Store {
         for key in ["pinned", "archived"] {
             if !value[key].is_boolean() {
                 return Err("Invalid session flag".into());
+            }
+        }
+        if let Some(v) = value.get("imageProviderId") {
+            if !v.is_string() {
+                return Err("Invalid image provider".into());
             }
         }
         if !["chat", "image"].contains(&string(&value, "modelKind")) {
@@ -185,5 +199,28 @@ mod tests {
         assert!(!store
             .message(&json!({"id":"late","sessionId":"a"}))
             .unwrap());
+    }
+    #[test]
+    fn restart_preserves_completed_images_and_interrupts_pending_steps() {
+        let file = std::env::temp_dir().join(format!("{}.db", id()));
+        {
+            let store = Store::open(&file).unwrap();
+            store.provider(&json!({"id":"p"})).unwrap();
+            store.session(&json!({"id":"a","providerId":"p","chatModel":"chat","imageProviderId":"images","imageModel":"image"})).unwrap();
+            store.message(&json!({"id":"m","sessionId":"a","status":"streaming","imageFiles":["done.png"],"steps":[{"status":"done"},{"status":"waiting"},{"status":"running"}]})).unwrap();
+        }
+        let store = Store::open(&file).unwrap();
+        let m = store.get("messages", "m").unwrap();
+        assert_eq!(m["status"], "error");
+        assert_eq!(m["imageFiles"], json!(["done.png"]));
+        assert_eq!(m["steps"][0]["status"], "done");
+        assert_eq!(m["steps"][1]["status"], "error");
+        assert_eq!(m["steps"][2]["status"], "error");
+        assert_eq!(
+            store.get("sessions", "a").unwrap()["imageProviderId"],
+            "images"
+        );
+        drop(store);
+        std::fs::remove_file(file).unwrap();
     }
 }

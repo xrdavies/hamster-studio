@@ -57,7 +57,9 @@ window.studio = {
   deleteProvider: (id) => invoke('delete_provider', { id }),
   saveSession: (session) => invoke('save_session', { session }),
   deleteSession: (id) => invoke('delete_session', { id }),
-  sendChat: (sessionId, text) => invoke('generate', { sessionId, text, kind: 'chat' }),
+  sendChat: (sessionId, text, referenceFile) =>
+    invoke('generate', { sessionId, text, kind: 'chat', referenceFile }),
+  approveImageStep: (sessionId, stepId, allow) => invoke('approve', { sessionId, stepId, allow }),
   generateImage: (sessionId, text) => invoke('generate', { sessionId, text, kind: 'image' }),
   stopChat: (id) => invoke('stop_chat', { id }),
   readImage: (file) => invoke('read_image', { file }),

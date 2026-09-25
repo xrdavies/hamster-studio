@@ -1329,3 +1329,109 @@ fieldset.provider-form {
   font-size: 13px;
   color: #666;
 }
+
+.creation-settings-toggle,
+.image-card-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #65558e;
+  font-size: 12px;
+}
+.composer-modelbar {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.creation-settings {
+  padding: 10px;
+  background: #f7f5fc;
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+.creation-settings p {
+  color: #777;
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+.reference-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  font-size: 12px;
+}
+.reference-chip img,
+.message-reference {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.creation-task {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: #faf9fd;
+}
+.creation-task-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.creation-task details {
+  margin-top: 12px;
+  font-size: 12px;
+}
+.creation-task summary {
+  cursor: pointer;
+  color: #777;
+}
+.creation-step {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.creation-step p,
+.creation-approval p {
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+.creation-approval > div {
+  display: flex;
+  gap: 8px;
+}
+.image-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 10px 0;
+}
+.image-preview-trigger {
+  padding: 0;
+  display: block;
+  cursor: zoom-in;
+  background: transparent;
+}
+.image-preview-dialog {
+  border: 0;
+  border-radius: 12px;
+  padding: 36px 12px 12px;
+  max-width: 92vw;
+  max-height: 92vh;
+}
+.image-preview-dialog::backdrop {
+  background: #0009;
+}
+.image-preview-dialog img {
+  display: block;
+  max-width: 85vw;
+  max-height: 80vh;
+  object-fit: contain;
+}
+.preview-close {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+}

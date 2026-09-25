@@ -60,6 +60,7 @@ export default function App() {
   const messagesRef = useRef<HTMLDivElement>(null)
   const previousSession = useRef('')
   const followBottom = useRef(true)
+  const [references, setReferences] = useState<Record<string, string>>({})
   const scrollBottom = () => {
     const el = messagesRef.current
     if (el && followBottom.current) el.scrollTop = el.scrollHeight
@@ -103,7 +104,9 @@ export default function App() {
   const session = data.sessions.find((item) => item.id === sessionId) || data.sessions[0]
   const stateId = session?.id || ''
   const text = drafts[stateId] || ''
-  const busy = pending[stateId] || false
+  const busy =
+    pending[stateId] ||
+    data.messages.some((m) => m.sessionId === stateId && m.status === 'streaming')
   const error = errors[stateId] || errors[''] || ''
   const setText = (value: string) => setDrafts((current) => ({ ...current, [stateId]: value }))
   const setError = (value: string, id = stateId) =>
@@ -170,6 +173,7 @@ export default function App() {
       modelKind: first.chatModels.length ? 'chat' : 'image',
       chatModel: first.chatModels[0] || '',
       imageModel: first.imageModels[0] || '',
+      imageProviderId: first.id,
       systemPrompt: '',
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -216,9 +220,14 @@ export default function App() {
       if (['新对话', 'New conversation'].includes(target.title))
         await window.studio.saveSession({ id: target.id, title: prompt.slice(0, 28) })
       if (kind === 'image') await window.studio.generateImage(target.id, prompt)
-      else await window.studio.sendChat(target.id, prompt)
+      else {
+        const reference = references[target.id]
+        if (reference) await window.studio.sendChat(target.id, prompt, reference)
+        else await window.studio.sendChat(target.id, prompt)
+        setReferences((current) => ({ ...current, [target.id]: '' }))
+      }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t('请求失败'), target.id)
+      setError(reason instanceof Error ? reason.message : String(reason), target.id)
     } finally {
       activeRequests.current.delete(target.id)
       setPending((current) => ({ ...current, [target.id]: false }))
@@ -239,6 +248,7 @@ export default function App() {
       .filter((item) => item.sessionId === message.sessionId)
       .sort((a, b) => a.createdAt - b.createdAt)
     const previous = history[history.findIndex((item) => item.id === message.id) - 1]
+    if (message.agent) return
     if (!target || !previous || previous.role !== 'user') return
     await runRequest(target, previous.content, message.kind)
   }
@@ -248,8 +258,12 @@ export default function App() {
       providerId,
       modelKind: kind,
       ...(kind === 'chat'
-        ? { chatModel: model, imageModel: next?.imageModels[0] || session?.imageModel || '' }
-        : { imageModel: model, chatModel: next?.chatModels[0] || session?.chatModel || '' }),
+        ? { chatModel: model, imageProviderId: session?.imageProviderId ?? session?.providerId }
+        : {
+            imageModel: model,
+            imageProviderId: providerId,
+            chatModel: next?.chatModels[0] || session?.chatModel || '',
+          }),
     })
   }
 
@@ -320,6 +334,35 @@ export default function App() {
                     key={item.id}
                     message={item}
                     onRetry={retry}
+                    busy={busy}
+                    onReference={(file) => {
+                      if (busy) return
+                      if (!data.providers.some((p) => p.chatModels.length)) {
+                        notify(t('请先选择聊天模型'))
+                        return
+                      }
+                      setReferences((current) => ({ ...current, [session.id]: file }))
+                      if (session.modelKind === 'image') {
+                        const chat = data.providers.find((p) => p.chatModels.length)
+                        if (chat)
+                          void updateSession({
+                            providerId: chat.id,
+                            chatModel: chat.chatModels[0],
+                            modelKind: 'chat',
+                          })
+                      }
+                    }}
+                    onRegenerate={(prompt) => {
+                      setReferences((current) => ({ ...current, [session.id]: '' }))
+                      setText(`${t('请重新生成图片：')} ${prompt}`)
+                    }}
+                    onApprove={async (stepId, allow) => {
+                      try {
+                        await window.studio.approveImageStep(session.id, stepId, allow)
+                      } catch (error) {
+                        setError(String(error), session.id)
+                      }
+                    }}
                     onCopy={() => {
                       navigator.clipboard.writeText(item.content)
                       notify(t('已复制到剪贴板'))
@@ -346,6 +389,18 @@ export default function App() {
               text={text}
               setText={setText}
               onModel={changeModel}
+              referenceFile={references[session.id]}
+              onClearReference={() =>
+                setReferences((current) => ({ ...current, [session.id]: '' }))
+              }
+              onImageModel={async (providerId, model) => {
+                await window.studio.saveSession({
+                  id: session.id,
+                  imageProviderId: providerId,
+                  imageModel: model,
+                })
+                await refreshData()
+              }}
               onSubmit={submit}
               onStop={() => void window.studio.stopChat(session.id)}
             />

@@ -1,6 +1,13 @@
 import { t } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Image as ImageIcon, MessageSquare, Send } from 'lucide-react'
+import {
+  ChevronDown,
+  Image as ImageIcon,
+  MessageSquare,
+  Send,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react'
 import type { Provider, StudioSession } from '../../shared/types'
 import type { ModelKind } from '../../shared/model-capabilities'
 
@@ -17,6 +24,9 @@ export default function Composer({
   onModel,
   onSubmit,
   onStop,
+  onImageModel,
+  referenceFile,
+  onClearReference,
 }: {
   providers: Provider[]
   session: StudioSession
@@ -28,7 +38,28 @@ export default function Composer({
   onModel: (providerId: string, model: string, kind: ModelKind) => void
   onSubmit: () => void
   onStop: () => void
+  onImageModel: (providerId: string, model: string) => Promise<void>
+  referenceFile?: string
+  onClearReference: () => void
 }) {
+  const [savingImageModel, setSavingImageModel] = useState(false)
+  const [imageSettingError, setImageSettingError] = useState('')
+  const [showImageSettings, setShowImageSettings] = useState(false)
+  const [referenceSrc, setReferenceSrc] = useState('')
+  useEffect(() => {
+    let active = true
+    setReferenceSrc('')
+    if (referenceFile)
+      void window.studio
+        .readImage(referenceFile)
+        .then((src) => {
+          if (active) setReferenceSrc(src)
+        })
+        .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [referenceFile])
   const choices = providers.flatMap((provider) => [
     ...provider.chatModels.map((model) => ({
       providerId: provider.id,
@@ -53,8 +84,59 @@ export default function Composer({
     <div className="composer-wrap">
       <div className="composer">
         <div className="composer-modelbar">
-          <ModelMenu choices={choices} selected={selected} onSelect={onModel} />
+          <ModelMenu choices={choices} selected={selected} onSelect={onModel} disabled={busy} />
+          <button
+            type="button"
+            className="creation-settings-toggle"
+            aria-expanded={showImageSettings}
+            onClick={() => setShowImageSettings(!showImageSettings)}
+          >
+            <SlidersHorizontal size={14} />
+            {t('图片创作设置')}
+          </button>
         </div>
+        {showImageSettings && (
+          <div className="creation-settings">
+            <p>
+              {t(
+                '对话模型负责规划，图片模型负责生成和编辑。每次任务最多生成 3 张，多图或追加生成需确认。',
+              )}
+            </p>
+            <ModelMenu
+              choices={choices.filter((c) => c.kind === 'image')}
+              selected={choices.find(
+                (c) =>
+                  c.kind === 'image' &&
+                  c.providerId === (session.imageProviderId ?? session.providerId) &&
+                  c.model === session.imageModel,
+              )}
+              disabled={savingImageModel}
+              onSelect={(providerId, model) => {
+                setSavingImageModel(true)
+                setImageSettingError('')
+                void onImageModel(providerId, model)
+                  .catch((error) => setImageSettingError(String(error)))
+                  .finally(() => setSavingImageModel(false))
+              }}
+            />
+            {savingImageModel && <span role="status">{t('保存中…')}</span>}
+            {imageSettingError && <p className="form-error">{imageSettingError}</p>}
+          </div>
+        )}
+        {referenceFile && (
+          <div className="reference-chip">
+            {referenceSrc && <img src={referenceSrc} alt={t('参考图片')} />}
+            <span>{t('基于此图修改')}</span>
+            <button
+              type="button"
+              aria-label={t('移除参考图片')}
+              onClick={onClearReference}
+              disabled={busy}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
         <div className="composer-input">
           <textarea
             value={text}
@@ -97,8 +179,10 @@ function ModelMenu({
   choices,
   selected,
   onSelect,
+  disabled = false,
 }: {
   choices: ModelChoice[]
+  disabled?: boolean
   selected?: ModelChoice
   onSelect: (providerId: string, model: string, kind: ModelKind) => void
 }) {
@@ -118,6 +202,8 @@ function ModelMenu({
         className="model-trigger"
         type="button"
         onClick={() => setOpen(!open)}
+        aria-label={t('选择 Provider · 模型')}
+        disabled={disabled}
         aria-expanded={open}
       >
         <span>

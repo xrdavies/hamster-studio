@@ -42,3 +42,22 @@ it('keeps download and install explicit, and checks native active requests befor
   expect(update.install).toHaveBeenCalledTimes(1)
   expect(mocks.relaunch).toHaveBeenCalledTimes(1)
 })
+
+it('routes image references and approvals to their own session', async () => {
+  vi.stubEnv('DEV', true)
+  vi.stubGlobal('window', {})
+  await import('./studio')
+  await window.studio.sendChat('session-a', 'make it blue', 'image-a.png')
+  expect(mocks.invoke).toHaveBeenLastCalledWith('generate', {
+    sessionId: 'session-a',
+    text: 'make it blue',
+    kind: 'chat',
+    referenceFile: 'image-a.png',
+  })
+  await window.studio.approveImageStep('session-b', 'step-b', false)
+  expect(mocks.invoke).toHaveBeenLastCalledWith('approve', {
+    sessionId: 'session-b',
+    stepId: 'step-b',
+    allow: false,
+  })
+})
