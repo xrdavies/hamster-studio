@@ -1475,3 +1475,27 @@ fieldset.provider-form {
   right: 8px;
   top: 6px;
 }
+
+.source-image-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  margin-top: 6px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+}
+.source-image-link:hover:not(:disabled) {
+  background: #e5dfff;
+}
+.source-image-link:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.vision-context-note {
+  color: #777;
+  font-size: 12px;
+  margin: 8px 0;
+}

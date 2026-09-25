@@ -180,5 +180,8 @@
   "任务已结束": "Task finished",
   "任务已停止": "Task stopped",
   "请重新生成图片：": "Please generate the image again:",
-  "保存中…": "Saving…"
+  "保存中…": "Saving…",
+  "使用此步骤的原图": "Use this step’s source image",
+  "已载入视觉上下文的图片": "Images loaded into visual context",
+  "查看图片需要当前对话模型支持视觉输入；图片将发送至该模型的 Provider。": "Viewing images requires a vision-capable conversation model. Images are sent to that model’s provider."
 }

@@ -34,6 +34,8 @@ export type StudioSession = {
 }
 
 export type ImageStep = {
+  sourceImageId?: string
+
   id: string
   prompt: string
   count: number
@@ -47,6 +49,8 @@ export type ImageStep = {
 }
 
 export type Message = {
+  viewedImageIds?: string[]
+
   agent?: boolean
   referenceFile?: string
   steps?: ImageStep[]

@@ -72,85 +72,106 @@ export default function MessageBubble({
           <span>{message.model}</span>
         </div>
         {reference && <img className="message-reference" src={reference} alt={t('参考图片')} />}
-        {message.agent && (steps.length > 0 || message.status === 'streaming') && (
-          <section className="creation-task" aria-label={t('图片创作任务')}>
-            <div className="creation-task-title" role="status">
-              {message.status === 'streaming' ? (
-                <span className="spinner dark" />
-              ) : message.status === 'done' ? (
-                <Check size={16} />
-              ) : (
-                <X size={16} />
-              )}
-              <strong>
-                {t(
-                  current?.status === 'waiting'
-                    ? '等待确认'
-                    : current?.status === 'running'
-                      ? '正在制作图片…'
-                      : message.status === 'streaming'
-                        ? '正在处理任务…'
-                        : message.status === 'done'
-                          ? '任务完成'
-                          : '任务已停止或失败',
+        {message.agent &&
+          (steps.length > 0 ||
+            !!message.viewedImageIds?.length ||
+            message.status === 'streaming') && (
+            <section className="creation-task" aria-label={t('图片创作任务')}>
+              <div className="creation-task-title" role="status">
+                {message.status === 'streaming' ? (
+                  <span className="spinner dark" />
+                ) : message.status === 'done' ? (
+                  <Check size={16} />
+                ) : (
+                  <X size={16} />
                 )}
-              </strong>
-            </div>
-            {steps.length > 0 && (
-              <details>
-                <summary>
-                  {t('查看执行步骤')} · {steps.length}
-                </summary>
-                {steps.map((step) => (
-                  <div className="creation-step" key={step.id}>
-                    <span>
-                      {t(step.operation === 'edit' ? '修改图片' : '生成图片')} × {step.count} ·{' '}
-                      {t(
-                        { waiting: '等待确认', running: '执行中', done: '已完成', error: '未完成' }[
-                          step.status
-                        ],
-                      )}
-                    </span>
-                    <p>{step.prompt}</p>
-                    {step.model && (
-                      <small>
-                        {step.providerName} · {step.model}
-                      </small>
-                    )}
-                    {step.error && <p className="form-error">{t(step.error)}</p>}
-                  </div>
-                ))}
-              </details>
-            )}
-            {current?.status === 'waiting' && (
-              <div className="creation-approval">
-                <p>{current.prompt}</p>
-                <p>
-                  {t('本次生成数量')}：{current.count}
-                </p>
-                {current.needsConfiguration && (
-                  <p>{t('请在输入框的图片创作设置中选择图片模型，保存后继续。')}</p>
-                )}
-                <div>
-                  <button
-                    className="secondary"
-                    disabled={approving === current.id}
-                    onClick={() => void approve(current.id, false)}
-                  >
-                    {t('取消')}
-                  </button>
-                  <button
-                    className="primary"
-                    disabled={approving === current.id}
-                    onClick={() => void approve(current.id, true)}
-                  >
-                    {t('确认生成')}
-                  </button>
-                </div>
+                <strong>
+                  {t(
+                    current?.status === 'waiting'
+                      ? '等待确认'
+                      : current?.status === 'running'
+                        ? '正在制作图片…'
+                        : message.status === 'streaming'
+                          ? '正在处理任务…'
+                          : message.status === 'done'
+                            ? '任务完成'
+                            : '任务已停止或失败',
+                  )}
+                </strong>
               </div>
-            )}
-          </section>
-        )}
+              {!!message.viewedImageIds?.length && (
+                <p className="vision-context-note">
+                  {t('已载入视觉上下文的图片')} · {message.viewedImageIds.length}
+                </p>
+              )}
+              {steps.length > 0 && (
+                <details>
+                  <summary>
+                    {t('查看执行步骤')} · {steps.length}
+                  </summary>
+                  {steps.map((step) => (
+                    <div className="creation-step" key={step.id}>
+                      <span>
+                        {t(step.operation === 'edit' ? '修改图片' : '生成图片')} × {step.count} ·{' '}
+                        {t(
+                          {
+                            waiting: '等待确认',
+                            running: '执行中',
+                            done: '已完成',
+                            error: '未完成',
+                          }[step.status],
+                        )}
+                      </span>
+                      <p>{step.prompt}</p>
+                      {step.model && (
+                        <small>
+                          {step.providerName} · {step.model}
+                        </small>
+                      )}
+                      {step.sourceImageId && (
+                        <button
+                          className="source-image-link"
+                          disabled={busy}
+                          onClick={() => onReference(step.sourceImageId!)}
+                        >
+                          <Pencil size={13} />
+                          {t('使用此步骤的原图')}
+                        </button>
+                      )}
+                      {step.error && <p className="form-error">{t(step.error)}</p>}
+                    </div>
+                  ))}
+                </details>
+              )}
+              {current?.status === 'waiting' && (
+                <div className="creation-approval">
+                  <p>{current.prompt}</p>
+                  <p>
+                    {t('本次生成数量')}：{current.count}
+                  </p>
+                  {current.needsConfiguration && (
+                    <p>{t('请在输入框的图片创作设置中选择图片模型，保存后继续。')}</p>
+                  )}
+                  <div>
+                    <button
+                      className="secondary"
+                      disabled={approving === current.id}
+                      onClick={() => void approve(current.id, false)}
+                    >
+                      {t('取消')}
+                    </button>
+                    <button
+                      className="primary"
+                      disabled={approving === current.id}
+                      onClick={() => void approve(current.id, true)}
+                    >
+                      {t('确认生成')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
         {!message.agent && message.status === 'streaming' && !message.content && (
           <div className="thinking">
             <span className="spinner dark" />

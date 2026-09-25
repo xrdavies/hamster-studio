@@ -119,6 +119,9 @@ export default function Composer({
                   .finally(() => setSavingImageModel(false))
               }}
             />
+            <p className="vision-context-note">
+              {t('查看图片需要当前对话模型支持视觉输入；图片将发送至该模型的 Provider。')}
+            </p>
             {savingImageModel && <span role="status">{t('保存中…')}</span>}
             {imageSettingError && <p className="form-error">{imageSettingError}</p>}
           </div>
