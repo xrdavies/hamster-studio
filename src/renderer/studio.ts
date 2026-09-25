@@ -92,7 +92,7 @@ window.studio = {
     }
   },
   importDroppedImage: (sessionId, path) => invoke('import_dropped_image', { sessionId, path }),
-  importImage: (sessionId) => invoke('import_image', { sessionId }),
+  importImages: (sessionId, remaining) => invoke('import_images', { sessionId, remaining }),
   stopChat: (id) => invoke('stop_chat', { id }),
   saveMask: (file, data) => invoke('save_mask', { file, data }),
   readImage: (file) => invoke('read_image', { file }),

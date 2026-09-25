@@ -504,11 +504,14 @@ export default function App() {
                     notify(t('images.referenceLimit'))
                     return
                   }
-                  const file = await window.studio.importImage(targetId)
-                  if (file)
+                  const files = await window.studio.importImages(
+                    targetId,
+                    6 - (references[targetId]?.length || 0),
+                  )
+                  if (files.length)
                     setReferences((current) => ({
                       ...current,
-                      [targetId]: [...(current[targetId] || []), file].slice(0, 6),
+                      [targetId]: [...(current[targetId] || []), ...files].slice(0, 6),
                     }))
                 } catch (reason) {
                   setError(String(reason), targetId)

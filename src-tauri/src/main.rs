@@ -212,13 +212,20 @@ fn imported_extension(bytes: &[u8]) -> Result<&'static str> {
     else { Err("images.unsupportedFormat".into()) }
 }
 #[tauri::command]
-async fn import_image(app: tauri::AppHandle, s: State<'_, AppState>, session_id: String) -> Result<Option<String>> {
+async fn import_images(app: tauri::AppHandle, s: State<'_, AppState>, session_id: String, remaining: usize) -> Result<Vec<String>> {
     lock(&s.store)?.get("sessions", &session_id)?;
+    if remaining == 0 || remaining > 6 { return Err("images.referenceLimit".into()); }
     let (sender, receiver) = tokio::sync::oneshot::channel();
-    app.dialog().file().add_filter("Images", &["png", "jpg", "jpeg", "webp"]).pick_file(move |path| { let _ = sender.send(path); });
-    let Some(file) = receiver.await.map_err(|e| e.to_string())? else { return Ok(None) };
-    let path = file.into_path().map_err(|e| e.to_string())?;
-    save_imported_image(&s, &session_id, path).map(Some)
+    app.dialog().file().add_filter("Images", &["png", "jpg", "jpeg", "webp"]).pick_files(move |paths| { let _ = sender.send(paths); });
+    let Some(files) = receiver.await.map_err(|e| e.to_string())? else { return Ok(vec![]) };
+    if files.len() > remaining { return Err("images.referenceLimit".into()); }
+    // Validate the whole selection before importing any files.
+    let paths = files.into_iter().map(|file| file.into_path().map_err(|e| e.to_string())).collect::<Result<Vec<_>>>()?;
+    for path in &paths {
+        if std::fs::metadata(path).map_err(|e|e.to_string())?.len() > 10 * 1024 * 1024 { return Err("images.tooLarge".into()); }
+        imported_extension(&std::fs::read(path).map_err(|e|e.to_string())?)?;
+    }
+    paths.into_iter().map(|path| save_imported_image(&s, &session_id, path)).collect()
 }
 #[tauri::command]
 fn import_dropped_image(s: State<AppState>, session_id: String, path: PathBuf) -> Result<String> {
@@ -415,7 +422,7 @@ fn main() {
             install_catalog,
             read_image,
             save_mask,
-            import_image,
+            import_images,
             import_dropped_image,
             export_image,
             stop_chat,

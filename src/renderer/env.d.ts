@@ -40,7 +40,7 @@ declare global {
         callback: (event: import('@tauri-apps/api/webview').DragDropEvent) => void,
       ): () => void
       importDroppedImage(sessionId: string, path: string): Promise<string>
-      importImage(sessionId: string): Promise<string | null>
+      importImages(sessionId: string, remaining: number): Promise<string[]>
       saveMask(file: string, data: string): Promise<string>
       readImage(file: string): Promise<string>
       exportImage(file: string): Promise<boolean>
