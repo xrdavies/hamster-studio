@@ -88,27 +88,29 @@ export default function Composer({
     <div className="composer-wrap">
       <div className="composer">
         <div className="composer-modelbar">
+          <ModelMenu choices={choices} selected={selected} onSelect={onModel} disabled={busy} />
           <button
             type="button"
-            className="creation-settings-toggle"
+            className="creation-settings-toggle composer-icon-button"
+            title={t('ui.imageCreationSettings')}
+            aria-label={t('ui.imageCreationSettings')}
+            aria-expanded={showImageSettings}
+            onClick={() => setShowImageSettings(!showImageSettings)}
+          >
+            <SlidersHorizontal size={16} />
+          </button>
+          <button
+            type="button"
+            className="creation-settings-toggle composer-icon-button"
+            title={t(importing ? 'images.importing' : 'images.addLocal')}
+            aria-label={t(importing ? 'images.importing' : 'images.addLocal')}
             disabled={busy || importing}
             onClick={() => {
               setImporting(true)
               void onImportImage().finally(() => setImporting(false))
             }}
           >
-            <ImagePlus size={14} />
-            {t(importing ? 'images.importing' : 'images.addLocal')}
-          </button>
-          <ModelMenu choices={choices} selected={selected} onSelect={onModel} disabled={busy} />
-          <button
-            type="button"
-            className="creation-settings-toggle"
-            aria-expanded={showImageSettings}
-            onClick={() => setShowImageSettings(!showImageSettings)}
-          >
-            <SlidersHorizontal size={14} />
-            {t('ui.imageCreationSettings')}
+            {importing ? <span className="spinner dark" /> : <ImagePlus size={16} />}
           </button>
         </div>
         {showImageSettings && (
