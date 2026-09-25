@@ -1609,3 +1609,13 @@ button svg {
   width: 16px;
   height: 16px;
 }
+
+.image-card-actions button {
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+}
+.image-card-actions button svg {
+  width: 16px;
+  height: 16px;
+}

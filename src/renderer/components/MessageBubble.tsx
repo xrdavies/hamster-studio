@@ -201,15 +201,24 @@ export default function MessageBubble({
               <img className="generated-image" src={image.src} alt={t('ui.generatedImage')} />
             </button>
             <div className="image-card-actions">
-              <button onClick={() => void onExport(image.file)}>
+              <button
+                title={t('ui.exportImage')}
+                aria-label={t('ui.exportImage')}
+                onClick={() => void onExport(image.file)}
+              >
                 <Download size={13} />
-                {t('ui.exportImage')}
-              </button>
-              <button disabled={busy} onClick={() => onReference(image.file)}>
-                <Pencil size={13} />
-                {t('ui.editThisImage')}
               </button>
               <button
+                title={t('ui.editThisImage')}
+                aria-label={t('ui.editThisImage')}
+                disabled={busy}
+                onClick={() => onReference(image.file)}
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                title={t('ui.generateAgain')}
+                aria-label={t('ui.generateAgain')}
                 onClick={() =>
                   onRegenerate(
                     steps.find((s) => s.imageFiles.includes(image.file))?.prompt || message.content,
@@ -217,7 +226,6 @@ export default function MessageBubble({
                 }
               >
                 <RefreshCw size={13} />
-                {t('ui.generateAgain')}
               </button>
             </div>
           </div>
