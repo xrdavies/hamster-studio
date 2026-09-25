@@ -150,6 +150,7 @@ export default function Composer({
             }}
             onBlur={(event) => {
               if (
+                event.relatedTarget &&
                 !event.currentTarget.contains(event.relatedTarget) &&
                 event.relatedTarget !== settingsButton.current
               )
@@ -278,7 +279,10 @@ function ModelMenu({
       className="model-menu"
       ref={menuRef}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+        // WebKit can report no next focus target during a mouse click.
+        // Outside pointer events handle dismissal in that case.
+        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget))
+          setOpen(false)
       }}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && open) {
