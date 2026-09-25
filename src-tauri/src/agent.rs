@@ -41,6 +41,8 @@ impl Run {
 #[serde(deny_unknown_fields)]
 struct ImageArgs {
     prompt: String,
+    #[serde(default)]
+    output_mode: Option<String>,
     #[serde(default = "one")]
     count: usize,
     #[serde(default)]
@@ -60,6 +62,27 @@ fn validate(args: &ImageArgs, used: usize) -> Result<()> {
     }
     Ok(())
 }
+// Reference selection is explicit for independent edits; attached images must not leak in.
+fn image_sources(args: &ImageArgs, attached: &[String]) -> Result<Vec<String>> {
+    if args.source_image_ids.is_some() && args.source_image_id.is_some() {
+        return Err("Use source_image_ids OR source_image_id, not both.".into());
+    }
+    let explicit = args.source_image_ids.clone().or_else(|| args.source_image_id.as_ref().map(|s| if s.is_empty() { vec![] } else { vec![s.clone()] }));
+    match args.output_mode.as_deref() {
+        Some("individual") => {
+            if args.count != 1 || explicit.as_ref().map(Vec::len) != Some(1) {
+                return Err("For independent asset edits, call create_images separately for each asset: output_mode=individual, count=1, exactly one explicit source_image_ids entry, and a prompt describing only that asset. Do not send the batch prompt or all references.".into());
+            }
+        }
+        Some("compose") if args.count == 1 => {}
+        Some("variants") => {}
+        _ => return Err("Choose output_mode: compose for one result using relevant references; variants for alternatives of the SAME task; individual for editing ONE asset in a batch. count never maps references to separate outputs.".into()),
+    }
+    let sources = explicit.unwrap_or_else(|| attached.to_vec());
+    if sources.len() > 6 { return Err("images.referenceLimit".into()); }
+    Ok(sources)
+}
+
 struct StopOnToolError;
 impl AgentHook for StopOnToolError {
     async fn on_tool_result(
@@ -80,10 +103,10 @@ impl Tool for ImageTool {
     type Output = Value;
     type Error = std::io::Error;
     fn description(&self) -> String {
-        "Generate images, or edit source_image_id from list_images or a previous create_images result. Use source_image_ids for multiple ordered references. Omit both source fields to use all attached references; use an empty string for a new image. Use count for requested variants (1–3). The app asks approval for multiple images or additional attempts. If image configuration is missing the app asks the user to configure it. Returns image file IDs, not visual observations.".into()
+        "Create images. Each result is ONE image. output_mode=compose combines relevant references into one result (count=1); variants repeats the SAME prompt and references for alternative results; individual edits ONE explicit source image (count=1). For separately restoring/exporting multiple assets, call this tool separately per asset with its own source ID and asset-specific prompt. Never put a batch instruction requesting separate files in one prompt. Missing configuration, multiple variants and additional attempts require user approval. Returns image IDs, not visual observations.".into()
     }
     fn parameters(&self) -> Value {
-        json!({"type":"object","properties":{"prompt":{"type":"string"},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_ids":{"type":"array","items":{"type":"string"},"maxItems":6,"description":"Ordered reference image IDs; empty array generates a new image"},"source_image_id":{"type":"string","description":"Session image ID to edit; empty string generates a new image"}},"required":["prompt","count"],"additionalProperties":false})
+        json!({"type":"object","properties":{"output_mode":{"type":"string","enum":["compose","variants","individual"],"description":"Independent assets require separate individual calls, each with one explicit source and count=1."},"prompt":{"type":"string","description":"Describe one output image, never a batch of separate files."},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_ids":{"type":"array","items":{"type":"string"},"maxItems":6,"description":"Ordered reference image IDs; empty array generates a new image"},"source_image_id":{"type":"string","description":"Session image ID to edit; empty string generates a new image"}},"required":["prompt","count","output_mode"],"additionalProperties":false})
     }
     async fn call(
         &self,
@@ -104,8 +127,10 @@ impl ImageTool {
             .map(|s| s["count"].as_u64().unwrap_or(0) as usize)
             .sum();
 
-        let sources = args.source_image_ids.clone().unwrap_or_else(|| args.source_image_id.as_ref().map(|s| if s.is_empty() {vec![]} else {vec![s.clone()]}).unwrap_or_else(|| run.reference.clone()));
-        if sources.len() > 6 { return Err("images.referenceLimit".into()); }
+        let sources = match image_sources(&args, &run.reference) {
+            Ok(sources) => sources,
+            Err(error) => return Ok(json!({"error":error,"recoverable":true})),
+        };
         let source = sources.first();
         if run.mask_file.is_some() && sources.first() != run.reference.first() {
             return Ok(json!({"error":"The selected region belongs to the first attached image. Keep that image first in source_image_ids.","recoverable":true}));
@@ -131,7 +156,7 @@ impl ImageTool {
         };
         run.update(|output| {
             output["steps"].as_array_mut().unwrap().push(json!({
-                "id":step_id,"prompt":args.prompt,"count":args.count,"fingerprint":fingerprint,"repeated":repeated,"dispatchState":"not_sent",
+                "id":step_id,"outputMode":args.output_mode,"prompt":args.prompt,"count":args.count,"fingerprint":fingerprint,"repeated":repeated,"dispatchState":"not_sent",
                 "status":if needs_approval {"waiting"} else {"running"},
                 "needsConfiguration":run.image_provider.is_none(),
                 "operation":if source.is_some(){"edit"}else{"generate"},
@@ -431,6 +456,24 @@ pub async fn generate(
 mod tests {
     use super::*;
     #[test]
+    fn independent_edits_never_include_other_attached_assets() {
+        let attached = vec!["bird.png".into(), "wordmark.png".into(), "hand.png".into()];
+        for file in &attached {
+            let args: ImageArgs = serde_json::from_value(json!({"prompt":"Restore this asset only", "count":1,"output_mode":"individual","source_image_ids":[file]})).unwrap();
+            assert_eq!(image_sources(&args, &attached).unwrap(), vec![file.clone()]);
+        }
+        for invalid in [
+            json!({"prompt":"batch", "count":3,"output_mode":"individual","source_image_ids":attached}),
+            json!({"prompt":"batch", "count":1,"output_mode":"individual"}),
+            json!({"prompt":"batch", "count":3,"output_mode":"compose","source_image_ids":attached}),
+            json!({"prompt":"batch", "count":3,"source_image_ids":attached}),
+        ] {
+            assert!(image_sources(&serde_json::from_value(invalid).unwrap(), &attached).is_err());
+        }
+        let variants = serde_json::from_value(json!({"prompt":"Combine references", "count":3,"output_mode":"variants","source_image_ids":attached})).unwrap();
+        assert_eq!(image_sources(&variants, &attached).unwrap(), attached);
+    }
+    #[test]
     fn duplicate_and_unknown_requests_require_session_scoped_confirmation() {
         let rows = vec![json!({"sessionId":"a","steps":[{"fingerprint":["same"],"dispatchState":"received"}]})];
         assert!(requires_repeat_confirmation(&rows, "a", &json!(["same"])));
@@ -443,6 +486,7 @@ mod tests {
     fn image_budget_validates_entire_batch() {
         assert!(validate(
             &ImageArgs {
+                output_mode: Some("variants".into()),
                 prompt: "draw".into(),
                 count: 2,
                 source_image_ids: None,
@@ -453,6 +497,7 @@ mod tests {
         .is_ok());
         assert!(validate(
             &ImageArgs {
+                output_mode: Some("variants".into()),
                 prompt: "draw".into(),
                 count: 2,
                 source_image_ids: None,
@@ -463,6 +508,7 @@ mod tests {
         .is_err());
         assert!(validate(
             &ImageArgs {
+                output_mode: Some("compose".into()),
                 prompt: " ".into(),
                 count: 1,
                 source_image_ids: None,
@@ -473,6 +519,7 @@ mod tests {
         .is_err());
         assert!(validate(
             &ImageArgs {
+                output_mode: Some("variants".into()),
                 prompt: "draw".into(),
                 count: 0,
                 source_image_ids: None,
