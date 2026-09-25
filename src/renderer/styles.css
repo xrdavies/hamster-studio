@@ -1152,7 +1152,7 @@ select:focus-visible {
   scroll-behavior: auto;
 }
 .model-menu {
-  width: 270px;
+  width: 230px;
   max-width: 100%;
 }
 .model-trigger,
@@ -1618,4 +1618,10 @@ button svg {
 .image-card-actions button svg {
   width: 16px;
   height: 16px;
+}
+
+.composer .model-trigger {
+  gap: 8px;
+  padding: 6px 9px;
+  font-size: 12px;
 }

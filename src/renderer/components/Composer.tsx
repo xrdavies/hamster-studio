@@ -263,6 +263,7 @@ function ModelMenu({
       <button
         className="model-trigger"
         ref={triggerRef}
+        title={selected ? `${selected.providerName} · ${selected.model}` : undefined}
         aria-haspopup="listbox"
         aria-controls={open ? menuId : undefined}
         type="button"
@@ -291,6 +292,7 @@ function ModelMenu({
               <button
                 className="model-option"
                 type="button"
+                title={`${choice.providerName} · ${choice.model}`}
                 role="option"
                 aria-selected={choice === selected}
                 key={`${choice.providerId}:${choice.kind}:${choice.model}`}
