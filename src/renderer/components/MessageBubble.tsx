@@ -128,6 +128,9 @@ export default function MessageBubble({
                         )}
                       </span>
                       <p>{step.prompt}</p>
+                      {step.dispatchState === 'unknown' && step.status === 'error' && (
+                        <p className="form-error">{t('agent.unknownResult')}</p>
+                      )}
                       {step.model && (
                         <small>
                           {step.providerName} · {step.model}
@@ -151,6 +154,7 @@ export default function MessageBubble({
               {current?.status === 'waiting' && (
                 <div className="creation-approval">
                   <p>{current.prompt}</p>
+                  {current.repeated && <p className="form-error">{t('agent.repeatWarning')}</p>}
                   <p>
                     {t('ui.imagesInThisStep')}：{current.count}
                   </p>
@@ -191,6 +195,12 @@ export default function MessageBubble({
           </div>
         )}
         {message.error && <div className="form-error">{translateMessage(message.error)}</div>}
+        {message.errorDetail && (
+          <details>
+            <summary>{t('agent.errorDetails')}</summary>
+            <p className="form-error">{message.errorDetail}</p>
+          </details>
+        )}
         {images.map((image) => (
           <div className="generated-image-wrap" key={image.file}>
             <button

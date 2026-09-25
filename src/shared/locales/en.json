@@ -193,5 +193,12 @@
   "images.dropOne": "Drop one reference image at a time",
   "composer.imageModel": "Image model",
   "settings.providers": "Providers",
-  "settings.about": "About"
+  "settings.about": "About",
+  "agent.approvalTimeout": "Confirmation timed out. No further image request was sent. Start a new task.",
+  "agent.imageTimeout": "Image request timed out. The provider may still be processing it; check provider records before retrying.",
+  "agent.imageFailed": "Image step failed. Completed images are preserved. Review the step error before retrying.",
+  "agent.modelFailed": "Conversation model request failed or timed out. Completed images are preserved; start a new message to continue.",
+  "agent.unknownResult": "Request dispatch was attempted, but the outcome is unknown. Stopping or restarting the app does not cancel provider processing; generating again may incur another charge.",
+  "agent.repeatWarning": "An identical request or a request with unknown outcome was recorded. Check provider records before confirming; another request may incur another charge.",
+  "agent.errorDetails": "Error details"
 }

@@ -98,7 +98,7 @@ impl ImageTool {
             .iter()
             .map(|s| s["count"].as_u64().unwrap_or(0) as usize)
             .sum();
-        validate(&args, used)?;
+
         let source = args
             .source_image_id
             .as_deref()
@@ -107,8 +107,14 @@ impl ImageTool {
         if let Some(file) = source {
             assets::owned_path(run, file)?;
         }
+        let fingerprint = json!([run.image_provider.as_ref().map(|p| &p["id"]), run.image_model, args.prompt.trim(), source, args.count]);
+        if let Some(step) = lock(&run.output)?["steps"].as_array().unwrap().iter().find(|step| step["fingerprint"] == fingerprint && step["status"] == "done") {
+            return Ok(json!({"imageFiles":step["imageFiles"],"reused":true}));
+        }
+        validate(&args, used)?;
+        let repeated = requires_repeat_confirmation(&lock(&state.store)?.rows("messages")?, &run.session_id, &fingerprint);
         let step_id = id();
-        let needs_approval = run.image_provider.is_none() || args.count > 1 || used > 0;
+        let needs_approval = run.image_provider.is_none() || args.count > 1 || used > 0 || repeated;
         // Register before emitting the waiting state so a fast UI response cannot be lost.
         let receiver = if needs_approval {
             let (sender, receiver) = tokio::sync::oneshot::channel();
@@ -119,7 +125,7 @@ impl ImageTool {
         };
         run.update(|output| {
             output["steps"].as_array_mut().unwrap().push(json!({
-                "id":step_id,"prompt":args.prompt,"count":args.count,
+                "id":step_id,"prompt":args.prompt,"count":args.count,"fingerprint":fingerprint,"repeated":repeated,"dispatchState":"not_sent",
                 "status":if needs_approval {"waiting"} else {"running"},
                 "needsConfiguration":run.image_provider.is_none(),
                 "operation":if source.is_some(){"edit"}else{"generate"},
@@ -128,7 +134,7 @@ impl ImageTool {
         })?;
         let result: Result<Value> = async {
             if let Some(receiver) = receiver {
-                if !receiver.await.map_err(|_| "ui.taskStopped")? {return Err("ui.imageGenerationCancelledByUser".into())}
+                if !tokio::time::timeout(std::time::Duration::from_secs(900), receiver).await.map_err(|_| "agent.approvalTimeout")?.map_err(|_| "ui.taskStopped")? {return Err("ui.imageGenerationCancelledByUser".into())}
             }
             // Existing settings are snapshotted per run. Only missing configuration is filled on approval.
             let (provider, model, secret) = if let Some(provider) = &run.image_provider {
@@ -139,14 +145,16 @@ impl ImageTool {
                 let secret = password(string(&provider,"id"))?;
                 (provider, model, secret)
             };
-            run.update(|o| { let step = step_mut(o, &step_id); step["status"] = json!("running"); step["model"] = json!(model); step["providerName"] = provider["name"].clone(); })?;
+            run.update(|o| { let step = step_mut(o, &step_id); step["status"] = json!("running"); step["model"] = json!(model); step["providerName"] = provider["name"].clone(); step["fingerprint"] = json!([provider["id"], model, args.prompt.trim(), source, args.count]); })?;
             let mut files = Vec::new();
             for _ in 0..args.count {
+                run.update(|o| { let step = step_mut(o, &step_id); step["dispatchState"] = json!("unknown"); step["dispatchedAt"] = json!(now()); })?;
                 let file = requests::create_image(&state, &provider, &model, &secret, &args.prompt, source).await?;
                 files.push(file.clone());
                 run.update(|o| {
                     o["imageFiles"].as_array_mut().unwrap().push(json!(file));
                     step_mut(o,&step_id)["imageFiles"] = json!(files);
+                    step_mut(o,&step_id)["dispatchState"] = json!("received");
                 })?;
             }
             Ok(json!({"imageFiles":files,"prompt":args.prompt,"sourceImageId":source,"operation":if source.is_some(){"edit"}else{"generate"}}))
@@ -161,6 +169,10 @@ impl ImageTool {
         // Tool errors end the run: paid operations are never retried automatically.
         result
     }
+}
+fn requires_repeat_confirmation(rows: &[Value], session: &str, fingerprint: &Value) -> bool {
+    rows.iter().any(|message| message["sessionId"] == session && message["steps"].as_array().is_some_and(|steps|
+        steps.iter().any(|step| step["fingerprint"] == *fingerprint || step["dispatchState"] == "unknown")))
 }
 fn step_mut<'a>(output: &'a mut Value, step_id: &str) -> &'a mut Value {
     output["steps"]
@@ -300,7 +312,15 @@ pub async fn generate(
             let mut stream = agent.stream_prompt(text.trim()).history(past).max_turns(MAX_TURNS).tool_concurrency(1).await;
             let mut finished = false;
             while let Some(item) = stream.next().await {
-                match item.map_err(|e|e.to_string())? {
+                match item.map_err(|e| {
+                    let detail = e.to_string();
+                    let code = if detail.contains("agent.approvalTimeout") { "agent.approvalTimeout" }
+                        else if detail.contains("ui.imageGenerationCancelledByUser") { "ui.imageGenerationCancelledByUser" }
+                        else if lock(&current.output).ok().is_some_and(|o| o["steps"].as_array().is_some_and(|steps| steps.iter().any(|step| step["status"] == "error"))) { "agent.imageFailed" }
+                        else { "agent.modelFailed" };
+                    let _ = current.update(|o| o["errorDetail"] = json!(detail));
+                    code.to_string()
+                })? {
                     MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(part)) => current.update(|o| {let text = format!("{}{}",string(o,"content"),part.text);o["content"]=json!(text);})?,
                     MultiTurnStreamItem::FinalResponse(response) => {
                         if let Some(messages) = response.messages {
@@ -346,6 +366,15 @@ pub async fn generate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn duplicate_and_unknown_requests_require_session_scoped_confirmation() {
+        let rows = vec![json!({"sessionId":"a","steps":[{"fingerprint":["same"],"dispatchState":"received"}]})];
+        assert!(requires_repeat_confirmation(&rows, "a", &json!(["same"])));
+        assert!(!requires_repeat_confirmation(&rows, "b", &json!(["same"])));
+        assert!(!requires_repeat_confirmation(&rows, "a", &json!(["different"])));
+        let unknown = vec![json!({"sessionId":"a","steps":[{"dispatchState":"unknown"}]})];
+        assert!(requires_repeat_confirmation(&unknown, "a", &json!(["different"])));
+    }
     #[test]
     fn image_budget_validates_entire_batch() {
         assert!(validate(

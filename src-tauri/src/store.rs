@@ -240,7 +240,7 @@ mod tests {
             let store = Store::open(&file).unwrap();
             store.provider(&json!({"id":"p"})).unwrap();
             store.session(&json!({"id":"a","providerId":"p","chatModel":"chat","imageProviderId":"images","imageModel":"image"})).unwrap();
-            store.message(&json!({"id":"m","sessionId":"a","status":"streaming","imageFiles":["done.png"],"steps":[{"status":"done"},{"status":"waiting"},{"status":"running"}]})).unwrap();
+            store.message(&json!({"id":"m","sessionId":"a","status":"streaming","imageFiles":["done.png"],"steps":[{"status":"done"},{"status":"waiting"},{"status":"running","dispatchState":"unknown","fingerprint":["paid"],"imageFiles":["partial.png"]}]})).unwrap();
         }
         let store = Store::open(&file).unwrap();
         let m = store.get("messages", "m").unwrap();
@@ -249,6 +249,9 @@ mod tests {
         assert_eq!(m["steps"][0]["status"], "done");
         assert_eq!(m["steps"][1]["status"], "error");
         assert_eq!(m["steps"][2]["status"], "error");
+        assert_eq!(m["steps"][2]["dispatchState"], "unknown");
+        assert_eq!(m["steps"][2]["fingerprint"], json!(["paid"]));
+        assert_eq!(m["steps"][2]["imageFiles"], json!(["partial.png"]));
         assert_eq!(
             store.get("sessions", "a").unwrap()["imageProviderId"],
             "images"

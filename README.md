@@ -100,3 +100,9 @@ Each task allows 3 generated images, 6 model turns and 6 viewed images (20 MB ea
 Local PNG, JPEG and WebP images (up to 10 MB) can be imported from the composer. A session-owned copy is retained in the app’s local storage and can be used for vision or image editing, including direct image-model requests. Removing an attachment only clears the composer selection.
 
 UI translations use typed semantic keys in `src/shared/locales/`, with `{name}` placeholders for dynamic values. Use `t(key, parameters)` for UI copy and `translateMessage` only for application error codes or external messages. Provider errors and user content are not reverse-translated.
+
+### Agent interruptions and retries
+
+Image steps persist their request identity and dispatch state before sending, and save each completed image. Identical completed calls within a task reuse their results. Recorded duplicates or unknown outcomes in the session require confirmation before another image operation. Restarting never automatically replays paid tools. Provider-side exactly-once execution is not guaranteed: cancellation or timeout may leave a remote request running. Check provider records before generating again.
+
+Timeouts: 30 seconds to connect, 10 minutes per model HTTP request, 10 minutes per complete image operation, 15 minutes for confirmation, and 30 minutes per task. Completed images survive failures. Errors distinguish model failures, image timeouts, and cancellation; technical details can be expanded. No automatic paid retries.

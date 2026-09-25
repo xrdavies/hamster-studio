@@ -29,6 +29,8 @@ pub fn url(base: &str, path: &str) -> Result<String> {
 pub(crate) fn emit(app: &tauri::AppHandle, s: &AppState, message: &Value) -> Result<()> {
     if lock(&s.store)?.message(message)? {
         app.emit("message", message).map_err(|e| e.to_string())?
+    } else {
+        return Err("ui.conversationDoesNotExist".into());
     }
     Ok(())
 }
@@ -132,6 +134,14 @@ pub(crate) async fn create_image(
     prompt: &str,
     reference: Option<&str>,
 ) -> Result<String> {
+    image_deadline(std::time::Duration::from_secs(600), create_image_request(s, provider, model, secret, prompt, reference)).await
+}
+async fn image_deadline<T>(duration: std::time::Duration, request: impl std::future::Future<Output = Result<T>>) -> Result<T> {
+    tokio::time::timeout(duration, request).await.map_err(|_| "agent.imageTimeout".to_string())?
+}
+async fn create_image_request(
+    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, reference: Option<&str>,
+) -> Result<String> {
     let request = if let Some(file) = reference {
         let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?;
         let part = reqwest::multipart::Part::bytes(bytes)
@@ -203,6 +213,16 @@ pub(crate) async fn create_image(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn image_timeout_is_classified_without_retry() {
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+        let result: Result<()> = image_deadline(std::time::Duration::from_millis(1), async {
+            calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            std::future::pending().await
+        }).await;
+        assert_eq!(result.unwrap_err(), "agent.imageTimeout");
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
     #[test]
     fn urls_and_sse() {
         assert_eq!(

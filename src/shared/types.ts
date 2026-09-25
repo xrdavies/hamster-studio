@@ -34,6 +34,9 @@ export type StudioSession = {
 }
 
 export type ImageStep = {
+  repeated?: boolean
+  dispatchState?: 'not_sent' | 'unknown' | 'received'
+
   sourceImageId?: string
 
   id: string
@@ -49,6 +52,8 @@ export type ImageStep = {
 }
 
 export type Message = {
+  errorDetail?: string
+
   viewedImageIds?: string[]
 
   agent?: boolean

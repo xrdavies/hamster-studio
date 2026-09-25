@@ -193,5 +193,12 @@
   "images.dropOne": "每次请拖入一张参考图片",
   "composer.imageModel": "图片模型",
   "settings.providers": "模型服务",
-  "settings.about": "关于"
+  "settings.about": "关于",
+  "agent.approvalTimeout": "等待确认超时，未继续发送图片请求。请重新发起任务。",
+  "agent.imageTimeout": "图片请求超时，服务端可能仍在处理，请检查服务商记录后再决定是否重试。",
+  "agent.imageFailed": "图片步骤失败，已停止任务。已完成的图片仍保留，请查看步骤错误后决定是否重试。",
+  "agent.modelFailed": "对话模型请求失败或超时。已完成的图片仍保留，可重新发起对话继续。",
+  "agent.unknownResult": "请求已尝试发送，但结果未知。停止或重启应用不代表服务端已取消，重新生成可能再次计费。",
+  "agent.repeatWarning": "存在相同请求或结果未知的历史请求。再次执行可能重复生成和计费，请检查服务商记录，确认后才会发送。",
+  "agent.errorDetails": "错误详情"
 }
