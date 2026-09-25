@@ -132,6 +132,8 @@ impl ImageTool {
                 "sourceImageId":source,"imageFiles":[],"error":""
             }));
         })?;
+        let step_started = std::time::Instant::now();
+        crate::diagnostics::record(&run.app, "image.step.start", json!({"sessionId":run.session_id,"stepId":step_id,"count":args.count,"hasReference":source.is_some(),"requiresApproval":needs_approval,"repeated":repeated}));
         let result: Result<Value> = async {
             if let Some(receiver) = receiver {
                 if !tokio::time::timeout(std::time::Duration::from_secs(900), receiver).await.map_err(|_| "agent.approvalTimeout")?.map_err(|_| "ui.taskStopped")? {return Err("ui.imageGenerationCancelledByUser".into())}
@@ -166,6 +168,7 @@ impl ImageTool {
                 step["error"] = json!(error)
             }
         })?;
+        crate::diagnostics::record(&run.app, if result.is_ok() { "image.step.finished" } else { "image.step.error" }, json!({"sessionId":run.session_id,"stepId":step_id,"elapsedMs":step_started.elapsed().as_millis(),"success":result.is_ok(),"httpStatus":result.as_ref().err().and_then(|e| crate::diagnostics::status_from_error(e)),"dispatchState":step_mut(&mut *lock(&run.output)?, &step_id)["dispatchState"]}));
         // Tool errors end the run: paid operations are never retried automatically.
         result
     }
@@ -268,6 +271,7 @@ pub async fn generate(
     text: String,
     reference: Option<String>,
 ) -> Result<Value> {
+    let started = std::time::Instant::now();
     let token = tokio_util::sync::CancellationToken::new();
     {
         let mut active = lock(&state.active)?;
@@ -299,6 +303,7 @@ pub async fn generate(
             let output = json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":"chat","content":"","imageFiles":[],"steps":[],"agent":true,"viewedImageIds":reference.iter().collect::<Vec<_>>(),"providerName":provider["name"],"model":model,"createdAt":created_at+1,"status":"streaming","error":""});
             let current = Arc::new(Run {app:app.clone(),session_id:session_id.clone(),output:Mutex::new(output),image_provider:image.as_ref().map(|(p,_)|p.clone()),image_model:image.map(|(_,m)|m).unwrap_or_default(),image_key,reference:reference.clone(),viewed:Mutex::new(reference.iter().cloned().collect())});
             run = Some(current.clone());
+            crate::diagnostics::record(&app, "agent.start", json!({"sessionId":session_id,"messageId":lock(&current.output)?["id"],"providerId":provider["id"],"model":model,"historyMessages":past.len(),"hasReference":reference.is_some()}));
             requests::emit(&app,&state,&json!({"id":id(),"sessionId":session_id,"role":"user","kind":"chat","content":text.trim(),"referenceFile":reference,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":created_at,"status":"done","error":""}))?;
             current.update(|_|{})?;
             let http = rig::http_client::ReqwestClient::builder()
@@ -318,6 +323,7 @@ pub async fn generate(
                         else if detail.contains("ui.imageGenerationCancelledByUser") { "ui.imageGenerationCancelledByUser" }
                         else if lock(&current.output).ok().is_some_and(|o| o["steps"].as_array().is_some_and(|steps| steps.iter().any(|step| step["status"] == "error"))) { "agent.imageFailed" }
                         else { "agent.modelFailed" };
+                    crate::diagnostics::record(&app, "agent.error", json!({"sessionId":session_id,"model":model,"providerId":provider["id"],"elapsedMs":started.elapsed().as_millis(),"code":code,"httpStatus":crate::diagnostics::status_from_error(&detail)}));
                     let _ = current.update(|o| o["errorDetail"] = json!(detail));
                     code.to_string()
                 })? {
@@ -338,6 +344,7 @@ pub async fn generate(
             Ok(())
         }) => result.unwrap_or_else(|_|Err("ui.taskTimedOutAndStopped".into()))
     };
+    crate::diagnostics::record(&app, "agent.finished", json!({"sessionId":session_id,"elapsedMs":started.elapsed().as_millis(),"success":result.is_ok(),"cancelled":token.is_cancelled()}));
     lock(&state.approvals)?.retain(|_, (owner, _)| owner != &session_id);
 
     if let Err(error) = result {

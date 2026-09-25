@@ -49,6 +49,15 @@ function onMessage(callback: (message: Message) => void) {
     off?.()
   }
 }
+// Native diagnostics contain allowlisted metadata only, never prompts or response bodies.
+void listen<{ timestamp: number; stage: string; metadata: Record<string, unknown> }>(
+  'diagnostic',
+  ({ payload }) => {
+    const log = payload.stage.endsWith('.error') ? console.error : console.info
+    log('[Hamster Studio]', payload.stage, payload)
+  },
+).catch(() => {})
+
 window.studio = {
   setLanguage: async () => {},
   version: getVersion,
