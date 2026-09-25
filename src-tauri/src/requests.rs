@@ -58,6 +58,7 @@ pub async fn generate(
     text: String,
     kind: String,
     reference_files: Option<Vec<String>>,
+    mask_file: Option<String>,
     resume_id: Option<String>,
 ) -> Result<Value> {
     let reference_files = reference_files.unwrap_or_default();
@@ -66,7 +67,7 @@ pub async fn generate(
         return Err("Invalid request".into());
     }
     if kind == "chat" {
-        return crate::agent::generate(app, s, session_id, text, reference_files, resume_id).await;
+        return crate::agent::generate(app, s, session_id, text, reference_files, mask_file, resume_id).await;
     }
     let token = tokio_util::sync::CancellationToken::new();
     {
@@ -84,6 +85,7 @@ pub async fn generate(
             for file in &reference_files {
                 if !lock(&s.store)?.owns_image(&session_id, file)? { return Err("Invalid reference image".into()); }
             }
+            crate::validate_edit_mask(&s, &reference_files, mask_file.as_deref())?;
             let mut provider=lock(&s.store)?.get("providers",string(&session,"providerId"))?;
             lock(&s.catalog)?.provider(&mut provider);
             let model=string(&session,if kind=="image" {"imageModel"} else {"chatModel"});
@@ -91,12 +93,12 @@ pub async fn generate(
             if !models.as_array().map(|v|v.contains(&json!(model))).unwrap_or(false) {return Err("ui.modelCapabilityChangedOrIsUnavailableSelectAModelAgain".into())}
             let secret=password(string(&provider,"id"))?;
             let mut history=lock(&s.store)?.history(&session_id)?;
-            let user=json!({"id":id(),"sessionId":session_id,"role":"user","kind":kind,"content":text.trim(),"referenceFiles":reference_files,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"done","error":""});
+            let user=json!({"id":id(),"sessionId":session_id,"role":"user","kind":kind,"content":text.trim(),"referenceFiles":reference_files,"maskFile":mask_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"done","error":""});
             emit(&app,&s,&user)?;
             assistant=Some(json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":kind,"content":"","imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"streaming","error":""}));
             let output=assistant.as_mut().unwrap(); emit(&app,&s,output)?;
             if kind=="image" {
-                let name = create_image(&s, &provider, model, &secret, text.trim(), &reference_files).await?;
+                let name = create_image(&s, &provider, model, &secret, text.trim(), &reference_files, mask_file.as_deref()).await?;
                 output["imageFiles"]=json!([name]);
             } else {
                 if !string(&session,"systemPrompt").is_empty() {history.insert(0,json!({"role":"system","content":session["systemPrompt"]}));}
@@ -136,21 +138,27 @@ pub(crate) async fn create_image(
     secret: &str,
     prompt: &str,
     references: &[String],
+    mask: Option<&str>,
 ) -> Result<String> {
-    image_deadline(std::time::Duration::from_secs(600), create_image_request(s, provider, model, secret, prompt, references)).await
+    image_deadline(std::time::Duration::from_secs(600), create_image_request(s, provider, model, secret, prompt, references, mask)).await
 }
 async fn image_deadline<T>(duration: std::time::Duration, request: impl std::future::Future<Output = Result<T>>) -> Result<T> {
     tokio::time::timeout(duration, request).await.map_err(|_| "agent.imageTimeout".to_string())?
 }
 async fn create_image_request(
-    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, references: &[String],
+    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, references: &[String], mask: Option<&str>,
 ) -> Result<String> {
+    crate::validate_edit_mask(s, references, mask)?;
     let request = if !references.is_empty() {
         let mut form = reqwest::multipart::Form::new().text("model", model.to_owned()).text("prompt", prompt.to_owned()).text("n", "1").text("response_format", "b64_json");
         for (index, file) in references.iter().enumerate() {
             let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?;
             let part = reqwest::multipart::Part::bytes(bytes).file_name(format!("reference-{index}.{}", file.rsplit('.').next().unwrap_or("png"))).mime_str(crate::image_mime(file)).map_err(|e| e.to_string())?;
             form = form.part(if references.len() == 1 { "image" } else { "image[]" }, part);
+        }
+        if let Some(file) = mask {
+            let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e|e.to_string())?;
+            form = form.part("mask", reqwest::multipart::Part::bytes(bytes).file_name("mask.png").mime_str("image/png").map_err(|e|e.to_string())?);
         }
         s.client.post(url(string(provider, "baseUrl"), "/images/edits")?).multipart(form)
     } else {
@@ -272,6 +280,7 @@ mod tests {
                     assert!(request.contains("reference-0.png"));
                     assert!(request.contains("reference-1.png"));
                     assert_eq!(request.matches("name=\"image[]\"").count(), 2);
+                    assert!(request.contains("name=\"mask\""));
                 } else {
                     assert!(request.starts_with("POST /v1/images/generations"));
                     assert!(request.contains("b64_json"));
@@ -301,13 +310,24 @@ mod tests {
             client: reqwest::Client::new(),
         };
         let provider = json!({"baseUrl":format!("http://{address}")});
-        let first = create_image(&state, &provider, "image-model", "test-key", "draw", &[])
+        let first = create_image(&state, &provider, "image-model", "test-key", "draw", &[], None)
             .await
             .unwrap();
         assert_eq!(
             std::fs::read(crate::image_path(&state, &first).unwrap()).unwrap(),
             b"image"
         );
+        let mask = format!("mask-{first}-test.png");
+        let mut bytes = vec![0u8; 33];
+        bytes[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
+        bytes[12..16].copy_from_slice(b"IHDR");
+        bytes[16..20].copy_from_slice(&1u32.to_be_bytes());
+        bytes[20..24].copy_from_slice(&1u32.to_be_bytes());
+        bytes[25] = 6;
+        std::fs::write(state.directory.join("images").join(&mask), bytes).unwrap();
+        assert!(crate::validate_edit_mask(&state, &["other.png".into()], Some(&mask)).is_err());
+        assert!(crate::validate_edit_mask(&state, &[], Some(&mask)).is_err());
+        assert!(crate::validate_mask(b"invalid").is_err());
         let second = create_image(
             &state,
             &provider,
@@ -315,12 +335,13 @@ mod tests {
             "test-key",
             "edit",
             &[first.clone(), first.clone()],
+            Some(&mask),
         )
         .await
         .unwrap();
         assert_ne!(first, second);
         assert!(
-            create_image(&state, &provider, "image-model", "test-key", "draw", &[])
+            create_image(&state, &provider, "image-model", "test-key", "draw", &[], None)
                 .await
                 .unwrap_err()
                 .contains("unsupported model")

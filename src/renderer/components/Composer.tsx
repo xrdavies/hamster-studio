@@ -1,3 +1,4 @@
+import RegionEditor from './RegionEditor'
 import { t } from '../i18n'
 import { useEffect, useId, useRef, useState } from 'react'
 import {
@@ -8,6 +9,7 @@ import {
   SlidersHorizontal,
   ImagePlus,
   Info,
+  Paintbrush,
   X,
 } from 'lucide-react'
 import type { Provider, StudioSession } from '../../shared/types'
@@ -28,6 +30,8 @@ export default function Composer({
   onStop,
   onImageModel,
   referenceFiles,
+  mask,
+  onMask,
   onClearReference,
   onImportImage,
 }: {
@@ -43,9 +47,12 @@ export default function Composer({
   onStop: () => void
   onImageModel: (providerId: string, model: string) => Promise<void>
   referenceFiles: string[]
+  mask?: { file: string; mask: string }
+  onMask: (value?: { file: string; mask: string }) => void
   onImportImage: () => Promise<void>
   onClearReference: (file: string) => void
 }) {
+  const [editing, setEditing] = useState('')
   const [importing, setImporting] = useState(false)
   const [savingImageModel, setSavingImageModel] = useState(false)
   const [imageSettingError, setImageSettingError] = useState('')
@@ -105,6 +112,13 @@ export default function Composer({
   )
   return (
     <div className="composer-wrap">
+      {editing && (
+        <RegionEditor
+          file={editing}
+          onClose={() => setEditing('')}
+          onSave={(value) => onMask({ file: editing, mask: value })}
+        />
+      )}
       <div className="composer">
         <div className="composer-modelbar">
           <ModelMenu choices={choices} selected={selected} onSelect={onModel} disabled={busy} />
@@ -197,6 +211,25 @@ export default function Composer({
         {referenceFiles.map((file, index) => (
           <div className="reference-chip" key={file}>
             {referenceSrc[file] && <img src={referenceSrc[file]} alt={t('ui.referenceImage')} />}
+            <button
+              type="button"
+              disabled={busy}
+              title={t('images.editRegion')}
+              aria-label={t('images.editRegion')}
+              onClick={() => setEditing(file)}
+            >
+              <Paintbrush size={14} />
+            </button>
+            {mask?.file === file && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onMask(undefined)}
+                title={t('images.removeRegion')}
+              >
+                {t('images.regionSelected')} <X size={12} />
+              </button>
+            )}
             <span>
               {t('ui.referenceImage')} {index + 1}
             </span>

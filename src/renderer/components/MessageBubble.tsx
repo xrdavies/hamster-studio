@@ -84,6 +84,9 @@ export default function MessageBubble({
             alt={t('ui.referenceImage')}
           />
         ))}
+        {message.role === 'user' && message.maskFile && (
+          <p className="vision-context-note">{t('images.regionSelected')}</p>
+        )}
         {message.agent &&
           (steps.length > 0 ||
             !!message.viewedImageIds?.length ||

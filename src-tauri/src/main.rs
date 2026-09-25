@@ -240,6 +240,34 @@ fn save_imported_image(s: &AppState, session_id: &str, path: PathBuf) -> Result<
     }
     Ok(name)
 }
+// Masks are bound to the source file name and cannot be reused for a different source.
+#[tauri::command]
+fn save_mask(s: State<AppState>, file: String, data: String) -> Result<String> {
+    crate::image_path(&s, &file)?;
+    if data.len() > 14 * 1024 * 1024 { return Err("images.tooLarge".into()); }
+    let encoded = data.strip_prefix("data:image/png;base64,").ok_or("Invalid mask format")?;
+    let bytes = base64::engine::general_purpose::STANDARD.decode(encoded).map_err(|e| e.to_string())?;
+    validate_mask(&bytes)?;
+    let name = format!("mask-{}-{}.png", file, store::id());
+    std::fs::write(s.directory.join("images").join(&name), bytes).map_err(|e| e.to_string())?;
+    Ok(name)
+}
+fn validate_mask(bytes: &[u8]) -> Result<()> {
+    if bytes.len() < 33 || !bytes.starts_with(b"\x89PNG\r\n\x1a\n") || &bytes[12..16] != b"IHDR" || bytes[25] != 6 { return Err("Invalid RGBA PNG mask".into()); }
+    let width = u32::from_be_bytes(bytes[16..20].try_into().unwrap()) as u64;
+    let height = u32::from_be_bytes(bytes[20..24].try_into().unwrap()) as u64;
+    if width == 0 || height == 0 || width * height > 32_000_000 { return Err("images.regionTooLarge".into()); }
+    Ok(())
+}
+fn validate_edit_mask(s: &AppState, references: &[String], mask: Option<&str>) -> Result<()> {
+    if let Some(mask) = mask {
+        let source = references.first().ok_or("A mask requires a source image")?;
+        if !mask.starts_with(&format!("mask-{source}-")) { return Err("Mask does not belong to the source image".into()); }
+        let bytes = std::fs::read(image_path(s, mask)?).map_err(|e| e.to_string())?;
+        validate_mask(&bytes)?;
+    }
+    Ok(())
+}
 #[tauri::command]
 fn read_image(s: State<AppState>, file: String) -> Result<String> {
     Ok(format!(
@@ -386,6 +414,7 @@ fn main() {
             check_catalog,
             install_catalog,
             read_image,
+            save_mask,
             import_image,
             import_dropped_image,
             export_image,

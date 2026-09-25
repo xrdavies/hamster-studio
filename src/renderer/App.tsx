@@ -60,6 +60,7 @@ export default function App() {
   const messagesRef = useRef<HTMLDivElement>(null)
   const previousSession = useRef('')
   const followBottom = useRef(true)
+  const [masks, setMasks] = useState<Record<string, { file: string; mask: string } | undefined>>({})
   const [references, setReferences] = useState<Record<string, string[]>>({})
   const scrollBottom = () => {
     const el = messagesRef.current
@@ -268,20 +269,27 @@ export default function App() {
     prompt: string,
     kind: ModelKind,
     referenceFiles = references[target.id] || [],
+    editMask: { file: string; mask: string } | null | undefined = masks[target.id],
   ) {
     if (activeRequests.current.has(target.id)) return
     activeRequests.current.add(target.id)
     setPending((current) => ({ ...current, [target.id]: true }))
     setError('', target.id)
     try {
+      const maskFile =
+        editMask && referenceFiles.includes(editMask.file) ? editMask.mask : undefined
+      if (maskFile && editMask)
+        referenceFiles = [editMask.file, ...referenceFiles.filter((file) => file !== editMask.file)]
       if (['ui.newConversation', 'New conversation'].includes(target.title))
         await window.studio.saveSession({ id: target.id, title: prompt.slice(0, 28) })
-      if (kind === 'image') await window.studio.generateImage(target.id, prompt, referenceFiles)
+      if (kind === 'image')
+        await window.studio.generateImage(target.id, prompt, referenceFiles, maskFile)
       else {
         const reference = referenceFiles
-        if (reference.length) await window.studio.sendChat(target.id, prompt, reference)
+        if (reference.length) await window.studio.sendChat(target.id, prompt, reference, maskFile)
         else await window.studio.sendChat(target.id, prompt)
         setReferences((current) => ({ ...current, [target.id]: [] }))
+        setMasks((current) => ({ ...current, [target.id]: undefined }))
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason), target.id)
@@ -329,6 +337,12 @@ export default function App() {
       previous.content,
       message.kind,
       previous.referenceFiles || (previous.referenceFile ? [previous.referenceFile] : []),
+      previous.maskFile
+        ? {
+            file: previous.referenceFiles?.[0] || previous.referenceFile || '',
+            mask: previous.maskFile,
+          }
+        : null,
     )
   }
   const changeModel = (providerId: string, model: string, kind: ModelKind) => {
@@ -501,12 +515,19 @@ export default function App() {
                 }
               }}
               referenceFiles={references[session.id] || []}
-              onClearReference={(file) =>
+              mask={masks[session.id]}
+              onMask={(value) => setMasks((current) => ({ ...current, [session.id]: value }))}
+              onClearReference={(file) => {
+                setMasks((current) =>
+                  current[session.id]?.file === file
+                    ? { ...current, [session.id]: undefined }
+                    : current,
+                )
                 setReferences((current) => ({
                   ...current,
                   [session.id]: (current[session.id] || []).filter((item) => item !== file),
                 }))
-              }
+              }}
               onImageModel={async (providerId, model) => {
                 await window.studio.saveSession({
                   id: session.id,

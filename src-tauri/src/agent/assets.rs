@@ -18,7 +18,7 @@ fn assets(rows: &[Value], session: &str) -> Vec<Value> {
             });
             result.push(json!({"imageId":file,"createdAt":row["createdAt"],
                 "prompt":step.map(|s| &s["prompt"]).unwrap_or(&row["content"]),
-                "sourceImageId":step.map(|s| &s["sourceImageId"])}));
+                "sourceImageId":step.map(|s| &s["sourceImageId"]), "sourceImageIds":step.map(|s| &s["sourceImageIds"])}));
         }
     }
     result.sort_by_key(|a| a["createdAt"].as_i64().unwrap_or(0));

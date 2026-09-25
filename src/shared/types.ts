@@ -65,6 +65,7 @@ export type Message = {
   viewedImageIds?: string[]
 
   agent?: boolean
+  maskFile?: string
   referenceFile?: string
   referenceFiles?: string[]
   steps?: ImageStep[]

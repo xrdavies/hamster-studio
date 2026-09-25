@@ -67,13 +67,13 @@ window.studio = {
   deleteProvider: (id) => invoke('delete_provider', { id }),
   saveSession: (session) => invoke('save_session', { session }),
   deleteSession: (id) => invoke('delete_session', { id }),
-  sendChat: (sessionId, text, referenceFiles) =>
-    invoke('generate', { sessionId, text, kind: 'chat', referenceFiles }),
+  sendChat: (sessionId, text, referenceFiles, maskFile) =>
+    invoke('generate', { sessionId, text, kind: 'chat', referenceFiles, maskFile }),
   continueAgent: (sessionId, messageId) =>
     invoke('generate', { sessionId, text: 'continue', kind: 'chat', resumeId: messageId }),
   approveImageStep: (sessionId, stepId, allow) => invoke('approve', { sessionId, stepId, allow }),
-  generateImage: (sessionId, text, referenceFiles) =>
-    invoke('generate', { sessionId, text, kind: 'image', referenceFiles }),
+  generateImage: (sessionId, text, referenceFiles, maskFile) =>
+    invoke('generate', { sessionId, text, kind: 'image', referenceFiles, maskFile }),
   onImageDrag: (callback) => {
     let disposed = false
     let off: (() => void) | undefined
@@ -94,6 +94,7 @@ window.studio = {
   importDroppedImage: (sessionId, path) => invoke('import_dropped_image', { sessionId, path }),
   importImage: (sessionId) => invoke('import_image', { sessionId }),
   stopChat: (id) => invoke('stop_chat', { id }),
+  saveMask: (file, data) => invoke('save_mask', { file, data }),
   readImage: (file) => invoke('read_image', { file }),
   exportImage: (file) => invoke('export_image', { file }),
   fetchModels: (input) => invoke('fetch_models', { input }),
