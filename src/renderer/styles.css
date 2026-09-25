@@ -258,7 +258,7 @@ select:focus-visible {
 .messages {
   flex: 1;
   overflow: auto;
-  padding: 38px max(34px, calc((100% - 900px) / 2)) 24px;
+  padding: 20px max(34px, calc((100% - 900px) / 2)) 16px;
   scroll-behavior: smooth;
 }
 .welcome {
@@ -313,8 +313,8 @@ select:focus-visible {
 }
 .message {
   display: flex;
-  gap: 13px;
-  margin: 0 auto 30px;
+  gap: 10px;
+  margin: 0 auto 18px;
   max-width: 900px;
   animation: message-in 0.18s ease-out;
 }
@@ -344,7 +344,7 @@ select:focus-visible {
 .message.user .message-body {
   background: #eeeef3;
   border-radius: 14px 4px 14px 14px;
-  padding: 11px 14px;
+  padding: 8px 12px;
 }
 .message-meta {
   display: flex;
@@ -352,7 +352,7 @@ select:focus-visible {
   gap: 8px;
   font-size: 11px;
   color: #858690;
-  margin: 1px 0 8px;
+  margin: 1px 0 4px;
 }
 .message-meta span {
   color: #b0b1b8;
@@ -365,11 +365,11 @@ select:focus-visible {
   justify-content: flex-end;
 }
 .markdown {
-  line-height: 1.7;
+  line-height: 1.55;
   color: #2e2f35;
 }
 .markdown p {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
 }
 .markdown p:last-child {
   margin-bottom: 0;
@@ -397,8 +397,8 @@ select:focus-visible {
 }
 .message-actions {
   display: flex;
-  gap: 12px;
-  margin-top: 10px;
+  gap: 10px;
+  margin-top: 4px;
   opacity: 0;
   transition: opacity 0.15s;
 }
@@ -1270,7 +1270,7 @@ select:focus-visible {
   cursor: pointer;
 }
 .about-footer details p {
-  line-height: 1.7;
+  line-height: 1.55;
 }
 
 .language-menu {
@@ -1437,9 +1437,9 @@ fieldset.provider-form {
 }
 .creation-task {
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 14px;
-  margin-bottom: 12px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
   background: #faf9fd;
 }
 .creation-task-title {
@@ -1449,7 +1449,7 @@ fieldset.provider-form {
   font-size: 13px;
 }
 .creation-task details {
-  margin-top: 12px;
+  margin-top: 6px;
   font-size: 12px;
 }
 .creation-task summary {
@@ -1457,7 +1457,7 @@ fieldset.provider-form {
   color: #777;
 }
 .creation-step {
-  padding: 10px 0;
+  padding: 6px 0;
   border-bottom: 1px solid var(--line);
   overflow-wrap: anywhere;
 }
@@ -1473,8 +1473,8 @@ fieldset.provider-form {
 .image-card-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 0;
+  gap: 6px;
+  padding: 6px 0;
 }
 .image-preview-trigger {
   padding: 0;
@@ -1656,4 +1656,30 @@ button svg {
 
 .composer {
   position: relative;
+}
+
+.markdown :is(ul, ol, pre, blockquote) {
+  margin-block: 6px;
+}
+.markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 12px 6px;
+  line-height: 1.35;
+}
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+.markdown li > p {
+  margin-bottom: 3px;
+}
+.creation-step p,
+.creation-approval p {
+  margin-block: 6px;
+}
+.generated-image {
+  max-height: 360px;
+  width: auto;
+  object-fit: contain;
 }
