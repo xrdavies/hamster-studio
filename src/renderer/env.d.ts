@@ -24,7 +24,8 @@ declare global {
       approveImageStep(sessionId: string, stepId: string, allow: boolean): Promise<void>
       sendChat(sessionId: string, text: string, referenceFile?: string): Promise<StudioData>
       stopChat(sessionId: string): Promise<void>
-      generateImage(sessionId: string, prompt: string): Promise<StudioData>
+      generateImage(sessionId: string, prompt: string, referenceFile?: string): Promise<StudioData>
+      importImage(sessionId: string): Promise<string | null>
       readImage(file: string): Promise<string>
       exportImage(file: string): Promise<boolean>
       fetchModels(input: ProviderInput): Promise<ProviderModels>

@@ -76,6 +76,9 @@ pub async fn generate(
         _=token.cancelled()=>Err("ui.generationStopped".to_owned()),
         result=async {
             let session=lock(&s.store)?.get("sessions",&session_id)?;
+            if let Some(file) = &reference_file {
+                if !lock(&s.store)?.owns_image(&session_id, file)? { return Err("Invalid reference image".into()); }
+            }
             let mut provider=lock(&s.store)?.get("providers",string(&session,"providerId"))?;
             lock(&s.catalog)?.provider(&mut provider);
             let model=string(&session,if kind=="image" {"imageModel"} else {"chatModel"});
@@ -83,12 +86,12 @@ pub async fn generate(
             if !models.as_array().map(|v|v.contains(&json!(model))).unwrap_or(false) {return Err("ui.modelCapabilityChangedOrIsUnavailableSelectAModelAgain".into())}
             let secret=password(string(&provider,"id"))?;
             let mut history=lock(&s.store)?.history(&session_id)?;
-            let user=json!({"id":id(),"sessionId":session_id,"role":"user","kind":kind,"content":text.trim(),"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"done","error":""});
+            let user=json!({"id":id(),"sessionId":session_id,"role":"user","kind":kind,"content":text.trim(),"referenceFile":reference_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"done","error":""});
             emit(&app,&s,&user)?;
             assistant=Some(json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":kind,"content":"","imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"streaming","error":""}));
             let output=assistant.as_mut().unwrap(); emit(&app,&s,output)?;
             if kind=="image" {
-                let name = create_image(&s, &provider, model, &secret, text.trim(), None).await?;
+                let name = create_image(&s, &provider, model, &secret, text.trim(), reference_file.as_deref()).await?;
                 output["imageFiles"]=json!([name]);
             } else {
                 if !string(&session,"systemPrompt").is_empty() {history.insert(0,json!({"role":"system","content":session["systemPrompt"]}));}
@@ -132,8 +135,8 @@ pub(crate) async fn create_image(
     let request = if let Some(file) = reference {
         let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?;
         let part = reqwest::multipart::Part::bytes(bytes)
-            .file_name("reference.png")
-            .mime_str("image/png")
+            .file_name(format!("reference.{}", file.rsplit('.').next().unwrap_or("png")))
+            .mime_str(crate::image_mime(file))
             .map_err(|e| e.to_string())?;
         s.client
             .post(url(string(provider, "baseUrl"), "/images/edits")?)

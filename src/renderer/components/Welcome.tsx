@@ -30,7 +30,7 @@ export function Welcome({
       <h2>{t('ui.howCanIHelpYou')}</h2>
       <p>
         {provider
-          ? t('ui.using') + provider.name + t('ui.yourAPIKeyIsStoredOnlyOnThisDevice')
+          ? t('welcome.providerNotice', { provider: provider.name })
           : t('ui.configureAProviderFirst')}
       </p>
       <div className="suggestions">

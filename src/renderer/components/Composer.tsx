@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Send,
   SlidersHorizontal,
+  ImagePlus,
   X,
 } from 'lucide-react'
 import type { Provider, StudioSession } from '../../shared/types'
@@ -27,6 +28,7 @@ export default function Composer({
   onImageModel,
   referenceFile,
   onClearReference,
+  onImportImage,
 }: {
   providers: Provider[]
   session: StudioSession
@@ -40,8 +42,10 @@ export default function Composer({
   onStop: () => void
   onImageModel: (providerId: string, model: string) => Promise<void>
   referenceFile?: string
+  onImportImage: () => Promise<void>
   onClearReference: () => void
 }) {
+  const [importing, setImporting] = useState(false)
   const [savingImageModel, setSavingImageModel] = useState(false)
   const [imageSettingError, setImageSettingError] = useState('')
   const [showImageSettings, setShowImageSettings] = useState(false)
@@ -84,6 +88,18 @@ export default function Composer({
     <div className="composer-wrap">
       <div className="composer">
         <div className="composer-modelbar">
+          <button
+            type="button"
+            className="creation-settings-toggle"
+            disabled={busy || importing}
+            onClick={() => {
+              setImporting(true)
+              void onImportImage().finally(() => setImporting(false))
+            }}
+          >
+            <ImagePlus size={14} />
+            {t(importing ? 'images.importing' : 'images.addLocal')}
+          </button>
           <ModelMenu choices={choices} selected={selected} onSelect={onModel} disabled={busy} />
           <button
             type="button"

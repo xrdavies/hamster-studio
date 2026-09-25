@@ -271,7 +271,7 @@ pub async fn generate(
         result = tokio::time::timeout(std::time::Duration::from_secs(1800), async {
             let session = lock(&state.store)?.get("sessions",&session_id)?;
             if let Some(file) = &reference {
-                let owned = lock(&state.store)?.rows("messages")?.iter().any(|m| m["sessionId"] == session_id && m["imageFiles"].as_array().is_some_and(|a|a.contains(&json!(file))));
+                let owned = lock(&state.store)?.owns_image(&session_id, file)?;
                 if !owned {return Err("Invalid reference image".into())}
                 crate::image_path(&state,file)?;
             }

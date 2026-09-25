@@ -26,7 +26,7 @@ fn assets(rows: &[Value], session: &str) -> Vec<Value> {
 }
 pub(super) fn owned_path(run: &Run, file: &str) -> Result<PathBuf> {
     let state = run.app.state::<AppState>();
-    let rows = lock(&state.store)?.rows("messages")?;
+    let rows = lock(&state.store)?.image_rows()?;
     if !assets(&rows, &run.session_id)
         .iter()
         .any(|a| a["imageId"] == file)
@@ -109,7 +109,7 @@ impl Tool for ListImages {
     ) -> std::result::Result<Value, Self::Error> {
         let state = self.0.app.state::<AppState>();
         let rows = lock(&state.store)
-            .and_then(|s| s.rows("messages"))
+            .and_then(|s| s.image_rows())
             .map_err(std::io::Error::other)?;
         let all = assets(&rows, &self.0.session_id);
         Ok(

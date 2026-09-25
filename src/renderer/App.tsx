@@ -220,7 +220,12 @@ export default function App() {
       },
     )
   }
-  async function runRequest(target: StudioSession, prompt: string, kind: ModelKind) {
+  async function runRequest(
+    target: StudioSession,
+    prompt: string,
+    kind: ModelKind,
+    referenceFile = references[target.id],
+  ) {
     if (activeRequests.current.has(target.id)) return
     activeRequests.current.add(target.id)
     setPending((current) => ({ ...current, [target.id]: true }))
@@ -228,9 +233,9 @@ export default function App() {
     try {
       if (['ui.newConversation', 'New conversation'].includes(target.title))
         await window.studio.saveSession({ id: target.id, title: prompt.slice(0, 28) })
-      if (kind === 'image') await window.studio.generateImage(target.id, prompt)
+      if (kind === 'image') await window.studio.generateImage(target.id, prompt, referenceFile)
       else {
-        const reference = references[target.id]
+        const reference = referenceFile
         if (reference) await window.studio.sendChat(target.id, prompt, reference)
         else await window.studio.sendChat(target.id, prompt)
         setReferences((current) => ({ ...current, [target.id]: '' }))
@@ -262,7 +267,7 @@ export default function App() {
     const previous = history[history.findIndex((item) => item.id === message.id) - 1]
     if (message.agent) return
     if (!target || !previous || previous.role !== 'user') return
-    await runRequest(target, previous.content, message.kind)
+    await runRequest(target, previous.content, message.kind, previous.referenceFile || '')
   }
   const changeModel = (providerId: string, model: string, kind: ModelKind) => {
     const next = data.providers.find((item) => item.id === providerId)
@@ -405,6 +410,15 @@ export default function App() {
               text={text}
               setText={setText}
               onModel={changeModel}
+              onImportImage={async () => {
+                const targetId = session.id
+                try {
+                  const file = await window.studio.importImage(targetId)
+                  if (file) setReferences((current) => ({ ...current, [targetId]: file }))
+                } catch (reason) {
+                  setError(String(reason), targetId)
+                }
+              }}
               referenceFile={references[session.id]}
               onClearReference={() =>
                 setReferences((current) => ({ ...current, [session.id]: '' }))

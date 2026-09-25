@@ -15,6 +15,7 @@ it('switches language, persists preference, and preserves unknown content', asyn
   expect(t('ui.settings')).toBe('设置')
   setLanguage('en')
   expect(t('ui.settings')).toBe('Settings')
+  expect(t('welcome.providerNotice', { provider: 'Example' })).toContain('Using Example.')
   expect(storage.get('studio.language')).toBe('en')
   expect(document.documentElement.lang).toBe('en')
   expect(translateMessage('Provider returned an unknown error')).toBe(

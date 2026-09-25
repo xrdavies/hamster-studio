@@ -60,7 +60,9 @@ window.studio = {
   sendChat: (sessionId, text, referenceFile) =>
     invoke('generate', { sessionId, text, kind: 'chat', referenceFile }),
   approveImageStep: (sessionId, stepId, allow) => invoke('approve', { sessionId, stepId, allow }),
-  generateImage: (sessionId, text) => invoke('generate', { sessionId, text, kind: 'image' }),
+  generateImage: (sessionId, text, referenceFile) =>
+    invoke('generate', { sessionId, text, kind: 'image', referenceFile }),
+  importImage: (sessionId) => invoke('import_image', { sessionId }),
   stopChat: (id) => invoke('stop_chat', { id }),
   readImage: (file) => invoke('read_image', { file }),
   exportImage: (file) => invoke('export_image', { file }),
