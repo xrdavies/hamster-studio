@@ -36,19 +36,29 @@ export default function CatalogSettings({ onApplied }: { onApplied: () => Promis
   }
   return (
     <div className="catalog-settings">
-      <strong>
-        {t('ui.modelCapabilities')} {state ? `v${state.version}` : ''}
-      </strong>
-      <p>{t('ui.checkGitHubForRuleUpdatesAndApplyAfterConfirmationLocalRulesWorkOffline')}</p>
-      <button className="secondary" disabled={busy} onClick={() => run(false)}>
-        {t(busy ? 'ui.checking' : 'ui.checkRuleUpdates')}
-      </button>
-      {state?.availableVersion && (
-        <button disabled={busy} onClick={() => run(true)}>
-          {t('ui.downloadAndApply')} v{state.availableVersion}
-        </button>
+      <div className="catalog-settings-row">
+        <details className="catalog-details">
+          <summary>
+            {t('ui.modelCapabilities')} {state ? `v${state.version}` : ''}
+          </summary>
+          <p>{t('ui.checkGitHubForRuleUpdatesAndApplyAfterConfirmationLocalRulesWorkOffline')}</p>
+        </details>
+        <div className="catalog-actions">
+          <button className="secondary" disabled={busy} onClick={() => run(false)}>
+            {t(busy ? 'ui.checking' : 'ui.checkRuleUpdates')}
+          </button>
+          {state?.availableVersion && (
+            <button className="secondary" disabled={busy} onClick={() => run(true)}>
+              {t('ui.downloadAndApply')} v{state.availableVersion}
+            </button>
+          )}
+        </div>
+      </div>
+      {status && (
+        <p className="catalog-status" role="status">
+          {translateMessage(status)}
+        </p>
       )}
-      <p role="status">{translateMessage(status)}</p>
     </div>
   )
 }

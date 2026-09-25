@@ -1104,8 +1104,11 @@ select:focus-visible {
   color: #666772;
   text-align: left;
 }
-.settings-nav button.active,
-.settings-nav button:hover {
+.settings-nav button:hover:not(.active) {
+  background: var(--soft);
+  color: var(--ink);
+}
+.settings-nav button.active {
   background: #e9e6fb;
   color: #4f3caa;
 }
@@ -1321,10 +1324,38 @@ fieldset.provider-form {
   margin: 4px;
 }
 .catalog-settings {
-  padding: 16px 0;
-  border-bottom: 1px solid #eee;
-  margin-bottom: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
 }
+.catalog-settings-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.catalog-details {
+  flex: 1;
+  min-width: 0;
+}
+.catalog-details summary {
+  cursor: pointer;
+  color: #666772;
+  padding: 8px 0;
+}
+.catalog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.catalog-actions button {
+  margin: 0;
+}
+.catalog-settings .catalog-status {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
 .catalog-settings p {
   font-size: 13px;
   color: #666;

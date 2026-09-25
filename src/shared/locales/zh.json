@@ -191,5 +191,7 @@
   "welcome.providerNotice": "当前使用 {provider}，你的 API Key 只保存在本机。",
   "images.dropHere": "松开以添加参考图片 · PNG / JPEG / WebP · ≤10 MB",
   "images.dropOne": "每次请拖入一张参考图片",
-  "composer.imageModel": "图片模型"
+  "composer.imageModel": "图片模型",
+  "settings.providers": "模型服务",
+  "settings.about": "关于"
 }

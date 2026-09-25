@@ -325,7 +325,7 @@ export default function SettingsPanel({
     <>
       <div className="settings-title">
         <div>
-          <h3>Providers</h3>
+          <h3>{t('settings.providers')}</h3>
           <p>{t('ui.fetchModelsOnDemandOrAddAndRemoveThemManuallySaveToApplyChanges')}</p>
         </div>
         <button onClick={() => setEditing(makeEditing(emptyProvider))}>
@@ -333,11 +333,6 @@ export default function SettingsPanel({
           {t('ui.add')}
         </button>
       </div>
-      <CatalogSettings
-        onApplied={async () => {
-          refresh(await window.studio.load())
-        }}
-      />
       {data.providers.length === 0 && (
         <div className="settings-empty">{t('ui.noProvidersYet')}</div>
       )}
@@ -385,20 +380,29 @@ export default function SettingsPanel({
       </div>
       <div className="settings-layout">
         <nav className="settings-nav">
-          <button className={page === 'general' ? 'active' : ''} onClick={() => setPage('general')}>
+          <button
+            aria-current={page === 'general' ? 'page' : undefined}
+            className={page === 'general' ? 'active' : ''}
+            onClick={() => setPage('general')}
+          >
             <Languages size={16} />
             {t('ui.general')}
           </button>
           <button
+            aria-current={page === 'providers' ? 'page' : undefined}
             className={page === 'providers' ? 'active' : ''}
             onClick={() => setPage('providers')}
           >
             <Globe size={16} />
-            Providers
+            {t('settings.providers')}
           </button>
-          <button className={page === 'about' ? 'active' : ''} onClick={() => setPage('about')}>
+          <button
+            aria-current={page === 'about' ? 'page' : undefined}
+            className={page === 'about' ? 'active' : ''}
+            onClick={() => setPage('about')}
+          >
             <Info size={16} />
-            About
+            {t('settings.about')}
           </button>
         </nav>
         <div className="settings-content">
@@ -414,6 +418,11 @@ export default function SettingsPanel({
                 <span>{t('ui.language')}</span>
                 <LanguageMenu />
               </div>
+              <CatalogSettings
+                onApplied={async () => {
+                  refresh(await window.studio.load())
+                }}
+              />
               <div className="setting-item">
                 <span>{t('ui.dataStorage')}</span>
                 <strong>{t('ui.storedOnThisDeviceOnly')}</strong>
