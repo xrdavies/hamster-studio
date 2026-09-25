@@ -212,6 +212,7 @@ mod tests {
             .build();
         let mut stream = agent
             .stream_prompt("inspect")
+            .max_turns(MAX_TURNS)
             .history([Message::user("earlier")])
             .await;
         while let Some(item) = stream.next().await {
