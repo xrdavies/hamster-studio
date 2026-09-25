@@ -189,6 +189,18 @@ export default function MessageBubble({
             {t(message.kind === 'image' ? 'ui.generatingImage' : 'ui.thinking')}
           </div>
         )}
+        {message.webStatus && (
+          <div className="vision-context-note" role="status">
+            {t(
+              message.webStatus === 'reading' && message.status === 'streaming'
+                ? 'web.reading'
+                : message.webStatus === 'done'
+                  ? 'web.done'
+                  : 'web.failed',
+            )}
+            {message.webError && <span> · {translateMessage(message.webError)}</span>}
+          </div>
+        )}
         {message.content && (
           <div className="markdown">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>

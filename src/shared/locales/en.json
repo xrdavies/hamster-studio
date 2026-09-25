@@ -200,5 +200,17 @@
   "agent.modelFailed": "Conversation model request failed or timed out. Completed images are preserved; start a new message to continue.",
   "agent.unknownResult": "Request dispatch was attempted, but the outcome is unknown. Stopping or restarting the app does not cancel provider processing; generating again may incur another charge.",
   "agent.repeatWarning": "An identical request or a request with unknown outcome was recorded. Check provider records before confirming; another request may incur another charge.",
-  "agent.errorDetails": "Error details"
+  "agent.errorDetails": "Error details",
+  "web.reading": "Reading webpage…",
+  "web.done": "Webpage read",
+  "web.failed": "Unable to read webpage",
+  "web.invalidUrl": "Use a standard HTTP(S) URL without credentials",
+  "web.networkError": "Webpage connection failed",
+  "web.blockedAddress": "Local, private and reserved addresses are blocked",
+  "web.unsupportedContent": "Only HTML and plain text pages are supported",
+  "web.tooLarge": "Page exceeds the 2 MB limit",
+  "web.emptyContent": "No text found; the page may require login or JavaScript",
+  "web.redirectLimit": "Too many redirects",
+  "web.userLinkRequired": "Only links supplied by the user in this session can be read",
+  "web.timeout": "Webpage reading timed out"
 }

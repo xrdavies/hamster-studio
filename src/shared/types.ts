@@ -52,6 +52,9 @@ export type ImageStep = {
 }
 
 export type Message = {
+  webStatus?: 'reading' | 'done' | 'error'
+  webError?: string
+
   errorDetail?: string
 
   viewedImageIds?: string[]

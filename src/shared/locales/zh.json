@@ -200,5 +200,17 @@
   "agent.modelFailed": "对话模型请求失败或超时。已完成的图片仍保留，可重新发起对话继续。",
   "agent.unknownResult": "请求已尝试发送，但结果未知。停止或重启应用不代表服务端已取消，重新生成可能再次计费。",
   "agent.repeatWarning": "存在相同请求或结果未知的历史请求。再次执行可能重复生成和计费，请检查服务商记录，确认后才会发送。",
-  "agent.errorDetails": "错误详情"
+  "agent.errorDetails": "错误详情",
+  "web.reading": "正在读取网页…",
+  "web.done": "网页已读取",
+  "web.failed": "网页读取失败",
+  "web.invalidUrl": "仅支持不含登录凭据的标准 HTTP(S) 链接",
+  "web.networkError": "网页连接失败",
+  "web.blockedAddress": "不支持本机、内网或保留地址",
+  "web.unsupportedContent": "仅支持 HTML 或纯文本网页",
+  "web.tooLarge": "网页超过 2 MB 限制",
+  "web.emptyContent": "未找到正文，网页可能需要登录或 JavaScript",
+  "web.redirectLimit": "网页重定向次数过多",
+  "web.userLinkRequired": "只能读取用户在当前会话中提供的链接",
+  "web.timeout": "网页读取超时"
 }
