@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/renderer/assets/hamster-logo-256.png" width="256" alt="Hamster Studio logo" />
+  <img src="src/renderer/assets/hamster-logo-256.png" width="128" alt="Hamster Studio logo" />
 </p>
 
 # Hamster Studio
@@ -16,11 +16,11 @@ Hamster Studio is an open-source desktop app for AI chat and image generation. C
 
 ## Download and install
 
-No public release is available yet. You can run the project from source or build a local app using the instructions below.
+Visit [GitHub Releases](https://github.com/xrdavies/hamster-studio/releases) for available packages and release notes. To try changes that have not been released, follow [Development](#development).
 
-The current packaging target is **macOS DMG**; local builds have been verified on **Apple Silicon (arm64)**. Windows, Linux, and Intel Mac packages are not currently provided. Once releases are available, download the DMG for your architecture, open it, and drag Hamster Studio into Applications.
+The current packaging target is **macOS DMG**; local builds have been verified on **Apple Silicon (arm64)**. Windows, Linux, and Intel Mac packages are not currently provided. Download a matching DMG, open it, and drag Hamster Studio into Applications.
 
-Local builds without an Apple Developer certificate are unsigned. Release signing and notarization depend on the repository's Apple credentials; consult the release notes for the status of each published package. See [BUILD.md](BUILD.md) for packaging details.
+Local builds without an Apple Developer certificate are unsigned. Release signing and notarization depend on the repository's Apple credentials; consult the release notes for the status of each published package. See [BUILD.md](BUILD.md) for local packaging details.
 
 ## Quick start
 
@@ -32,13 +32,19 @@ Local builds without an Apple Developer certificate are unsigned. Release signin
 
 Use **Enter** to send and **Shift + Enter** for a new line. Change the interface language under **Settings → General → Language**; your choice is saved locally.
 
-Providers must support the OpenAI Compatible endpoints used by the app: `/models`, streaming `/chat/completions`, and `/images/generations` for image generation. Model availability and usage charges are determined by your provider. For image generation, select a supported model such as `gpt-image-2` if your provider offers it.
+## Image creation and webpage reading
 
-## Images and webpages
+- **Create through conversation:** use a chat model with tool-calling support and select an image model in the composer’s image settings. Inspecting images also requires a vision-capable chat model.
+- **Add references:** select or drag in up to 6 PNG, JPEG or WebP images, each up to 10 MB. Ask to combine references or process assets separately.
+- **Edit a region:** open the brush action on a reference attachment, paint the area to change, then describe your edit. The image provider must support mask editing; preservation outside the region depends on the model.
+- **Preview and export:** click a result to view it at full size, export it, or use it as a reference for another edit. Originals are preserved.
+- **Read a webpage:** provide a public URL and ask for a summary. HTML and plain text are supported; login pages, JavaScript rendering and PDFs are not.
 
-Use a tool-capable chat model to create and edit images conversationally; inspecting images also requires vision support. Select an image model in the composer settings. Attach or drag in PNG, JPEG or WebP files up to 10 MB. Click an image to preview it or use its export action.
+Interrupted replies can offer a continuation action. Image requests with uncertain results require confirmation before another paid attempt.
 
-Provide a public webpage link and ask for a summary. HTML and plain text are supported; login pages, JavaScript rendering and PDFs are not. Interrupted replies can offer a continuation action; uncertain image requests require confirmation before another paid attempt.
+### Provider compatibility
+
+Providers need the endpoints required by your workflow: `/models` for model discovery, streaming `/chat/completions` for chat, `/images/generations` for generation, and `/images/edits` for reference images and region edits. Support for tool calling, vision, multiple references and masks varies by provider and model. Model availability and usage charges are determined by your provider.
 
 ## Data and privacy
 
@@ -67,14 +73,32 @@ npm run dev
 | `npm run format`         | Format source and documentation with Prettier  |
 | `npm run format:check`   | Check formatting                               |
 | `npm run typecheck`      | Check TypeScript types                         |
-| `npm test`               | Run tests                                      |
+| `npm test`               | Run frontend tests                             |
+| `npm run test:rust`      | Run backend tests                              |
 | `npm run build:renderer` | Build the React frontend                       |
 | `npm run build:dir`      | Compile the native executable without bundling |
 | `npm run build`          | Build the Tauri application and macOS DMG      |
 
-Build output is written to `src-tauri/target/release/bundle/`. See [BUILD.md](BUILD.md) for signing, publishing, and asset generation. Translation dictionaries live in `src/shared/locales/`; model capability rules and their update workflow are described in [MODEL_CAPABILITIES.md](MODEL_CAPABILITIES.md).
+Build output is written to `src-tauri/target/release/bundle/`. Translation dictionaries live in `src/shared/locales/`. The Agent system prompt lives in `src-tauri/prompts/image-agent.txt` and is embedded at compile time.
 
-For maintainers: see the [release guide (Chinese)](RELEASE.md) for versioning, tags, signing, and publishing a release.
+### Release
+
+From a clean `main` checkout:
+
+```bash
+npm run release -- patch
+```
+
+Use `minor`, `major` or an explicit version instead of `patch` when needed. The command prepares version changes, commits, tags and pushes. GitHub Actions then builds, signs and publishes the release; signing credentials must be configured first.
+
+### Documentation
+
+| Document                                    | Contents                                                 |
+| ------------------------------------------- | -------------------------------------------------------- |
+| [Build guide](BUILD.md)                     | Local builds, developer tools and implementation details |
+| [Release guide](RELEASE.md)                 | Release preparation, signing and updater packages        |
+| [Model capabilities](MODEL_CAPABILITIES.md) | Classification rules and catalog updates                 |
+| [Changelog](CHANGELOG.md)                   | Development changes, maintained in Chinese               |
 
 ## Contributing
 
@@ -91,9 +115,3 @@ Thanks to Tauri, React, Vite, Lucide, rusqlite, react-markdown, and the other op
 ## License
 
 [MIT](LICENSE) · Copyright © 2026 Frozen.
-
-## Release
-
-From a clean `main` checkout, run `npm run release -- patch` (or `minor`, `major`, an explicit version). This updates versions, commits, tags and pushes; GitHub Actions builds and publishes. See [RELEASE.md](RELEASE.md) for signing setup.
-
-Development changes are maintained in [CHANGELOG.md](CHANGELOG.md) (Chinese). The built-in Agent prompt lives in `src-tauri/prompts/image-agent.txt` and is embedded at compile time.

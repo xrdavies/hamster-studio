@@ -16,9 +16,9 @@ Hamster Studio 是一款开源的桌面 AI 聊天与图片生成工具。通过 
 
 ## 下载与安装
 
-目前尚未发布公开版本，可以按照下方说明从源码运行或构建本地应用。
+前往 [GitHub Releases](https://github.com/xrdavies/hamster-studio/releases) 查看可用安装包和版本说明。体验尚未发布的修改，可参照[本地开发](#本地开发)从源码运行。
 
-当前打包目标为 **macOS DMG**，本地构建已在 **Apple Silicon（arm64）** 上验证。暂未提供 Windows、Linux 或 Intel Mac 安装包。正式版本发布后，下载对应架构的 DMG，打开后将 Hamster Studio 拖入“应用程序”即可安装。
+当前打包目标为 **macOS DMG**，本地构建已在 **Apple Silicon（arm64）** 上验证。暂未提供 Windows、Linux 或 Intel Mac 安装包。下载对应架构的 DMG，打开后将 Hamster Studio 拖入“应用程序”即可安装。
 
 未配置 Apple Developer 证书的本地构建为未签名版本。正式发布包的签名和公证取决于仓库配置的 Apple 凭证，请以各版本发布说明为准。详细打包步骤见 [BUILD.md](BUILD.md)。
 
@@ -32,13 +32,19 @@ Hamster Studio 是一款开源的桌面 AI 聊天与图片生成工具。通过 
 
 使用 **Enter** 发送、**Shift + Enter** 换行。在 **设置 → 通用 → 语言** 中切换界面语言，选择会保存在本机。
 
-Provider 需要支持应用使用的 OpenAI Compatible 接口：`/models`、流式 `/chat/completions`，以及用于图片生成的 `/images/generations`。模型是否可用及调用费用由服务商决定。生成图片时，请选择服务商支持的图片模型，例如其提供的 `gpt-image-2`。
+## 图片创作与网页读取
 
-## 图片与网页
+- **对话创作**：选择支持工具调用的聊天模型，在输入框的图片设置中指定图片模型。看图还需要聊天模型支持视觉输入。
+- **添加参考图**：一次选择或拖入多张 PNG、JPEG、WebP 图片，最多 6 张，每张不超过 10 MB。可要求融合参考图创作，也可要求分别处理素材。
+- **局部修改**：点击参考图附件上的画笔，涂抹目标区域，再输入修改要求。图片服务需要支持遮罩编辑，区域外的保留效果取决于模型。
+- **预览与导出**：点击生成结果查看大图，导出保存，或作为参考图继续编辑；原图会保留。
+- **读取网页**：提供公开网页链接并要求总结。支持 HTML 和纯文本，暂不支持登录页、JavaScript 渲染和 PDF。
 
-选择支持工具调用的聊天模型，可通过对话创作和编辑图片；看图还需要模型支持视觉输入。在输入框的图片设置中选择图片模型，点击添加或拖入 PNG、JPEG、WebP 图片（不超过 10 MB）。点击图片可预览，也可通过导出按钮保存。
+回复中断后可按提示继续；图片结果未知时，再次付费生成需要确认。
 
-提供公开网页链接并要求总结，即可读取 HTML 或纯文本；暂不支持登录页、JavaScript 渲染和 PDF。回复中断后可按提示继续；图片结果未知时，再次付费生成需要确认。
+### Provider 兼容性
+
+Provider 需要支持对应功能使用的接口：模型获取使用 `/models`，聊天使用流式 `/chat/completions`，图片生成使用 `/images/generations`，参考图与局部修改使用 `/images/edits`。工具调用、视觉、多参考图和遮罩支持因服务商及模型而异。模型是否可用及调用费用由服务商决定。
 
 ## 数据与隐私
 
@@ -67,14 +73,32 @@ npm run dev
 | `npm run format`         | 使用 Prettier 格式化代码和文档 |
 | `npm run format:check`   | 检查代码格式                   |
 | `npm run typecheck`      | 检查 TypeScript 类型           |
-| `npm test`               | 运行测试                       |
+| `npm test`               | 运行前端测试                   |
+| `npm run test:rust`      | 运行后端测试                   |
 | `npm run build:renderer` | 构建 React 前端                |
 | `npm run build:dir`      | 编译原生程序，不打包           |
 | `npm run build`          | 构建 Tauri 应用与 DMG          |
 
-应用产物位于 `src-tauri/target/release/bundle/`。签名、发布与图标生成详见 [BUILD.md](BUILD.md)。翻译文案位于 `src/shared/locales/`，模型能力规则及更新方法见 [MODEL_CAPABILITIES.md](MODEL_CAPABILITIES.md)。
+应用产物位于 `src-tauri/target/release/bundle/`。翻译文案位于 `src/shared/locales/`。Agent 系统提示词位于 `src-tauri/prompts/image-agent.txt`，构建时嵌入程序。
 
-维护者发布新版本时，请按 [发布流程](RELEASE.md) 完成版本准备、打标签、签名验证与正式发布。
+### 发布
+
+在干净的 `main` 分支执行：
+
+```bash
+npm run release -- patch
+```
+
+也可将 `patch` 替换为 `minor`、`major` 或指定版本。命令负责更新版本、提交、打标签并推送；GitHub Actions 随后自动构建、签名和发布，需事先配置签名凭据。
+
+### 相关文档
+
+| 文档                                  | 内容                            |
+| ------------------------------------- | ------------------------------- |
+| [构建说明](BUILD.md)                  | 本地构建、开发者工具与实现细节  |
+| [发布流程](RELEASE.md)                | 发布准备、签名及 updater 更新包 |
+| [模型能力配置](MODEL_CAPABILITIES.md) | 模型分类规则与配置表更新        |
+| [变更记录](CHANGELOG.md)              | 开发变更，统一使用中文维护      |
 
 ## 参与贡献
 
@@ -91,9 +115,3 @@ npm run dev
 ## 许可证
 
 [MIT](LICENSE) · Copyright © 2026 Frozen。
-
-## 发布
-
-在干净的 `main` 分支执行 `npm run release -- patch`，也可使用 `minor`、`major` 或指定版本。命令更新版本、提交、打标签并推送；GitHub Actions 自动构建和发布。签名配置见 [RELEASE.md](RELEASE.md)。
-
-开发变更统一记录于 [CHANGELOG.md](CHANGELOG.md)。内置 Agent 提示词位于 `src-tauri/prompts/image-agent.txt`，构建时嵌入程序。
