@@ -208,41 +208,47 @@ export default function Composer({
             {imageSettingError && <p className="form-error">{imageSettingError}</p>}
           </div>
         )}
-        {referenceFiles.map((file, index) => (
-          <div className="reference-chip" key={file}>
-            {referenceSrc[file] && <img src={referenceSrc[file]} alt={t('ui.referenceImage')} />}
-            <button
-              type="button"
-              disabled={busy}
-              title={t('images.editRegion')}
-              aria-label={t('images.editRegion')}
-              onClick={() => setEditing(file)}
-            >
-              <Paintbrush size={14} />
-            </button>
-            {mask?.file === file && (
+        <div className="reference-list">
+          {referenceFiles.map((file, index) => (
+            <div className="reference-chip" key={file}>
+              {referenceSrc[file] && <img src={referenceSrc[file]} alt={t('ui.referenceImage')} />}
+              <span className="reference-label">
+                {t('ui.referenceImage')} {index + 1}
+              </span>
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => onMask(undefined)}
-                title={t('images.removeRegion')}
+                className={mask?.file === file ? 'reference-edit selected' : 'reference-edit'}
+                aria-pressed={mask?.file === file}
+                title={t('images.editRegion')}
+                aria-label={t('images.editRegion')}
+                onClick={() => setEditing(file)}
               >
-                {t('images.regionSelected')} <X size={12} />
+                <Paintbrush size={14} />
               </button>
-            )}
-            <span>
-              {t('ui.referenceImage')} {index + 1}
-            </span>
-            <button
-              type="button"
-              aria-label={t('ui.removeReferenceImage')}
-              onClick={() => onClearReference(file)}
-              disabled={busy}
-            >
-              <X size={14} />
-            </button>
-          </div>
-        ))}
+              {mask?.file === file && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onMask(undefined)}
+                  className="reference-region-status"
+                  aria-label={t('images.removeRegion')}
+                  title={t('images.removeRegion')}
+                >
+                  {t('images.regionSelected')} <X size={12} />
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label={t('ui.removeReferenceImage')}
+                onClick={() => onClearReference(file)}
+                disabled={busy}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
         <div className="composer-input">
           <textarea
             value={text}

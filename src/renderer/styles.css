@@ -1455,8 +1455,12 @@ fieldset.provider-form {
 .reference-chip {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
   font-size: 12px;
 }
 .reference-chip img,
@@ -1715,9 +1719,32 @@ button svg {
   object-fit: contain;
 }
 
-.reference-chip {
-  display: inline-flex;
-  margin-right: 8px;
+.reference-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.reference-list:not(:empty) {
+  padding: 8px 6px;
+}
+.reference-chip > img,
+.reference-chip > button {
+  flex-shrink: 0;
+}
+.reference-label {
+  white-space: nowrap;
+}
+.reference-chip > .reference-region-status {
+  width: auto;
+  gap: 5px;
+  padding: 0 8px;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.reference-chip > .reference-region-status,
+.reference-chip > .reference-edit.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .region-editor {
   width: min(760px, 92vw);
