@@ -3,6 +3,10 @@ const mocks = vi.hoisted(() => ({
   invoke: vi.fn(async () => {}),
   check: vi.fn(),
   relaunch: vi.fn(),
+  drag: vi.fn(),
+}))
+vi.mock('@tauri-apps/api/webview', () => ({
+  getCurrentWebview: () => ({ onDragDropEvent: mocks.drag }),
 }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: mocks.invoke }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }))
@@ -59,5 +63,35 @@ it('routes image references and approvals to their own session', async () => {
     sessionId: 'session-b',
     stepId: 'step-b',
     allow: false,
+  })
+})
+
+it('cleans up late drag subscriptions and scopes dropped imports', async () => {
+  vi.stubEnv('DEV', true)
+  vi.stubGlobal('window', {})
+  let handler: (event: { payload: unknown }) => void = () => {}
+  let resolve!: (off: () => void) => void
+  mocks.drag.mockImplementation((callback) => {
+    handler = callback
+    return new Promise((done) => {
+      resolve = done
+    })
+  })
+  await import('./studio')
+  const callback = vi.fn()
+  const off = window.studio.onImageDrag(callback)
+  handler({ payload: { type: 'leave' } })
+  expect(callback).toHaveBeenCalledTimes(1)
+  off()
+  const nativeOff = vi.fn()
+  resolve(nativeOff)
+  await Promise.resolve()
+  expect(nativeOff).toHaveBeenCalledOnce()
+  handler({ payload: { type: 'leave' } })
+  expect(callback).toHaveBeenCalledTimes(1)
+  await window.studio.importDroppedImage('session-a', '/tmp/local.png')
+  expect(mocks.invoke).toHaveBeenLastCalledWith('import_dropped_image', {
+    sessionId: 'session-a',
+    path: '/tmp/local.png',
   })
 })

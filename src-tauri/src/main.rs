@@ -205,6 +205,14 @@ async fn import_image(app: tauri::AppHandle, s: State<'_, AppState>, session_id:
     app.dialog().file().add_filter("Images", &["png", "jpg", "jpeg", "webp"]).pick_file(move |path| { let _ = sender.send(path); });
     let Some(file) = receiver.await.map_err(|e| e.to_string())? else { return Ok(None) };
     let path = file.into_path().map_err(|e| e.to_string())?;
+    save_imported_image(&s, &session_id, path).map(Some)
+}
+#[tauri::command]
+fn import_dropped_image(s: State<AppState>, session_id: String, path: PathBuf) -> Result<String> {
+    save_imported_image(&s, &session_id, path)
+}
+fn save_imported_image(s: &AppState, session_id: &str, path: PathBuf) -> Result<String> {
+    lock(&s.store)?.get("sessions", session_id)?;
     if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() > 20 * 1024 * 1024 { return Err("images.tooLarge".into()); }
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
     let extension = imported_extension(&bytes)?;
@@ -217,7 +225,7 @@ async fn import_image(app: tauri::AppHandle, s: State<'_, AppState>, session_id:
         let _ = std::fs::remove_file(destination);
         return Err(error);
     }
-    Ok(Some(name))
+    Ok(name)
 }
 #[tauri::command]
 fn read_image(s: State<AppState>, file: String) -> Result<String> {
@@ -366,6 +374,7 @@ fn main() {
             install_catalog,
             read_image,
             import_image,
+            import_dropped_image,
             export_image,
             stop_chat,
             can_install,

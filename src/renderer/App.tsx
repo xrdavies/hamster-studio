@@ -132,6 +132,41 @@ export default function App() {
     return () => cancelAnimationFrame(frame)
   }, [session?.id, messages.length, messages.at(-1)?.content])
 
+  const dropArea = useRef<HTMLElement>(null)
+  const [draggingImage, setDraggingImage] = useState(false)
+  const dropImporting = useRef(false)
+  useEffect(() => {
+    setDraggingImage(false)
+    return window.studio.onImageDrag((event) => {
+      if (event.type === 'leave') {
+        setDraggingImage(false)
+        return
+      }
+      const rect = dropArea.current?.getBoundingClientRect()
+      const x = event.position.x / window.devicePixelRatio
+      const y = event.position.y / window.devicePixelRatio
+      const inside =
+        !!rect && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+      const available =
+        inside && !!session && !busy && !settings && !confirm && !dropImporting.current
+      setDraggingImage(available && event.type !== 'drop')
+      if (event.type !== 'drop' || !available) return
+      if (event.paths.length !== 1) {
+        setError(t('images.dropOne'))
+        return
+      }
+      const targetId = session.id
+      dropImporting.current = true
+      void window.studio
+        .importDroppedImage(targetId, event.paths[0])
+        .then((file) => setReferences((current) => ({ ...current, [targetId]: file })))
+        .catch((reason) => setError(String(reason), targetId))
+        .finally(() => {
+          dropImporting.current = false
+        })
+    })
+  }, [session?.id, busy, settings, confirm])
+
   const notify = (message: string) => {
     setToast(message)
     window.setTimeout(() => setToast((current) => (current === message ? '' : current)), 1800)
@@ -308,7 +343,12 @@ export default function App() {
         }}
         onUpdate={updateSpecificSession}
       />
-      <main className="main">
+      <main className="main" ref={dropArea}>
+        {draggingImage && (
+          <div className="image-drop-overlay" role="status">
+            {t('images.dropHere')}
+          </div>
+        )}
         {!session ? (
           <EmptyState
             onSettings={() => {

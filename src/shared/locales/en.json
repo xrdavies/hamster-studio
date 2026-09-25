@@ -188,5 +188,7 @@
   "images.importing": "Importing…",
   "images.tooLarge": "Images must be 20 MB or smaller",
   "images.unsupportedFormat": "Select a PNG, JPEG or WebP image",
-  "welcome.providerNotice": "Using {provider}. Your API key is stored only on this device."
+  "welcome.providerNotice": "Using {provider}. Your API key is stored only on this device.",
+  "images.dropHere": "Drop to attach image · PNG / JPEG / WebP · ≤20 MB",
+  "images.dropOne": "Drop one reference image at a time"
 }
