@@ -1,3 +1,5 @@
+import SkillManager from './components/SkillManager'
+import ConfirmDialog from './components/ConfirmDialog'
 import SkillPanel from './components/SkillPanel'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
@@ -195,7 +197,7 @@ it('clears all provider model types in the draft without changing saved data', (
   expect(clearButton().props.disabled).toBe(true)
 })
 
-it('separates skill draft editing from selection and preserves edits when returning', () => {
+it('keeps manager independent from selection and protects unsaved changes', () => {
   const draft = {
     id: 'draft-test',
     version: 1,
@@ -204,10 +206,10 @@ it('separates skill draft editing from selection and preserves edits when return
     tools: [],
     instructions: 'Instructions',
   }
-  const props = { draft, onSelect: vi.fn(), onClose: vi.fn() }
+  const props = { draft, onRun: vi.fn(), onClose: vi.fn() }
   const panel = () => {
     hooks.index = 0
-    return SkillPanel(props)
+    return SkillManager(props)
   }
   const buttons = (node: any): any[] => {
     if (!node || typeof node !== 'object') return []
@@ -216,13 +218,18 @@ it('separates skill draft editing from selection and preserves edits when return
       ...[node.props?.children].flat(Infinity).flatMap(buttons),
     ]
   }
-  expect(find(panel(), 'section')?.props.className).toBe('skill-editor')
+  expect(find(panel(), 'dialog')).toBeUndefined()
+  find(panel(), 'input')!.props.onChange({ target: { value: 'Edited' } })
   buttons(panel())
-    .find((button) => button.props['aria-label'] === 'skills.back')
+    .find((button) => button.props.children?.includes('skills.returnChat'))
     .props.onClick()
-  expect(find(panel(), 'section')).toBeUndefined()
-  buttons(panel())
-    .find((button) => button.props.children === 'skills.resumeDraft')
-    .props.onClick()
-  expect(find(panel(), 'input')?.props.value).toBe('Draft')
+  expect(props.onClose).not.toHaveBeenCalled()
+  expect(find(panel(), ConfirmDialog)).toBeDefined()
+  find(panel(), ConfirmDialog)!.props.onCancel()
+  expect(find(panel(), 'input')!.props.value).toBe('Edited')
+  hooks.values = []
+  hooks.index = 0
+  const picker = SkillPanel({ selected: draft, onClose: vi.fn(), onSelect: vi.fn() })
+  expect(find(picker, 'textarea')).toBeUndefined()
+  expect(buttons(picker).some((button) => button.props['aria-pressed'] === true)).toBe(true)
 })

@@ -136,7 +136,7 @@ pub fn preflight_skill(state: State<AppState>, session_id: String, images: usize
 }
 #[tauri::command]
 pub fn delete_skill(state: State<AppState>, id: String) -> Result<()> {
-    if id.starts_with("builtin-") || id.trim().is_empty() { return Err("Cannot delete a built-in skill".into()); }
+    if uuid::Uuid::parse_str(&id).is_err() { return Err("Cannot delete a built-in skill".into()); }
     let path = state.directory.join("skills").join(format!("{id}.json"));
     std::fs::remove_file(path).map_err(|e| e.to_string())
 }

@@ -1,3 +1,4 @@
+import SkillManager from './components/SkillManager'
 import SkillPanel from './components/SkillPanel'
 import hamsterLogo from './assets/hamster-logo-256.png'
 import UpdateNotice from './components/UpdateNotice'
@@ -386,11 +387,32 @@ export default function App() {
     })
   }
 
-  const [skillPanel, setSkillPanel] = useState<{
-    sessionId: string
-    draft?: Skill
-    management?: boolean
-  } | null>(null)
+  const [skillPanel, setSkillPanel] = useState<{ sessionId: string } | null>(null)
+  const [skillManager, setSkillManager] = useState<{ draft?: Skill } | null>(null)
+  const [showSkillManager, setShowSkillManager] = useState(false)
+  async function runSkillInNewSession(skill: Skill) {
+    const provider = data.providers.find((p) => p.chatModels.length)
+    if (!provider) throw new Error(t('ui.selectAChatModelFirst'))
+    const id = newId()
+    await window.studio.saveSession({
+      id,
+      title: skill.name,
+      providerId: provider.id,
+      chatModel: provider.chatModels[0],
+      modelKind: 'chat',
+      imageProviderId: session?.imageProviderId || provider.id,
+      imageModel: session?.imageModel || provider.imageModels[0] || '',
+      skill,
+      systemPrompt: '',
+    })
+    await refreshData()
+    setSessionId(id)
+    setShowSkillManager(false)
+    notify(t(skill.id === 'builtin-creator' ? 'skills.creatorNext' : 'skills.testHelp'))
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLTextAreaElement>('.composer-input textarea')?.focus(),
+    )
+  }
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const isMac = /Mac/.test(navigator.platform)
   return (
@@ -407,11 +429,8 @@ export default function App() {
       {skillPanel && (
         <SkillPanel
           selected={data.sessions.find((item) => item.id === skillPanel.sessionId)?.skill}
-          draft={skillPanel.draft}
-          management={skillPanel.management}
           onClose={() => setSkillPanel(null)}
           onSelect={async (skill) => {
-            if (skillPanel.management) throw new Error('skills.manageOnly')
             if (activeRequests.current.has(skillPanel.sessionId)) throw new Error(t('skills.busy'))
             await window.studio.saveSession({ id: skillPanel.sessionId, skill })
             await refreshData()
@@ -422,30 +441,45 @@ export default function App() {
           }}
         />
       )}
-      <SessionSidebar
-        data={data}
-        session={session}
-        search={search}
-        setSearch={setSearch}
-        searchRef={searchRef}
-        showArchived={showArchived}
-        setShowArchived={setShowArchived}
-        visibleSessions={visibleSessions}
-        onSelect={(id) => {
-          followBottom.current = true
-          setSessionId(id)
-          requestAnimationFrame(scrollBottom)
-        }}
-        onDelete={deleteSession}
-        onNew={createSession}
-        onSkills={() => setSkillPanel({ sessionId: session?.id || '', management: true })}
-        onSettings={() => {
-          setSettingsPage('general')
-          setSettings(true)
-        }}
-        onUpdate={updateSpecificSession}
-      />
-      <main className="main" ref={dropArea}>
+      {skillManager && (
+        <div className="skill-manager-slot" hidden={!showSkillManager}>
+          <SkillManager
+            key={skillManager.draft?.id || 'library'}
+            draft={skillManager.draft}
+            onClose={() => setShowSkillManager(false)}
+            onRun={runSkillInNewSession}
+          />
+        </div>
+      )}
+      <div className="chat-sidebar-slot" hidden={showSkillManager}>
+        <SessionSidebar
+          data={data}
+          session={session}
+          search={search}
+          setSearch={setSearch}
+          searchRef={searchRef}
+          showArchived={showArchived}
+          setShowArchived={setShowArchived}
+          visibleSessions={visibleSessions}
+          onSelect={(id) => {
+            followBottom.current = true
+            setSessionId(id)
+            requestAnimationFrame(scrollBottom)
+          }}
+          onDelete={deleteSession}
+          onNew={createSession}
+          onSkills={() => {
+            setSkillManager((current) => current || {})
+            setShowSkillManager(true)
+          }}
+          onSettings={() => {
+            setSettingsPage('general')
+            setSettings(true)
+          }}
+          onUpdate={updateSpecificSession}
+        />
+      </div>
+      <main className="main" hidden={showSkillManager} ref={dropArea}>
         <header className="conversation-toolbar">
           <button
             className="sidebar-toggle"
@@ -502,7 +536,10 @@ export default function App() {
                   <MessageBubble
                     key={item.id}
                     message={item}
-                    onSkillDraft={(draft) => setSkillPanel({ sessionId: item.sessionId, draft })}
+                    onSkillDraft={(draft) => {
+                      setSkillManager({ draft })
+                      setShowSkillManager(true)
+                    }}
                     onRetry={retry}
                     onRetryStep={(message, stepId) =>
                       askConfirm(t('images.retryMissing'), t('images.retryNotice'), async () => {

@@ -281,5 +281,17 @@
   "skills.manageHelp": "Manage built-in and local Skills. Copy a workflow to edit it, or create a new one with Skill Creator.",
   "skills.delete": "Delete Skill",
   "skills.manageOnly": "Select a Skill from a conversation to use it.",
-  "skills.deleteHelp": "Delete this local Skill? Existing sessions keep their saved snapshots."
+  "skills.deleteHelp": "Delete this local Skill? Existing sessions keep their saved snapshots.",
+  "skills.builtin": "Built-in Skills",
+  "skills.mine": "My Skills",
+  "skills.emptyLibrary": "No local skills yet.",
+  "skills.returnChat": "Back to conversations",
+  "skills.useCreator": "Create with Skill Creator",
+  "skills.testNewChat": "Try in a new conversation",
+  "skills.readOnly": "Built-in workflow · read only",
+  "skills.snapshotHelp": "Save a new copy; existing sessions keep their snapshots.",
+  "skills.unsaved": "Unsaved changes",
+  "skills.discardHelp": "Discard unsaved changes and continue?",
+  "skills.pick": "Choose a Skill for this conversation",
+  "skills.creatorDescription": "Design and refine reusable workflows through conversation"
 }

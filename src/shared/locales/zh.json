@@ -281,5 +281,17 @@
   "skills.manageHelp": "管理内置和本地 Skill。可复制流程进行编辑，也可以使用 Skill Creator 创建新的流程。",
   "skills.delete": "删除 Skill",
   "skills.manageOnly": "请从具体会话中选择 Skill 才能使用。",
-  "skills.deleteHelp": "删除这个本地 Skill？已有会话会保留已保存的快照。"
+  "skills.deleteHelp": "删除这个本地 Skill？已有会话会保留已保存的快照。",
+  "skills.builtin": "内置 Skills",
+  "skills.mine": "我的 Skills",
+  "skills.emptyLibrary": "还没有自定义 Skill。",
+  "skills.returnChat": "返回会话",
+  "skills.useCreator": "使用 Creator 生成草稿",
+  "skills.testNewChat": "在新会话中试运行",
+  "skills.readOnly": "内置流程 · 只读",
+  "skills.snapshotHelp": "保存为新副本，已有会话保留原快照。",
+  "skills.unsaved": "未保存修改",
+  "skills.discardHelp": "放弃未保存的修改并继续？",
+  "skills.pick": "选择当前会话的 Skill",
+  "skills.creatorDescription": "通过对话设计和完善可复用的创作流程"
 }

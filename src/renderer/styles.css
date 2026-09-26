@@ -1992,3 +1992,133 @@ button svg {
 .confirm-dialog > p {
   white-space: pre-line;
 }
+
+[hidden] {
+  display: none !important;
+}
+.chat-sidebar-slot {
+  min-height: 0;
+  display: flex;
+}
+.chat-sidebar-slot .sidebar {
+  width: 100%;
+  min-height: 0;
+}
+.sidebar-collapsed .chat-sidebar-slot {
+  display: none;
+}
+.skill-manager-slot {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-height: 0;
+}
+.skill-manager {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+}
+.skill-manager-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.skill-manager-header h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 18px;
+}
+.skill-manager-header button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.skill-manager-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+}
+.skill-library {
+  padding: 16px;
+  overflow: auto;
+  background: var(--soft);
+  border-right: 1px solid var(--line);
+}
+.skill-library h3 {
+  font-size: 12px;
+  color: #686874;
+}
+.skill-library button {
+  display: grid;
+  gap: 5px;
+  text-align: left;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+}
+.skill-library small {
+  color: #686874;
+  font-size: 12px;
+}
+.skill-library button[aria-current='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.skill-manager-content {
+  overflow: auto;
+  padding: 24px;
+}
+.skill-editor-heading h2 {
+  margin: 0 0 6px;
+}
+.skill-editor-heading span {
+  color: #686874;
+  font-size: 12px;
+}
+.skill-editor-actions {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+}
+.skill-editor-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.skill-editor-fields textarea {
+  min-height: 360px;
+  resize: vertical;
+  line-height: 1.6;
+}
+.skill-editor-fields:disabled input,
+.skill-editor-fields:disabled textarea {
+  color: var(--ink);
+  opacity: 1;
+}
+.skill-manager-footer {
+  position: sticky;
+  bottom: -24px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  margin-top: 20px;
+}
+.skill-manager-footer span {
+  flex: 1;
+  font-size: 12px;
+  color: #686874;
+}
+.skill-manager-empty {
+  padding: 48px;
+  text-align: center;
+}
