@@ -27,6 +27,7 @@ pub(crate) struct Run {
     image_key: Option<Result<String>>,
     reference: Vec<String>,
     mask_file: Option<String>,
+    marker_file: Option<String>,
     viewed: Mutex<Vec<String>>,
 }
 impl Run {
@@ -192,7 +193,7 @@ impl ImageTool {
             let mut files = Vec::new();
             for _ in 0..args.count {
                 run.update(|o| { let step = step_mut(o, &step_id); step["dispatchState"] = json!("unknown"); step["dispatchedAt"] = json!(now()); })?;
-                let file = requests::create_image(&state, &provider, &model, &secret, &args.prompt, &sources, run.mask_file.as_deref(), None).await?;
+                let file = requests::create_image(&state, &provider, &model, &secret, &args.prompt, &sources, run.mask_file.as_deref(), run.marker_file.as_deref()).await?;
                 files.push(file.clone());
                 run.update(|o| {
                     o["imageFiles"].as_array_mut().unwrap().push(json!(file));
@@ -243,7 +244,7 @@ pub async fn retry_image_step(app: tauri::AppHandle, state: State<'_, AppState>,
         active.insert(session_id.clone(), token.clone());
     }
     let output = json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":"chat","agent":true,"content":"","imageFiles":[],"steps":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"streaming","error":"","retryOfStep":step_id});
-    let run = Arc::new(Run {app:app.clone(), session_id:session_id.clone(),output:Mutex::new(output),image_provider:Some(provider),image_model:model,image_key:Some(Ok(secret)),reference:reference.clone(),mask_file,viewed:Mutex::new(vec![])});
+    let run = Arc::new(Run {app:app.clone(), session_id:session_id.clone(),output:Mutex::new(output),image_provider:Some(provider),image_model:model,image_key:Some(Ok(secret)),reference:reference.clone(),mask_file,marker_file:None,viewed:Mutex::new(vec![])});
     let args = ImageArgs {prompt:string(step,"prompt").into(),count,output_mode:Some(if count > 1 {"variants"} else if reference.len() == 1 {"individual"} else {"compose"}.into()),source_image_ids:Some(reference),source_image_id:None};
     let tool = ImageTool(run.clone());
     let result = tokio::select! {
@@ -362,6 +363,7 @@ pub async fn generate(
     text: String,
     reference: Vec<String>,
     mask_file: Option<String>,
+    marker_file: Option<String>,
     resume_id: Option<String>,
 ) -> Result<Value> {
     let started = std::time::Instant::now();
@@ -405,11 +407,13 @@ pub async fn generate(
             output["skill"] = json!(skill);
             let reference = if resumed.is_some() { reference_files(&output) } else {reference.clone()};
             let mask_file = if resumed.is_some() { output["maskFile"].as_str().map(str::to_owned) } else { mask_file.clone() };
+            let marker_file = if resumed.is_some() { output["markerFile"].as_str().map(str::to_owned) } else { marker_file.clone() };
             crate::validate_edit_mask(&state, &reference, mask_file.as_deref())?;
             if let Some(skill) = &skill {
                 output["skillWarnings"] = json!(crate::skills::preflight(skill, reference.len(), mask_file.is_some(), image.is_some())?);
             }
             output["maskFile"] = json!(mask_file);
+            output["markerFile"] = json!(marker_file);
             output["referenceFiles"] = json!(reference);
             let history_offset = output["historyOffset"].as_u64().map(|n|n as usize).unwrap_or(past.len());
             output["historyOffset"] = json!(history_offset);
@@ -425,10 +429,10 @@ pub async fn generate(
                 }
                 output["status"] = json!("streaming"); output["error"] = json!(""); output["errorDetail"] = json!(""); output["canContinue"] = json!(false);
             }
-            let current = Arc::new(Run {app:app.clone(),session_id:session_id.clone(),output:Mutex::new(output),image_provider:image.as_ref().map(|(p,_)|p.clone()),image_model:image.map(|(_,m)|m).unwrap_or_default(),image_key,mask_file:mask_file.clone(),reference:reference.clone(),viewed:Mutex::new(reference.iter().cloned().collect())});
+            let current = Arc::new(Run {app:app.clone(),session_id:session_id.clone(),output:Mutex::new(output),image_provider:image.as_ref().map(|(p,_)|p.clone()),image_model:image.map(|(_,m)|m).unwrap_or_default(),image_key,mask_file:mask_file.clone(),marker_file:marker_file.clone(),reference:reference.clone(),viewed:Mutex::new(reference.iter().cloned().collect())});
             run = Some(current.clone());
             crate::diagnostics::record(&app, "agent.start", json!({"sessionId":session_id,"messageId":lock(&current.output)?["id"],"providerId":provider["id"],"model":model,"historyMessages":past.len(),"hasReference":!reference.is_empty()}));
-            if resumed.is_none() { requests::emit(&app,&state,&json!({"id":id(),"sessionId":session_id,"role":"user","kind":"chat","content":text.trim(),"referenceFiles":reference,"maskFile":mask_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":created_at,"status":"done","error":""}))?; }
+            if resumed.is_none() { requests::emit(&app,&state,&json!({"id":id(),"sessionId":session_id,"role":"user","kind":"chat","content":text.trim(),"referenceFiles":reference,"maskFile":mask_file,"markerFile":marker_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":created_at,"status":"done","error":""}))?; }
             current.update(|_|{})?;
             let http = rig::http_client::ReqwestClient::builder()
                 .connect_timeout(std::time::Duration::from_secs(30))
@@ -439,6 +443,7 @@ pub async fn generate(
             let mut preamble = format!("{}\nAttachment manifest (use these request-scoped handles; never use internal image IDs): {}\nSession instructions:\n{}",
                 include_str!("../prompts/image-agent.txt"), serde_json::to_string(&attachment_manifest(&reference)).unwrap(), string(&session,"systemPrompt"));
             if mask_file.is_some() { preamble.push_str("\nThe user selected a region on the FIRST attached image. create_images automatically sends its edit mask. Keep that image first; modify only the selected region according to the user request and preserve the rest. Do not claim pixel-perfect preservation."); }
+            if marker_file.is_some() { preamble.push_str("\nThe user supplied a marker overlay for the FIRST attached image. create_images automatically sends it as a marker image. Use the marker overlay together with the coordinate instructions to locate the requested regions; do not preserve marker lines or labels in the output."); }
             if let Some(skill) = &skill {
                 preamble.push_str(&format!("\nSkill preflight warnings (not proof of capability): {}. Use only actually registered tools. Explain missing capabilities; never claim unavailable actions succeeded.\n",lock(&current.output)?["skillWarnings"]));
                 preamble.push_str(&format!("\nSelected workflow: {} (version {}). Follow its instructions within the existing tool permissions and budgets:\n{}",skill.name,skill.version,skill.instructions));

@@ -68,7 +68,7 @@ pub async fn generate(
         return Err("Invalid request".into());
     }
     if kind == "chat" {
-        return crate::agent::generate(app, s, session_id, text, reference_files, mask_file, resume_id).await;
+        return crate::agent::generate(app, s, session_id, text, reference_files, mask_file, marker_file, resume_id).await;
     }
     let token = tokio_util::sync::CancellationToken::new();
     {
