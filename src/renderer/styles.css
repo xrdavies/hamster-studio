@@ -2246,8 +2246,8 @@ button svg {
   font-size: 13px;
 }
 .skill-editor-identity textarea {
-  min-height: 96px;
-  max-height: 140px;
+  min-height: 138px;
+  max-height: 160px;
 }
 .skill-instructions textarea {
   min-height: 520px;
