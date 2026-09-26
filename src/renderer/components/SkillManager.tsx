@@ -196,134 +196,142 @@ export default function SkillManager({
               </div>
               <fieldset className="skill-editor-fields" disabled={working || builtin}>
                 <section className="skill-editor">
-                  <label>
-                    {t('skills.name')}
-                    <input
-                      value={editing.name}
-                      maxLength={160}
-                      disabled={working}
-                      onChange={(event) => setEditing({ ...editing, name: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    {t('skills.description')}
-                    <input
-                      value={editing.description}
-                      maxLength={1000}
-                      disabled={working}
-                      onChange={(event) =>
-                        setEditing({ ...editing, description: event.target.value })
-                      }
-                    />
-                  </label>
-                  <fieldset disabled={working}>
-                    <legend>{t('skills.tools')}</legend>
-                    {[
-                      ...new Set([
-                        'create_images',
-                        'list_images',
-                        'view_image',
-                        'read_webpage',
-                        ...editing.tools,
-                      ]),
-                    ].map((tool) => (
-                      <label key={tool}>
+                  <div className="skill-editor-section">
+                    <label>
+                      {t('skills.name')}
+                      <input
+                        value={editing.name}
+                        maxLength={160}
+                        disabled={working}
+                        onChange={(event) => setEditing({ ...editing, name: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      {t('skills.description')}
+                      <input
+                        value={editing.description}
+                        maxLength={1000}
+                        disabled={working}
+                        onChange={(event) =>
+                          setEditing({ ...editing, description: event.target.value })
+                        }
+                      />
+                    </label>
+                  </div>
+                  <div className="skill-editor-section">
+                    <fieldset disabled={working}>
+                      <legend>{t('skills.tools')}</legend>
+                      {[
+                        ...new Set([
+                          'create_images',
+                          'list_images',
+                          'view_image',
+                          'read_webpage',
+                          ...editing.tools,
+                        ]),
+                      ].map((tool) => (
+                        <label key={tool}>
+                          <input
+                            type="checkbox"
+                            checked={editing.tools.includes(tool)}
+                            onChange={(event) =>
+                              setEditing({
+                                ...editing,
+                                tools: event.target.checked
+                                  ? [...editing.tools, tool]
+                                  : editing.tools.filter((value) => value !== tool),
+                              })
+                            }
+                          />
+                          {tool}
+                        </label>
+                      ))}
+                    </fieldset>
+                  </div>
+                  <div className="skill-editor-section">
+                    <fieldset disabled={working}>
+                      <legend>{t('skills.requirements')}</legend>
+                      <label>
+                        {t('skills.minImages')}
                         <input
-                          type="checkbox"
-                          checked={editing.tools.includes(tool)}
+                          type="number"
+                          min="0"
+                          max="6"
+                          value={editing.requirements?.minImages ?? 0}
                           onChange={(event) =>
                             setEditing({
                               ...editing,
-                              tools: event.target.checked
-                                ? [...editing.tools, tool]
-                                : editing.tools.filter((value) => value !== tool),
+                              requirements: {
+                                ...(editing.requirements || {
+                                  minImages: 0,
+                                  maxImages: 6,
+                                  capabilities: [],
+                                }),
+                                minImages: Number(event.target.value),
+                              },
                             })
                           }
                         />
-                        {tool}
                       </label>
-                    ))}
-                  </fieldset>
-                  <fieldset disabled={working}>
-                    <legend>{t('skills.requirements')}</legend>
-                    <label>
-                      {t('skills.minImages')}
-                      <input
-                        type="number"
-                        min="0"
-                        max="6"
-                        value={editing.requirements?.minImages ?? 0}
-                        onChange={(event) =>
-                          setEditing({
-                            ...editing,
-                            requirements: {
-                              ...(editing.requirements || {
+                      <label>
+                        {t('skills.maxImages')}
+                        <input
+                          type="number"
+                          min="0"
+                          max="6"
+                          value={editing.requirements?.maxImages ?? 6}
+                          onChange={(event) =>
+                            setEditing({
+                              ...editing,
+                              requirements: {
+                                ...(editing.requirements || {
+                                  minImages: 0,
+                                  maxImages: 6,
+                                  capabilities: [],
+                                }),
+                                maxImages: Number(event.target.value),
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        {t('skills.capabilities')}
+                        <input
+                          value={editing.requirements?.capabilities.join(', ') || ''}
+                          onChange={(event) =>
+                            setEditing({
+                              ...editing,
+                              requirements: {
                                 minImages: 0,
                                 maxImages: 6,
-                                capabilities: [],
-                              }),
-                              minImages: Number(event.target.value),
-                            },
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      {t('skills.maxImages')}
-                      <input
-                        type="number"
-                        min="0"
-                        max="6"
-                        value={editing.requirements?.maxImages ?? 6}
-                        onChange={(event) =>
-                          setEditing({
-                            ...editing,
-                            requirements: {
-                              ...(editing.requirements || {
-                                minImages: 0,
-                                maxImages: 6,
-                                capabilities: [],
-                              }),
-                              maxImages: Number(event.target.value),
-                            },
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      {t('skills.capabilities')}
-                      <input
-                        value={editing.requirements?.capabilities.join(', ') || ''}
-                        onChange={(event) =>
-                          setEditing({
-                            ...editing,
-                            requirements: {
-                              minImages: 0,
-                              maxImages: 6,
-                              ...editing.requirements,
-                              capabilities: event.target.value
-                                .split(',')
-                                .map((s) => s.trim())
-                                .filter(Boolean),
-                            },
-                          })
-                        }
-                      />
-                    </label>
-                  </fieldset>
+                                ...editing.requirements,
+                                capabilities: event.target.value
+                                  .split(',')
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                              },
+                            })
+                          }
+                        />
+                      </label>
+                    </fieldset>
+                  </div>
                   <p className="muted">{t('skills.templateHelp')}</p>
-                  <label>
-                    {t('skills.instructions')}
-                    <textarea
-                      rows={10}
-                      maxLength={20000}
-                      value={editing.instructions}
-                      disabled={working}
-                      onChange={(event) =>
-                        setEditing({ ...editing, instructions: event.target.value })
-                      }
-                    />
-                  </label>
+                  <div className="skill-editor-section skill-instructions">
+                    <label>
+                      {t('skills.instructions')}
+                      <textarea
+                        rows={10}
+                        maxLength={20000}
+                        value={editing.instructions}
+                        disabled={working}
+                        onChange={(event) =>
+                          setEditing({ ...editing, instructions: event.target.value })
+                        }
+                      />
+                    </label>
+                  </div>
                 </section>
               </fieldset>
               <footer className="skill-manager-footer">

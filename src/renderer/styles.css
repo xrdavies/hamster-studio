@@ -2072,10 +2072,13 @@ button svg {
 }
 .skill-manager-content {
   overflow: auto;
-  padding: 24px;
+  padding: 28px 34px 0;
+  background: #fff;
 }
 .skill-editor-heading h2 {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
+  font-size: 22px;
+  letter-spacing: -0.02em;
 }
 .skill-editor-heading span {
   color: #686874;
@@ -2084,7 +2087,9 @@ button svg {
 .skill-editor-actions {
   display: flex;
   gap: 8px;
-  margin: 16px 0;
+  margin: 18px 0 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
 }
 .skill-editor-fields {
   border: 0;
@@ -2096,6 +2101,43 @@ button svg {
   min-height: 360px;
   resize: vertical;
   line-height: 1.6;
+}
+.skill-editor {
+  max-width: 900px;
+  gap: 18px;
+  padding-bottom: 18px;
+}
+.skill-editor-section {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.skill-editor-section fieldset {
+  margin: 0;
+  padding: 13px 14px 10px;
+  background: #fafafd;
+}
+.skill-editor-section legend {
+  padding: 0 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #686874;
+}
+.skill-editor-section > label {
+  color: #555660;
+  font-size: 13px;
+}
+.skill-editor-section input:not([type='checkbox']),
+.skill-editor-section textarea {
+  font-size: 13px;
+}
+.skill-instructions textarea {
+  min-height: 430px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
 }
 .skill-editor-fields:disabled input,
 .skill-editor-fields:disabled textarea {
@@ -2110,8 +2152,9 @@ button svg {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 0;
-  margin-top: 20px;
+  padding: 14px 0 18px;
+  margin-top: 4px;
+  z-index: 2;
 }
 .skill-manager-footer span {
   flex: 1;
