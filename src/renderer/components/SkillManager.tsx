@@ -149,6 +149,7 @@ export default function SkillManager({
                     placeholder={t('skills.draft')}
                     value={editing.name}
                     maxLength={160}
+                    disabled={working || builtin}
                     onChange={(event) => setEditing({ ...editing, name: event.target.value })}
                   />
                   <span>

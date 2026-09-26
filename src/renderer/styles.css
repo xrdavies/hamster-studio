@@ -2108,6 +2108,10 @@ button svg {
   border-bottom-color: var(--accent);
   outline: none;
 }
+.skill-title-input:disabled {
+  opacity: 1;
+  cursor: default;
+}
 .skill-editor-identity textarea {
   resize: vertical;
   line-height: 1.5;
