@@ -161,14 +161,15 @@ export default function SkillManager({
           {error && <p role="status">{error}</p>}
           {editing ? (
             <>
-              <header className="skill-editor-heading">
-                <h2>{editing.name || t('skills.draft')}</h2>
-                <span>
-                  {t(builtin ? 'skills.builtin' : 'skills.mine')} · v{editing.version}{' '}
-                  {dirty ? ' · ' + t('skills.unsaved') : ''}
-                </span>
-              </header>
-              <div className="skill-editor-actions">
+              <div className="skill-editor-top">
+                <header className="skill-editor-heading">
+                  <h2>{editing.name || t('skills.draft')}</h2>
+                  <span>
+                    {t(builtin ? 'skills.builtin' : 'skills.mine')} · v{editing.version}{' '}
+                    {dirty ? ' · ' + t('skills.unsaved') : ''}
+                  </span>
+                </header>
+                <div className="skill-editor-actions">
                 <button
                   className="secondary"
                   disabled={working}
@@ -211,6 +212,7 @@ export default function SkillManager({
                     {t('skills.delete')}
                   </button>
                 )}
+                </div>
               </div>
               <fieldset className="skill-editor-fields" disabled={working || builtin}>
                 <section className="skill-editor">

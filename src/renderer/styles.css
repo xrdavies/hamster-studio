@@ -2075,6 +2075,14 @@ button svg {
   padding: 28px 34px 0;
   background: #fff;
 }
+.skill-editor-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
 .skill-editor-heading h2 {
   margin: 0 0 4px;
   font-size: 22px;
@@ -2087,9 +2095,7 @@ button svg {
 .skill-editor-actions {
   display: flex;
   gap: 8px;
-  margin: 18px 0 22px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
 }
 .skill-editor-fields {
   border: 0;
@@ -2251,6 +2257,11 @@ button svg {
   .skill-requirement-grid,
   .skill-editor {
     grid-template-columns: 1fr;
+  }
+  .skill-editor-top {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
   }
 }
 .skill-manager-empty {
