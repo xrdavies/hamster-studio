@@ -2072,7 +2072,7 @@ button svg {
 }
 .skill-manager-content {
   overflow: auto;
-  padding: 28px 34px 84px;
+  padding: 28px 34px 0;
   background: #fff;
 }
 .skill-editor-heading h2 {
@@ -2210,7 +2210,7 @@ button svg {
 }
 .skill-manager-footer {
   position: sticky;
-  bottom: -24px;
+  bottom: 0;
   background: var(--panel);
   border-top: 1px solid var(--line);
   display: flex;
@@ -2245,7 +2245,7 @@ button svg {
     border-bottom: 1px solid var(--line);
   }
   .skill-manager-content {
-    padding: 20px 16px 84px;
+    padding: 20px 16px 0;
   }
   .skill-editor-identity,
   .skill-requirement-grid,
