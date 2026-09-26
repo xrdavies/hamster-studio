@@ -239,7 +239,7 @@
   "images.viewSource": "View source",
   "skills.help": "Choose a workflow or Skill Creator. Skills use existing tools; a chat model with tool calling is required.",
   "skills.none": "Normal conversation",
-  "skills.editCopy": "Edit a copy",
+  "skills.editCopy": "Copy and edit",
   "skills.draft": "Skill draft",
   "skills.name": "Name",
   "skills.description": "Description",
@@ -266,5 +266,15 @@
   "skills.visionUnknown": "Vision: unverified",
   "skills.imageEditUnknown": "Image editing: unverified",
   "skills.multiReferenceUnknown": "Multiple references: unverified",
-  "skills.maskUnknown": "Mask editing: unverified"
+  "skills.maskUnknown": "Mask editing: unverified",
+  "skills.create": "Create Skill",
+  "skills.back": "Back to Skills",
+  "skills.chooseHelp": "Select a workflow for this conversation. Create Skill returns to chat, where you can describe the workflow you want.",
+  "skills.noneHelp": "Chat without a dedicated workflow",
+  "skills.characterName": "Character sheet",
+  "skills.characterDescription": "Create consistent front, side and back character views",
+  "skills.creatorActive": "Current workflow: Skill Creator",
+  "skills.resumeDraft": "Continue editing draft",
+  "skills.creatorNext": "Describe the workflow you want in the message box.",
+  "skills.creatorPlaceholder": "Describe the Skill you want: inputs, desired output and steps…"
 }

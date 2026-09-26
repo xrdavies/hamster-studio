@@ -239,7 +239,7 @@
   "images.viewSource": "查看原图",
   "skills.help": "选择创作流程或 Skill Creator。Skill 使用现有工具，需要支持工具调用的聊天模型。",
   "skills.none": "普通对话",
-  "skills.editCopy": "编辑副本",
+  "skills.editCopy": "复制并编辑",
   "skills.draft": "Skill 草稿",
   "skills.name": "名称",
   "skills.description": "说明",
@@ -266,5 +266,15 @@
   "skills.visionUnknown": "视觉能力：未验证",
   "skills.imageEditUnknown": "图片编辑能力：未验证",
   "skills.multiReferenceUnknown": "多参考图能力：未验证",
-  "skills.maskUnknown": "遮罩编辑能力：未验证"
+  "skills.maskUnknown": "遮罩编辑能力：未验证",
+  "skills.create": "创建 Skill",
+  "skills.back": "返回 Skill 列表",
+  "skills.chooseHelp": "为当前会话选择流程。点击“创建 Skill”返回对话，描述你想创建的流程。",
+  "skills.noneHelp": "不使用专用创作流程",
+  "skills.characterName": "角色设定",
+  "skills.characterDescription": "制作同一角色的正面、侧面与背面设定图",
+  "skills.creatorActive": "当前流程：Skill Creator",
+  "skills.resumeDraft": "继续编辑草稿",
+  "skills.creatorNext": "请在输入框描述你想创建的流程。",
+  "skills.creatorPlaceholder": "描述你想创建的 Skill：输入素材、期望产物和制作要求……"
 }

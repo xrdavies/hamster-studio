@@ -134,7 +134,9 @@ export default function Composer({
             title={t('skills.help')}
           >
             <Sparkles size={16} />
-            {session.skill?.name || 'Skills'}
+            {session.skill?.id === 'builtin-character-sheet'
+              ? t('skills.characterName')
+              : session.skill?.name || 'Skills'}
           </button>
           <button
             type="button"
@@ -275,9 +277,11 @@ export default function Composer({
               }
             }}
             placeholder={
-              modelKind === 'image'
-                ? t('ui.describeTheImageYouWantToGenerate')
-                : t('ui.messageHamsterStudio')
+              session.skill?.id === 'builtin-creator'
+                ? t('skills.creatorPlaceholder')
+                : modelKind === 'image'
+                  ? t('ui.describeTheImageYouWantToGenerate')
+                  : t('ui.messageHamsterStudio')
             }
             disabled={busy}
           />

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Sparkles } from 'lucide-react'
+import { X, Sparkles, Plus, Check, Copy, ArrowLeft, MessageSquare } from 'lucide-react'
 import { t, translateMessage } from '../i18n'
 import type { Skill } from '../../shared/types'
 
@@ -19,6 +19,7 @@ export default function SkillPanel({
   const [editing, setEditing] = useState<Skill | undefined>(
     draft || (selected?.id.startsWith('draft-') ? selected : undefined),
   )
+  const [showEditor, setShowEditor] = useState(!!editing)
   const [error, setError] = useState('')
   const [working, setWorking] = useState(false)
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function SkillPanel({
       await window.studio.saveSkill(editing)
       setSkills(await window.studio.listSkills())
       setEditing(undefined)
+      setShowEditor(false)
       setError(t('skills.saved'))
     } catch (reason) {
       setError(translateMessage(String(reason)))
@@ -67,46 +69,108 @@ export default function SkillPanel({
     >
       <header>
         <strong>
-          <Sparkles size={16} /> Skills
-        </strong>
-        <button className="icon" disabled={working} onClick={onClose} aria-label={t('ui.close')}>
-          <X size={18} />
-        </button>
-      </header>
-      <p className="muted">{t('skills.help')}</p>
-      <div className="skill-list">
-        <button className="secondary" disabled={working} onClick={() => void choose(null)}>
-          {t('skills.none')}
-        </button>
-        {skills.map((skill) => (
-          <div className="skill-row" key={skill.id}>
+          {showEditor && (
             <button
-              className="secondary"
+              className="icon"
               disabled={working}
-              aria-pressed={selected?.id === skill.id}
-              onClick={() => void choose(skill)}
+              onClick={() => setShowEditor(false)}
+              aria-label={t('skills.back')}
             >
-              <strong>{skill.name}</strong>
-              <small>{skill.description}</small>
+              <ArrowLeft size={18} />
             </button>
-            {skill.id !== 'builtin-creator' && (
+          )}
+          <Sparkles size={16} /> {showEditor ? t('skills.draft') : 'Skills'}
+        </strong>
+        <div className="skill-header-actions">
+          {!showEditor && (
+            <button
+              className="primary"
+              disabled={working || !skills.some((skill) => skill.id === 'builtin-creator')}
+              onClick={() => void choose(skills.find((skill) => skill.id === 'builtin-creator')!)}
+            >
+              <Plus size={16} />
+              {t('skills.create')}
+            </button>
+          )}
+          <button className="icon" disabled={working} onClick={onClose} aria-label={t('ui.close')}>
+            <X size={18} />
+          </button>
+        </div>
+      </header>
+      {!showEditor && (
+        <>
+          <p className="muted">{t('skills.chooseHelp')}</p>
+          <div className="skill-list">
+            <div className="skill-row">
               <button
-                className="secondary"
+                className="skill-choice"
                 disabled={working}
-                onClick={() => {
-                  setEditing({ ...skill, id: 'draft-copy' })
-                  setError('')
-                }}
+                aria-pressed={!selected}
+                onClick={() => void choose(null)}
               >
-                {t('skills.editCopy')}
+                <MessageSquare size={18} />
+                <span>
+                  <strong>{t('skills.none')}</strong>
+                  <small>{t('skills.noneHelp')}</small>
+                </span>
+                {!selected && <Check size={17} />}
+              </button>
+            </div>
+            {skills
+              .filter((skill) => skill.id !== 'builtin-creator')
+              .map((skill) => (
+                <div className="skill-row" key={skill.id}>
+                  <button
+                    className="skill-choice"
+                    disabled={working}
+                    aria-pressed={selected?.id === skill.id}
+                    onClick={() => void choose(skill)}
+                  >
+                    <Sparkles size={18} />
+                    <span>
+                      <strong>
+                        {skill.id === 'builtin-character-sheet'
+                          ? t('skills.characterName')
+                          : skill.name}
+                      </strong>
+                      <small>
+                        {skill.id === 'builtin-character-sheet'
+                          ? t('skills.characterDescription')
+                          : skill.description}
+                      </small>
+                    </span>
+                    {selected?.id === skill.id && <Check size={17} />}
+                  </button>
+                  <button
+                    className="skill-copy"
+                    disabled={working}
+                    title={t('skills.editCopy')}
+                    aria-label={t('skills.editCopy')}
+                    onClick={() => {
+                      setEditing({ ...skill, id: 'draft-copy' })
+                      setShowEditor(true)
+                      setError('')
+                    }}
+                  >
+                    <Copy size={16} />
+                  </button>
+                </div>
+              ))}
+            {selected?.id === 'builtin-creator' && (
+              <p role="status" className="vision-context-note">
+                {t('skills.creatorActive')}
+              </p>
+            )}
+            {editing && (
+              <button className="secondary" disabled={working} onClick={() => setShowEditor(true)}>
+                {t('skills.resumeDraft')}
               </button>
             )}
           </div>
-        ))}
-      </div>
-      {editing && (
+        </>
+      )}
+      {showEditor && editing && (
         <section className="skill-editor">
-          <h3>{t('skills.draft')}</h3>
           <label>
             {t('skills.name')}
             <input

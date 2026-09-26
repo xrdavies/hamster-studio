@@ -1905,14 +1905,68 @@ button svg {
   display: flex;
   gap: 8px;
 }
-.skill-row > button:first-child {
-  flex: 1;
-  display: grid;
-  text-align: left;
-  gap: 4px;
+.skill-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-.skill-row small {
-  color: var(--muted);
+.skill-header-actions .primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.skill-row {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  gap: 0;
+}
+.skill-choice {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: var(--panel);
+  color: var(--ink);
+  text-align: left;
+}
+.skill-choice > span {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+.skill-choice small {
+  color: #686874;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.skill-choice[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.skill-choice:hover,
+.skill-copy:hover {
+  background: var(--soft);
+}
+.skill-copy {
+  width: 44px;
+  flex-shrink: 0;
+  background: var(--panel);
+  color: #686874;
+  border-left: 1px solid var(--line);
+}
+.skill-panel > header {
+  margin-bottom: 16px;
+}
+.skill-editor footer {
+  position: sticky;
+  bottom: -20px;
+  background: var(--panel);
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
 }
 .skill-editor label {
   display: grid;

@@ -409,6 +409,10 @@ export default function App() {
             if (activeRequests.current.has(skillPanel.sessionId)) throw new Error(t('skills.busy'))
             await window.studio.saveSession({ id: skillPanel.sessionId, skill })
             await refreshData()
+            if (skill?.id === 'builtin-creator') notify(t('skills.creatorNext'))
+            requestAnimationFrame(() =>
+              document.querySelector<HTMLTextAreaElement>('.composer-input textarea')?.focus(),
+            )
           }}
         />
       )}

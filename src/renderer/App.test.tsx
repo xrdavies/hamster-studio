@@ -1,3 +1,4 @@
+import SkillPanel from './components/SkillPanel'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
 import type { StudioData } from '../shared/types'
@@ -192,4 +193,36 @@ it('clears all provider model types in the draft without changing saved data', (
   expect(provider.unknownModels).toEqual(['other'])
   props.editing = cleared
   expect(clearButton().props.disabled).toBe(true)
+})
+
+it('separates skill draft editing from selection and preserves edits when returning', () => {
+  const draft = {
+    id: 'draft-test',
+    version: 1,
+    name: 'Draft',
+    description: '',
+    tools: [],
+    instructions: 'Instructions',
+  }
+  const props = { draft, onSelect: vi.fn(), onClose: vi.fn() }
+  const panel = () => {
+    hooks.index = 0
+    return SkillPanel(props)
+  }
+  const buttons = (node: any): any[] => {
+    if (!node || typeof node !== 'object') return []
+    return [
+      ...(node.type === 'button' ? [node] : []),
+      ...[node.props?.children].flat(Infinity).flatMap(buttons),
+    ]
+  }
+  expect(find(panel(), 'section')?.props.className).toBe('skill-editor')
+  buttons(panel())
+    .find((button) => button.props['aria-label'] === 'skills.back')
+    .props.onClick()
+  expect(find(panel(), 'section')).toBeUndefined()
+  buttons(panel())
+    .find((button) => button.props.children === 'skills.resumeDraft')
+    .props.onClick()
+  expect(find(panel(), 'input')?.props.value).toBe('Draft')
 })
