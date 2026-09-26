@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, Play, Save, Trash2 } from 'lucide-react'
 import { t, translateMessage } from '../i18n'
 import type { Skill } from '../../shared/types'
 import ConfirmDialog, { type ConfirmState } from './ConfirmDialog'
-import { skillName, skillDescription } from './SkillPanel'
+import { skillName } from './SkillPanel'
 
 export const emptySkill = (): Skill => ({
   id: 'draft-new',
@@ -124,7 +124,6 @@ export default function SkillManager({
                     onClick={() => leave(() => change(skill))}
                   >
                     <strong>{skillName(skill)}</strong>
-                    <small>{skillDescription(skill)}</small>
                   </button>
                 ))}
               {!group && !skills.some((s) => !s.id.startsWith('builtin-')) && (
