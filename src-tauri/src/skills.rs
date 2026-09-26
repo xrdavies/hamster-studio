@@ -62,7 +62,11 @@ pub fn builtins() -> Vec<Skill> {
 }
 pub fn snapshot(value: &Value) -> Result<Option<Skill>> {
     if value.is_null() { return Ok(None); }
-    let skill: Skill = serde_json::from_value(value.clone()).map_err(|e|e.to_string())?;
+    let mut value = value.clone();
+    if let Some(requirements) = value.get_mut("requirements").and_then(Value::as_object_mut) {
+        requirements.remove("capabilities");
+    }
+    let skill: Skill = serde_json::from_value(value).map_err(|e|e.to_string())?;
     if skill.id == "builtin-creator" {
         let builtin = builtins().remove(0);
         if serde_json::to_value(&skill).unwrap() != serde_json::to_value(&builtin).unwrap() {return Err("Creator cannot be overridden; copy it as a local workflow".into());}
@@ -78,7 +82,12 @@ pub fn list_skills(state: State<AppState>) -> Result<Vec<Skill>> {
     for entry in std::fs::read_dir(directory).map_err(|e|e.to_string())? {
         let path = entry.map_err(|e|e.to_string())?.path();
         if path.extension().and_then(|s|s.to_str()) != Some("json") {continue;}
-        let skill: Skill = serde_json::from_slice(&std::fs::read(path).map_err(|e|e.to_string())?).map_err(|e|format!("Invalid local skill: {e}"))?;
+        let mut value: Value = serde_json::from_slice(&std::fs::read(&path).map_err(|e|e.to_string())?).map_err(|e|format!("Invalid local skill: {e}"))?;
+        let migrated = value.get_mut("requirements").and_then(Value::as_object_mut).map(|requirements| requirements.remove("capabilities").is_some()).unwrap_or(false);
+        if migrated {
+            std::fs::write(&path, serde_json::to_vec_pretty(&value).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+        }
+        let skill: Skill = serde_json::from_value(value).map_err(|e|format!("Invalid local skill: {e}"))?;
         skill.validate(false)?;
         if skill.id.starts_with("builtin-") { return Err("Local skills cannot replace built-in IDs".into()); }
         result.push(skill);
