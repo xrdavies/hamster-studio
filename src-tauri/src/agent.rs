@@ -174,6 +174,7 @@ impl ImageTool {
                 "sourceImageId":source,"sourceImageIds":sources,"maskFile":run.mask_file,"markerFile":run.marker_file,"imageFiles":[],"error":""
             }));
         })?;
+        run.update(|output| { step_mut(output, &step_id)["imageInputs"] = json!(requests::image_input_roles(&sources, run.marker_file.as_deref())); })?;
         let step_started = std::time::Instant::now();
         crate::diagnostics::record(&run.app, "image.step.start", json!({"sessionId":run.session_id,"stepId":step_id,"count":args.count,"hasReference":source.is_some(),"requiresApproval":needs_approval,"repeated":repeated}));
         let result: Result<Value> = async {
@@ -201,7 +202,7 @@ impl ImageTool {
                     step_mut(o,&step_id)["dispatchState"] = json!("received");
                 })?;
             }
-            Ok(json!({"imageFiles":files,"prompt":args.prompt,"sourceImageId":source,"sourceImageIds":sources,"maskFile":run.mask_file,"markerFile":run.marker_file,"operation":if source.is_some(){"edit"}else{"generate"}}))
+            Ok(json!({"imageFiles":files,"prompt":args.prompt,"sourceImageId":source,"sourceImageIds":sources,"maskFile":run.mask_file,"markerFile":run.marker_file,"imageInputs":requests::image_input_roles(&sources, run.marker_file.as_deref()),"operation":if source.is_some(){"edit"}else{"generate"}}))
         }.await;
         run.update(|o| {
             let step = step_mut(o, &step_id);

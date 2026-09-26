@@ -101,6 +101,7 @@ pub async fn generate(
             if kind=="image" {
                 let name = create_image(&s, &provider, model, &secret, text.trim(), &reference_files, mask_file.as_deref(), marker_file.as_deref()).await?;
                 output["imageFiles"]=json!([name]);
+                output["imageInputs"] = json!(image_input_roles(&reference_files, marker_file.as_deref()));
             } else {
                 if !string(&session,"systemPrompt").is_empty() {history.insert(0,json!({"role":"system","content":session["systemPrompt"]}));}
                 history.push(json!({"role":"user","content":text.trim()}));
@@ -142,6 +143,11 @@ pub(crate) async fn create_image(
     mask: Option<&str>, marker: Option<&str>,
 ) -> Result<String> {
     image_deadline(std::time::Duration::from_secs(600), create_image_request(s, provider, model, secret, prompt, references, mask, marker)).await
+}
+pub(crate) fn image_input_roles(references: &[String], marker: Option<&str>) -> Vec<Value> {
+    let mut inputs = references.iter().enumerate().map(|(index, file)| json!({"index":index,"role":if index == 0 && marker.is_some() {"clean_original"} else {"reference"},"file":file})).collect::<Vec<_>>();
+    if let Some(file) = marker { inputs.insert(1, json!({"index":1,"role":"annotated_marker","file":file})); for (index, input) in inputs.iter_mut().enumerate() { input["index"] = json!(index); } }
+    inputs
 }
 async fn image_deadline<T>(duration: std::time::Duration, request: impl std::future::Future<Output = Result<T>>) -> Result<T> {
     tokio::time::timeout(duration, request).await.map_err(|_| "agent.imageTimeout".to_string())?
