@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft, Plus, Play, Save, Trash2 } from 'lucide-react'
 import { t, translateMessage } from '../i18n'
 import type { Skill } from '../../shared/types'
 import ConfirmDialog, { type ConfirmState } from './ConfirmDialog'
@@ -12,7 +12,6 @@ export const emptySkill = (): Skill => ({
   name: '',
   description: '',
   tools: [],
-  requirements: { minImages: 0, maxImages: 6 },
   instructions: '## Purpose\n\n## Inputs\n\n## Outputs\n\n## Steps\n\n## Acceptance\n\n## Limits\n',
 })
 export default function SkillManager({
@@ -145,7 +144,14 @@ export default function SkillManager({
             <>
               <div className="skill-editor-top">
                 <header className="skill-editor-heading">
-                  <h2>{editing.name || t('skills.draft')}</h2>
+                  <input
+                    className="skill-title-input"
+                    aria-label={t('skills.name')}
+                    placeholder={t('skills.draft')}
+                    value={editing.name}
+                    maxLength={160}
+                    onChange={(event) => setEditing({ ...editing, name: event.target.value })}
+                  />
                   <span>
                     {t(builtin ? 'skills.builtin' : 'skills.mine')} · v{editing.version}{' '}
                     {dirty ? ' · ' + t('skills.unsaved') : ''}
@@ -181,7 +187,7 @@ export default function SkillManager({
                 </button>
                 {!builtin && !editing.id.startsWith('draft-') && (
                   <button
-                    className="secondary"
+                    className="danger"
                     disabled={working}
                     onClick={() =>
                       setConfirm({
@@ -191,6 +197,7 @@ export default function SkillManager({
                       })
                     }
                   >
+                    <Trash2 size={15} />
                     {t('skills.delete')}
                   </button>
                 )}
@@ -201,12 +208,9 @@ export default function SkillManager({
                   <div className="skill-editor-main">
                     <div className="skill-editor-section skill-editor-identity">
                       <label>
-                        {t('skills.name')}
-                        <input value={editing.name} maxLength={160} onChange={(event) => setEditing({ ...editing, name: event.target.value })} />
-                      </label>
-                      <label>
                         {t('skills.description')}
-                        <input value={editing.description} maxLength={1000} onChange={(event) => setEditing({ ...editing, description: event.target.value })} />
+                        <textarea rows={4} maxLength={140} value={editing.description} onChange={(event) => setEditing({ ...editing, description: event.target.value })} />
+                        <small className="field-counter">{editing.description.length}/140</small>
                       </label>
                     </div>
                     <div className="skill-editor-section">
@@ -222,15 +226,6 @@ export default function SkillManager({
                         </div>
                       </fieldset>
                     </div>
-                    <div className="skill-editor-section">
-                      <fieldset disabled={working}>
-                        <legend>{t('skills.requirements')}</legend>
-                        <div className="skill-requirement-grid">
-                          <label>{t('skills.minImages')}<input type="number" min="0" max="6" value={editing.requirements?.minImages ?? 0} onChange={(event) => setEditing({ ...editing, requirements: { ...(editing.requirements || { minImages: 0, maxImages: 6 }), minImages: Number(event.target.value) } })} /></label>
-                          <label>{t('skills.maxImages')}<input type="number" min="0" max="6" value={editing.requirements?.maxImages ?? 6} onChange={(event) => setEditing({ ...editing, requirements: { ...(editing.requirements || { minImages: 0, maxImages: 6 }), maxImages: Number(event.target.value) } })} /></label>
-                        </div>
-                      </fieldset>
-                    </div>
                   </div>
                   <div className="skill-editor-section skill-instructions">
                     <div className="skill-instructions-heading"><strong>{t('skills.instructions')}</strong><span>Markdown</span></div>
@@ -242,11 +237,13 @@ export default function SkillManager({
               <footer className="skill-manager-footer">
                 <span>{t(builtin ? 'skills.readOnly' : 'skills.snapshotHelp')}</span>
                 <button className="secondary" disabled={working} onClick={() => void run(editing)}>
-                  {t('skills.testNewChat')}
+                  <Play size={15} />
+                  {t('skills.test')}
                 </button>
                 {!builtin && (
                   <button className="primary" disabled={working} onClick={() => void save()}>
-                    {t('skills.save')}
+                    <Save size={15} />
+                    {t('skills.saveShort')}
                   </button>
                 )}
               </footer>

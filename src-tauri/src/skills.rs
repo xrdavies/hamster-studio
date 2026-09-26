@@ -5,15 +5,6 @@ use tauri::State;
 
 const TOOLS: &[&str] = &["create_images", "list_images", "view_image", "read_webpage"];
 const SECTIONS: &[&str] = &["Purpose", "Inputs", "Outputs", "Steps", "Acceptance", "Limits"];
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
-pub struct Requirements {
-    pub min_images: usize,
-    pub max_images: usize,
-}
-impl Default for Requirements {
-    fn default() -> Self {Self {min_images:0,max_images:6}}
-}
 fn default_schema() -> u32 {1}
 fn validate_sections(text: &str) -> Result<()> {
     let mut found = Vec::new();
@@ -32,8 +23,6 @@ fn validate_sections(text: &str) -> Result<()> {
 pub struct Skill {
     #[serde(default = "default_schema", rename = "schemaVersion")]
     pub schema_version: u32,
-    #[serde(default)]
-    pub requirements: Requirements,
     pub id: String,
     pub version: u32,
     pub name: String,
@@ -46,9 +35,7 @@ impl Skill {
     pub fn validate(&self, creator: bool) -> Result<()> {
         if ![1,2].contains(&self.schema_version) {return Err("Unsupported skill schema".into());}
         if self.schema_version == 2 {validate_sections(&self.instructions)?;}
-        let r = &self.requirements;
-        if r.min_images > r.max_images || r.max_images > 6 {return Err("skills.invalidRequirements".into());}
-        if self.name.trim().is_empty() || self.name.len() > 160 || self.description.len() > 1000 || self.instructions.trim().is_empty() || self.instructions.len() > 20000 || self.version == 0 {
+        if self.name.trim().is_empty() || self.name.len() > 160 || self.description.chars().count() > 140 || self.instructions.trim().is_empty() || self.instructions.len() > 20000 || self.version == 0 {
             return Err("Invalid skill: name or instructions empty/too long, or invalid version".into());
         }
         if self.tools.len() > 32 || self.tools.iter().any(|tool| tool.trim().is_empty() || tool.len() > 100 || (!creator && tool == "draft_skill")) {
@@ -63,9 +50,7 @@ pub fn builtins() -> Vec<Skill> {
 pub fn snapshot(value: &Value) -> Result<Option<Skill>> {
     if value.is_null() { return Ok(None); }
     let mut value = value.clone();
-    if let Some(requirements) = value.get_mut("requirements").and_then(Value::as_object_mut) {
-        requirements.remove("capabilities");
-    }
+    value.as_object_mut().map(|object| object.remove("requirements"));
     let skill: Skill = serde_json::from_value(value).map_err(|e|e.to_string())?;
     if skill.id == "builtin-creator" {
         let builtin = builtins().remove(0);
@@ -83,7 +68,7 @@ pub fn list_skills(state: State<AppState>) -> Result<Vec<Skill>> {
         let path = entry.map_err(|e|e.to_string())?.path();
         if path.extension().and_then(|s|s.to_str()) != Some("json") {continue;}
         let mut value: Value = serde_json::from_slice(&std::fs::read(&path).map_err(|e|e.to_string())?).map_err(|e|format!("Invalid local skill: {e}"))?;
-        let migrated = value.get_mut("requirements").and_then(Value::as_object_mut).map(|requirements| requirements.remove("capabilities").is_some()).unwrap_or(false);
+        let migrated = value.as_object_mut().map(|object| object.remove("requirements").is_some()).unwrap_or(false);
         if migrated {
             std::fs::write(&path, serde_json::to_vec_pretty(&value).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
         }
@@ -111,9 +96,7 @@ pub fn save_skill(state: State<AppState>, mut skill: Skill) -> Result<Skill> {
 }
 pub fn preflight(skill: &Skill, images: usize, mask: bool, image_model: bool) -> Result<Vec<String>> {
     skill.validate(skill.id == "builtin-creator")?;
-    let r = &skill.requirements;
     let mut warnings = Vec::new();
-    if images < r.min_images || images > r.max_images {warnings.push(format!("Reference images: expected {}–{}, supplied {}",r.min_images,r.max_images,images));}
     if skill.allows("create_images") && !image_model {warnings.push("skills.imageModelMissing".into());}
     warnings.push("tool_calling".into());
     for tool in &skill.tools { if !TOOLS.contains(&tool.as_str()) && tool != "draft_skill" {warnings.push(format!("Unavailable tool: {tool}"));} }
@@ -152,7 +135,6 @@ pub struct DraftArgs {
     name: String,
     description: String,
     tools: Vec<String>,
-    requirements: Requirements,
     instructions: String,
 }
 pub struct DraftSkill(pub std::sync::Arc<crate::agent::Run>);
@@ -162,9 +144,10 @@ impl rig::tool::Tool for DraftSkill {
     type Output = Value;
     type Error = std::io::Error;
     fn description(&self) -> String { "Propose a local skill draft for user review, testing and explicit save. Does not install or execute it.".into() }
-    fn parameters(&self) -> Value {json!({"type":"object","properties":{"name":{"type":"string"},"description":{"type":"string"},"tools":{"type":"array","items":{"type":"string"}},"instructions":{"type":"string","description":"Exactly six nonempty Markdown sections in this order: ## Purpose, ## Inputs, ## Outputs, ## Steps, ## Acceptance, ## Limits. Body text in the user language."},"requirements":{"type":"object","properties":{"minImages":{"type":"integer","minimum":0,"maximum":6},"maxImages":{"type":"integer","minimum":0,"maximum":6}},"required":["minImages","maxImages"],"additionalProperties":false}},"required":["name","description","tools","instructions","requirements"],"additionalProperties":false})}
+    fn parameters(&self) -> Value {json!({"type":"object","properties":{"name":{"type":"string"},"description":{"type":"string","maxLength":140},"tools":{"type":"array","items":{"type":"string"}},"instructions":{"type":"string"}},"required":["name","description","tools","instructions"],"additionalProperties":false})}
+
     async fn call(&self, _: &mut rig::tool::ToolContext, args: DraftArgs) -> std::result::Result<Value,Self::Error> {
-        let skill = Skill {schema_version:2,requirements:args.requirements,id:format!("draft-{}",now()),version:1,name:args.name,description:args.description,tools:args.tools,instructions:args.instructions};
+        let skill = Skill {schema_version:2,id:format!("draft-{}",now()),version:1,name:args.name,description:args.description,tools:args.tools,instructions:args.instructions};
         if let Err(error) = skill.validate(false) {return Ok(json!({"error":error,"recoverable":true}));}
         self.0.update(|output| output["skillDraft"] = json!(skill)).map_err(std::io::Error::other)?;
         Ok(json!({"status":"Draft ready for user review. Not saved or tested."}))
@@ -179,16 +162,11 @@ mod tests {
         skill.instructions = "## Purpose\nOnly one section".into();
         assert!(skill.validate(false).is_err());
         skill = builtins().remove(1);
-        skill.requirements = Requirements {min_images:2,max_images:3};
         skill.tools.push("animate".into());
         let warnings = preflight(&skill,0,false,false).unwrap();
         assert!(warnings.contains(&"skills.imageModelMissing".into()));
         assert!(warnings.iter().any(|s|s.contains("animate")));
-        assert!(warnings.iter().any(|s|s.contains("Reference images")));
-        skill.requirements.min_images = 4;
-        assert!(preflight(&skill,0,false,false).is_err());
         skill.schema_version = 1;
-        skill.requirements = Requirements::default();
         skill.instructions = "legacy workflow".into();
         assert!(skill.validate(false).is_ok());
     }

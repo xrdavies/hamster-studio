@@ -2088,6 +2088,41 @@ button svg {
   font-size: 22px;
   letter-spacing: -0.02em;
 }
+.skill-title-input {
+  width: min(100%, 420px);
+  border: 0;
+  border-bottom: 1px solid transparent;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+}
+.skill-title-input:focus {
+  border-bottom-color: var(--accent);
+  outline: none;
+}
+.skill-editor-identity textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+.field-counter {
+  color: #686874;
+  font-size: 11px;
+  text-align: right;
+}
+.danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #b42318;
+  border: 1px solid #f0b8b2;
+  background: #fff5f4;
+}
+.danger:hover {
+  background: #fee4e2;
+}
 .skill-editor-heading span {
   color: #686874;
   font-size: 12px;

@@ -1,6 +1,5 @@
 export type Skill = {
   schemaVersion?: number
-  requirements?: { minImages: number; maxImages: number }
   id: string
   version: number
   name: string
