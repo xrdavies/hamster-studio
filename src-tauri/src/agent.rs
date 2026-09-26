@@ -143,13 +143,13 @@ impl ImageTool {
         };
         let sources: Vec<String> = handles.iter().map(|h| resolve_attachment(h, &run.reference)).collect::<Result<_>>()?;
         let source = sources.first();
-        if run.mask_file.is_some() && sources.first() != run.reference.first() {
+        if (run.mask_file.is_some() || run.marker_file.is_some()) && sources.first() != run.reference.first() {
             return Ok(json!({"error":"The selected region belongs to the first attached image. Keep that image first in source_image_ids.","recoverable":true}));
         }
         for file in &sources {
             if assets::owned_path(run, file).is_err() { return Ok(assets::invalid_reference()); }
         }
-        let fingerprint = json!([run.image_provider.as_ref().map(|p| &p["id"]), run.image_model, args.prompt.trim(), sources, args.count, run.mask_file]);
+        let fingerprint = json!([run.image_provider.as_ref().map(|p| &p["id"]), run.image_model, args.prompt.trim(), sources, args.count, run.mask_file, run.marker_file]);
         if let Some(step) = lock(&run.output)?["steps"].as_array().unwrap().iter().find(|step| step["fingerprint"] == fingerprint && step["status"] == "done") {
             return Ok(json!({"imageFiles":step["imageFiles"],"reused":true}));
         }
@@ -171,7 +171,7 @@ impl ImageTool {
                 "status":if needs_approval {"waiting"} else {"running"},
                 "needsConfiguration":run.image_provider.is_none(),
                 "operation":if source.is_some(){"edit"}else{"generate"},
-                "sourceImageId":source,"sourceImageIds":sources,"maskFile":run.mask_file,"imageFiles":[],"error":""
+                "sourceImageId":source,"sourceImageIds":sources,"maskFile":run.mask_file,"markerFile":run.marker_file,"imageFiles":[],"error":""
             }));
         })?;
         let step_started = std::time::Instant::now();
@@ -189,7 +189,7 @@ impl ImageTool {
                 let secret = password(string(&provider,"id"))?;
                 (provider, model, secret)
             };
-            run.update(|o| { let step = step_mut(o, &step_id); step["status"] = json!("running"); step["model"] = json!(model); step["providerName"] = provider["name"].clone(); step["fingerprint"] = json!([provider["id"], model, args.prompt.trim(), sources, args.count, run.mask_file]); })?;
+            run.update(|o| { let step = step_mut(o, &step_id); step["status"] = json!("running"); step["model"] = json!(model); step["providerName"] = provider["name"].clone(); step["fingerprint"] = json!([provider["id"], model, args.prompt.trim(), sources, args.count, run.mask_file, run.marker_file]); })?;
             let mut files = Vec::new();
             for _ in 0..args.count {
                 run.update(|o| { let step = step_mut(o, &step_id); step["dispatchState"] = json!("unknown"); step["dispatchedAt"] = json!(now()); })?;
@@ -201,7 +201,7 @@ impl ImageTool {
                     step_mut(o,&step_id)["dispatchState"] = json!("received");
                 })?;
             }
-            Ok(json!({"imageFiles":files,"prompt":args.prompt,"sourceImageId":source,"sourceImageIds":sources,"maskFile":run.mask_file,"operation":if source.is_some(){"edit"}else{"generate"}}))
+            Ok(json!({"imageFiles":files,"prompt":args.prompt,"sourceImageId":source,"sourceImageIds":sources,"maskFile":run.mask_file,"markerFile":run.marker_file,"operation":if source.is_some(){"edit"}else{"generate"}}))
         }.await;
         run.update(|o| {
             let step = step_mut(o, &step_id);
@@ -244,8 +244,8 @@ pub async fn retry_image_step(app: tauri::AppHandle, state: State<'_, AppState>,
         active.insert(session_id.clone(), token.clone());
     }
     let output = json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":"chat","agent":true,"content":"","imageFiles":[],"steps":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"streaming","error":"","retryOfStep":step_id});
-    let run = Arc::new(Run {app:app.clone(), session_id:session_id.clone(),output:Mutex::new(output),image_provider:Some(provider),image_model:model,image_key:Some(Ok(secret)),reference:reference.clone(),mask_file,marker_file:None,viewed:Mutex::new(vec![])});
-    let args = ImageArgs {prompt:string(step,"prompt").into(),count,output_mode:Some(if count > 1 {"variants"} else if reference.len() == 1 {"individual"} else {"compose"}.into()),source_image_ids:Some(reference),source_image_id:None};
+    let run = Arc::new(Run {app:app.clone(), session_id:session_id.clone(),output:Mutex::new(output),image_provider:Some(provider),image_model:model,image_key:Some(Ok(secret)),reference:reference.clone(),mask_file,marker_file:step["markerFile"].as_str().map(str::to_owned),viewed:Mutex::new(vec![])});
+    let args = ImageArgs {prompt:string(step,"prompt").into(),count,output_mode:Some(if count > 1 {"variants"} else if reference.len() == 1 {"individual"} else {"compose"}.into()),source_image_ids:Some(reference.iter().enumerate().map(|(i, _)| attachment_id(i)).collect()),source_image_id:None};
     let tool = ImageTool(run.clone());
     let result = tokio::select! {
         _ = token.cancelled() => Err("ui.generationStopped".to_owned()),
@@ -443,7 +443,7 @@ pub async fn generate(
             let mut preamble = format!("{}\nAttachment manifest (use these request-scoped handles; never use internal image IDs): {}\nSession instructions:\n{}",
                 include_str!("../prompts/image-agent.txt"), serde_json::to_string(&attachment_manifest(&reference)).unwrap(), string(&session,"systemPrompt"));
             if mask_file.is_some() { preamble.push_str("\nThe user selected a region on the FIRST attached image. create_images automatically sends its edit mask. Keep that image first; modify only the selected region according to the user request and preserve the rest. Do not claim pixel-perfect preservation."); }
-            if marker_file.is_some() { preamble.push_str("\nThe user supplied a marker overlay for the FIRST attached image. create_images automatically sends it as a marker image. Use the marker overlay together with the coordinate instructions to locate the requested regions; do not preserve marker lines or labels in the output."); }
+            if marker_file.is_some() { preamble.push_str("\nThe user supplied a marker overlay for the FIRST attached image. create_images automatically sends the clean original as Image 1 and its annotated copy as Image 2 through standard image inputs. Keep attachment_1 first and include all region coordinates and instructions in the editing prompt. Use the marker overlay together with the coordinate instructions to locate the requested regions; do not preserve marker lines or labels in the output."); }
             if let Some(skill) = &skill {
                 preamble.push_str(&format!("\nSkill preflight warnings (not proof of capability): {}. Use only actually registered tools. Explain missing capabilities; never claim unavailable actions succeeded.\n",lock(&current.output)?["skillWarnings"]));
                 preamble.push_str(&format!("\nSelected workflow: {} (version {}). Follow its instructions within the existing tool permissions and budgets:\n{}",skill.name,skill.version,skill.instructions));

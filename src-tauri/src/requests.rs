@@ -150,20 +150,28 @@ async fn create_image_request(
     s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, references: &[String], mask: Option<&str>, marker: Option<&str>,
 ) -> Result<String> {
     crate::validate_edit_mask(s, references, mask)?;
+    if let Some(file) = marker {
+        if mask.is_some() { return Err("Choose mask editing or smart markers, not both".into()); }
+        let source = references.first().ok_or("Markers require a source image")?;
+        if !file.starts_with(&format!("marker-{source}-")) { return Err("Markers do not belong to the first source image".into()); }
+        crate::validate_mask(&std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?)?;
+    }
+    let prompt = if marker.is_some() {
+        format!("{prompt}\n\nImage input roles: Image 1 is the clean original and the only editing base. Image 2 is the same original with numbered region annotations, provided ONLY for location guidance. Any later images are supplementary references. Match region numbers and original pixel coordinates to Image 2, then apply the requested edits to Image 1. Never copy annotation outlines, number badges or yellow highlighting into the result. Preserve the original canvas dimensions, framing, text, lighting, colors and all content outside the requested regions. Return one edited version of Image 1, not a collage or annotated image.")
+    } else { prompt.to_owned() };
+    let mut inputs: Vec<&str> = references.iter().map(String::as_str).collect();
+    if let Some(file) = marker { inputs.insert(1, file); }
+
     let request = if !references.is_empty() {
         let mut form = reqwest::multipart::Form::new().text("model", model.to_owned()).text("prompt", prompt.to_owned()).text("n", "1").text("response_format", "b64_json");
-        for (index, file) in references.iter().enumerate() {
+        for (index, file) in inputs.iter().enumerate() {
             let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?;
             let part = reqwest::multipart::Part::bytes(bytes).file_name(format!("reference-{index}.{}", file.rsplit('.').next().unwrap_or("png"))).mime_str(crate::image_mime(file)).map_err(|e| e.to_string())?;
-            form = form.part(if references.len() == 1 { "image" } else { "image[]" }, part);
+            form = form.part(if inputs.len() == 1 { "image" } else { "image[]" }, part);
         }
         if let Some(file) = mask {
             let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e|e.to_string())?;
             form = form.part("mask", reqwest::multipart::Part::bytes(bytes).file_name("mask.png").mime_str("image/png").map_err(|e|e.to_string())?);
-        }
-        if let Some(file) = marker {
-            let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?;
-            form = form.part("marker", reqwest::multipart::Part::bytes(bytes).file_name("marker.png").mime_str("image/png").map_err(|e| e.to_string())?);
         }
         s.client.post(url(string(provider, "baseUrl"), "/images/edits")?).multipart(form)
     } else {

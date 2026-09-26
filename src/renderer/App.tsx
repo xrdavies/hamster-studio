@@ -284,7 +284,10 @@ export default function App() {
       const maskFile =
         editMask && referenceFiles.includes(editMask.file) ? editMask.mask : undefined
       const markerFile = editMarker && referenceFiles.includes(editMarker.file) ? editMarker.marker : undefined
-      if (markerFile && editMarker) prompt = `${prompt}\n\n${editMarker.prompt}`
+      if (markerFile && editMarker) {
+        prompt = `${prompt}\n\n${editMarker.prompt}`
+        referenceFiles = [editMarker.file, ...referenceFiles.filter((file) => file !== editMarker.file)]
+      }
       if (maskFile && editMask)
         referenceFiles = [editMask.file, ...referenceFiles.filter((file) => file !== editMask.file)]
       if (['ui.newConversation', 'New conversation'].includes(target.title))
