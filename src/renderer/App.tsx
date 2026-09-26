@@ -309,8 +309,32 @@ export default function App() {
   async function submit() {
     if (!session || !text.trim() || activeRequests.current.has(session.id)) return
     const prompt = text.trim()
-    setText('')
-    await runRequest(session, prompt, modelKind)
+    const start = async () => {
+      setDrafts((current) => ({ ...current, [session.id]: '' }))
+      await runRequest(session, prompt, modelKind)
+    }
+    if (session.skill && modelKind === 'chat') {
+      try {
+        const files = references[session.id] || []
+        const warnings = await window.studio.preflightSkill(
+          session.id,
+          files.length,
+          !!masks[session.id] && files.includes(masks[session.id]!.file),
+        )
+        if (warnings.length) {
+          askConfirm(
+            t('skills.preflight'),
+            t('skills.preflightHelp') + '\n\n' + warnings.map(translateMessage).join('\n'),
+            () => void start(),
+          )
+          return
+        }
+      } catch (reason) {
+        setError(translateMessage(String(reason)), session.id)
+        return
+      }
+    }
+    await start()
   }
   async function retry(message: Message) {
     const target = data.sessions.find((item) => item.id === message.sessionId)

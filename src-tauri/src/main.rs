@@ -430,6 +430,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             load,
             skills::list_skills,
+            skills::preflight_skill,
             skills::save_skill,
             save_session,
             delete_session,

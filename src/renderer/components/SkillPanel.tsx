@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, Sparkles } from 'lucide-react'
-import { t } from '../i18n'
+import { t, translateMessage } from '../i18n'
 import type { Skill } from '../../shared/types'
 
 export default function SkillPanel({
@@ -26,7 +26,7 @@ export default function SkillPanel({
     void window.studio
       .listSkills()
       .then(setSkills)
-      .catch((reason) => setError(String(reason)))
+      .catch((reason) => setError(translateMessage(String(reason))))
   }, [])
   async function choose(skill: Skill | null) {
     setWorking(true)
@@ -34,7 +34,7 @@ export default function SkillPanel({
       await onSelect(skill)
       onClose()
     } catch (reason) {
-      setError(String(reason))
+      setError(translateMessage(String(reason)))
     } finally {
       setWorking(false)
     }
@@ -48,7 +48,7 @@ export default function SkillPanel({
       setEditing(undefined)
       setError(t('skills.saved'))
     } catch (reason) {
-      setError(String(reason))
+      setError(translateMessage(String(reason)))
     } finally {
       setWorking(false)
     }
@@ -127,7 +127,15 @@ export default function SkillPanel({
           </label>
           <fieldset disabled={working}>
             <legend>{t('skills.tools')}</legend>
-            {['create_images', 'list_images', 'view_image', 'read_webpage'].map((tool) => (
+            {[
+              ...new Set([
+                'create_images',
+                'list_images',
+                'view_image',
+                'read_webpage',
+                ...editing.tools,
+              ]),
+            ].map((tool) => (
               <label key={tool}>
                 <input
                   type="checkbox"
@@ -145,6 +153,66 @@ export default function SkillPanel({
               </label>
             ))}
           </fieldset>
+          <fieldset disabled={working}>
+            <legend>{t('skills.requirements')}</legend>
+            <label>
+              {t('skills.minImages')}
+              <input
+                type="number"
+                min="0"
+                max="6"
+                value={editing.requirements?.minImages ?? 0}
+                onChange={(event) =>
+                  setEditing({
+                    ...editing,
+                    requirements: {
+                      ...(editing.requirements || { minImages: 0, maxImages: 6, capabilities: [] }),
+                      minImages: Number(event.target.value),
+                    },
+                  })
+                }
+              />
+            </label>
+            <label>
+              {t('skills.maxImages')}
+              <input
+                type="number"
+                min="0"
+                max="6"
+                value={editing.requirements?.maxImages ?? 6}
+                onChange={(event) =>
+                  setEditing({
+                    ...editing,
+                    requirements: {
+                      ...(editing.requirements || { minImages: 0, maxImages: 6, capabilities: [] }),
+                      maxImages: Number(event.target.value),
+                    },
+                  })
+                }
+              />
+            </label>
+            <label>
+              {t('skills.capabilities')}
+              <input
+                value={editing.requirements?.capabilities.join(', ') || ''}
+                onChange={(event) =>
+                  setEditing({
+                    ...editing,
+                    requirements: {
+                      minImages: 0,
+                      maxImages: 6,
+                      ...editing.requirements,
+                      capabilities: event.target.value
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    },
+                  })
+                }
+              />
+            </label>
+          </fieldset>
+          <p className="muted">{t('skills.templateHelp')}</p>
           <label>
             {t('skills.instructions')}
             <textarea

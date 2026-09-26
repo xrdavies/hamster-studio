@@ -1934,3 +1934,7 @@ button svg {
   display: inline-flex;
   margin-right: 12px;
 }
+
+.confirm-dialog > p {
+  white-space: pre-line;
+}

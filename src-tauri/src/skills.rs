@@ -4,9 +4,37 @@ use serde_json::{json, Value};
 use tauri::State;
 
 const TOOLS: &[&str] = &["create_images", "list_images", "view_image", "read_webpage"];
+const SECTIONS: &[&str] = &["Purpose", "Inputs", "Outputs", "Steps", "Acceptance", "Limits"];
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields, rename_all = "camelCase")]
+pub struct Requirements {
+    pub min_images: usize,
+    pub max_images: usize,
+    pub capabilities: Vec<String>,
+}
+impl Default for Requirements {
+    fn default() -> Self {Self {min_images:0,max_images:6,capabilities:vec![]}}
+}
+fn default_schema() -> u32 {1}
+fn validate_sections(text: &str) -> Result<()> {
+    let mut found = Vec::new();
+    let mut body = false;
+    for line in text.lines() {
+        if let Some(title) = line.trim().strip_prefix("## ") {
+            if !found.is_empty() && !body {return Err("skills.invalidTemplate".into());}
+            found.push(title.to_owned()); body = false;
+        } else if !line.trim().is_empty() {body = true;}
+    }
+    if found != SECTIONS || !body {return Err("skills.invalidTemplate".into());}
+    Ok(())
+}
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Skill {
+    #[serde(default = "default_schema", rename = "schemaVersion")]
+    pub schema_version: u32,
+    #[serde(default)]
+    pub requirements: Requirements,
     pub id: String,
     pub version: u32,
     pub name: String,
@@ -17,11 +45,15 @@ pub struct Skill {
 impl Skill {
     pub fn allows(&self, tool: &str) -> bool { self.tools.iter().any(|item|item == tool) }
     pub fn validate(&self, creator: bool) -> Result<()> {
+        if ![1,2].contains(&self.schema_version) {return Err("Unsupported skill schema".into());}
+        if self.schema_version == 2 {validate_sections(&self.instructions)?;}
+        let r = &self.requirements;
+        if r.min_images > r.max_images || r.max_images > 6 || r.capabilities.len() > 32 || r.capabilities.iter().any(|c| c.trim().is_empty() || c.len() > 100) {return Err("skills.invalidRequirements".into());}
         if self.name.trim().is_empty() || self.name.len() > 160 || self.description.len() > 1000 || self.instructions.trim().is_empty() || self.instructions.len() > 20000 || self.version == 0 {
             return Err("Invalid skill: name or instructions empty/too long, or invalid version".into());
         }
-        if self.tools.len() > 4 || self.tools.iter().any(|tool| !TOOLS.contains(&tool.as_str()) && !(creator && tool == "draft_skill")) {
-            return Err("Skill requires unsupported tools".into());
+        if self.tools.len() > 32 || self.tools.iter().any(|tool| tool.trim().is_empty() || tool.len() > 100 || (!creator && tool == "draft_skill")) {
+            return Err("Invalid tool declaration or reserved Creator tool".into());
         }
         Ok(())
     }
@@ -69,12 +101,46 @@ pub fn save_skill(state: State<AppState>, mut skill: Skill) -> Result<Skill> {
     file.write_all(&serde_json::to_vec_pretty(&skill).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
     Ok(skill)
 }
+pub fn preflight(skill: &Skill, images: usize, mask: bool, image_model: bool) -> Result<Vec<String>> {
+    skill.validate(skill.id == "builtin-creator")?;
+    let r = &skill.requirements;
+    let mut warnings = Vec::new();
+    if images < r.min_images || images > r.max_images {warnings.push(format!("Reference images: expected {}–{}, supplied {}",r.min_images,r.max_images,images));}
+    if skill.allows("create_images") && !image_model {warnings.push("skills.imageModelMissing".into());}
+    if r.capabilities.iter().any(|c|c == "mask") && !mask {warnings.push("skills.maskRequired".into());}
+    warnings.push("tool_calling".into());
+    for tool in &skill.tools { if !TOOLS.contains(&tool.as_str()) && tool != "draft_skill" {warnings.push(format!("Unavailable tool: {tool}"));} }
+    if images > 0 || skill.allows("view_image") || r.capabilities.iter().any(|c|c == "vision") {warnings.push("vision".into());}
+    if skill.allows("create_images") && images > 0 {warnings.push("image_edit".into());}
+    if skill.allows("create_images") && images > 1 {warnings.push("multi_reference".into());}
+    if skill.allows("create_images") && mask {warnings.push("mask".into());}
+    for c in &r.capabilities {if !warnings.contains(c) {warnings.push(c.clone());}}
+    Ok(warnings.into_iter().map(|warning| match warning.as_str() {
+        "tool_calling" => "skills.toolCallingUnknown".into(),
+        "vision" => "skills.visionUnknown".into(),
+        "image_edit" => "skills.imageEditUnknown".into(),
+        "multi_reference" => "skills.multiReferenceUnknown".into(),
+        "mask" => "skills.maskUnknown".into(),
+        _ => warning,
+    }).collect())
+}
+#[tauri::command]
+pub fn preflight_skill(state: State<AppState>, session_id: String, images: usize, mask: bool) -> Result<Vec<String>> {
+    let session = crate::lock(&state.store)?.get("sessions", &session_id)?;
+    let Some(skill) = snapshot(&session["skill"])? else {return Ok(vec![])};
+    if session["modelKind"] != "chat" {return Err("ui.selectAChatModelFirst".into());}
+    let mut provider = crate::lock(&state.store)?.get("providers", crate::store::string(&session,"providerId"))?;
+    crate::lock(&state.catalog)?.provider(&mut provider);
+    if !provider["chatModels"].as_array().is_some_and(|models|models.contains(&session["chatModel"])) {return Err("ui.selectAChatModelFirst".into());}
+    preflight(&skill, images, mask, crate::agent::image_config(&state,&session).ok().flatten().is_some())
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DraftArgs {
     name: String,
     description: String,
     tools: Vec<String>,
+    requirements: Requirements,
     instructions: String,
 }
 pub struct DraftSkill(pub std::sync::Arc<crate::agent::Run>);
@@ -84,9 +150,9 @@ impl rig::tool::Tool for DraftSkill {
     type Output = Value;
     type Error = std::io::Error;
     fn description(&self) -> String { "Propose a local skill draft for user review, testing and explicit save. Does not install or execute it.".into() }
-    fn parameters(&self) -> Value {json!({"type":"object","properties":{"name":{"type":"string"},"description":{"type":"string"},"tools":{"type":"array","items":{"type":"string","enum":TOOLS}},"instructions":{"type":"string"}},"required":["name","description","tools","instructions"],"additionalProperties":false})}
+    fn parameters(&self) -> Value {json!({"type":"object","properties":{"name":{"type":"string"},"description":{"type":"string"},"tools":{"type":"array","items":{"type":"string"}},"instructions":{"type":"string","description":"Exactly six nonempty Markdown sections in this order: ## Purpose, ## Inputs, ## Outputs, ## Steps, ## Acceptance, ## Limits. Body text in the user language."},"requirements":{"type":"object","properties":{"minImages":{"type":"integer","minimum":0,"maximum":6},"maxImages":{"type":"integer","minimum":0,"maximum":6},"capabilities":{"type":"array","items":{"type":"string"}}},"required":["minImages","maxImages","capabilities"],"additionalProperties":false}},"required":["name","description","tools","instructions","requirements"],"additionalProperties":false})}
     async fn call(&self, _: &mut rig::tool::ToolContext, args: DraftArgs) -> std::result::Result<Value,Self::Error> {
-        let skill = Skill {id:format!("draft-{}",now()),version:1,name:args.name,description:args.description,tools:args.tools,instructions:args.instructions};
+        let skill = Skill {schema_version:2,requirements:args.requirements,id:format!("draft-{}",now()),version:1,name:args.name,description:args.description,tools:args.tools,instructions:args.instructions};
         if let Err(error) = skill.validate(false) {return Ok(json!({"error":error,"recoverable":true}));}
         self.0.update(|output| output["skillDraft"] = json!(skill)).map_err(std::io::Error::other)?;
         Ok(json!({"status":"Draft ready for user review. Not saved or tested."}))
@@ -96,11 +162,31 @@ impl rig::tool::Tool for DraftSkill {
 mod tests {
     use super::*;
     #[test]
+    fn template_and_advisory_preflight() {
+        let mut skill = builtins().remove(1);
+        skill.instructions = "## Purpose\nOnly one section".into();
+        assert!(skill.validate(false).is_err());
+        skill = builtins().remove(1);
+        skill.requirements = Requirements {min_images:2,max_images:3,capabilities:vec!["mask".into(),"animation".into()]};
+        skill.tools.push("animate".into());
+        let warnings = preflight(&skill,0,false,false).unwrap();
+        assert!(warnings.contains(&"skills.imageModelMissing".into()));
+        assert!(warnings.contains(&"skills.maskRequired".into()));
+        assert!(warnings.iter().any(|s|s.contains("animate")));
+        assert!(warnings.iter().any(|s|s.contains("Reference images")));
+        skill.requirements.min_images = 4;
+        assert!(preflight(&skill,0,false,false).is_err());
+        skill.schema_version = 1;
+        skill.requirements = Requirements::default();
+        skill.instructions = "legacy workflow".into();
+        assert!(skill.validate(false).is_ok());
+    }
+    #[test]
     fn validates_skills_and_protects_creator() {
         for skill in builtins() {assert!(snapshot(&json!(skill)).is_ok());}
         let mut skill = builtins().remove(1);
         skill.tools.push("shell".into());
-        assert!(snapshot(&json!(skill)).is_err());
+        assert!(preflight(&skill, 0, false, true).unwrap().iter().any(|warning|warning.contains("shell")));
         let mut creator = builtins().remove(0);
         creator.instructions = "override".into();
         assert!(snapshot(&json!(creator)).is_err());

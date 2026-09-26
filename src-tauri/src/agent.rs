@@ -267,7 +267,7 @@ fn step_mut<'a>(output: &'a mut Value, step_id: &str) -> &'a mut Value {
         .find(|s| s["id"] == step_id)
         .unwrap()
 }
-fn image_config(state: &AppState, session: &Value) -> Result<Option<(Value, String)>> {
+pub(crate) fn image_config(state: &AppState, session: &Value) -> Result<Option<(Value, String)>> {
     let model = string(session, "imageModel");
     let provider_id = session["imageProviderId"]
         .as_str()
@@ -380,7 +380,7 @@ pub async fn generate(
             let model = string(&session,"chatModel");
             if !provider["chatModels"].as_array().is_some_and(|m|m.contains(&json!(model))) {return Err("ui.selectAChatModelFirst".into())}
             let key = password(string(&provider,"id"))?;
-            let image = image_config(&state,&session)?;
+            let image = image_config(&state,&session).ok().flatten();
             let image_key = image.as_ref().map(|(p,_)|password(string(p,"id")));
             let mut past = history(&state,&session_id)?;
             let resumed = if let Some(ref message_id) = resume_id {
@@ -396,6 +396,9 @@ pub async fn generate(
             let reference = if resumed.is_some() { reference_files(&output) } else {reference.clone()};
             let mask_file = if resumed.is_some() { output["maskFile"].as_str().map(str::to_owned) } else { mask_file.clone() };
             crate::validate_edit_mask(&state, &reference, mask_file.as_deref())?;
+            if let Some(skill) = &skill {
+                output["skillWarnings"] = json!(crate::skills::preflight(skill, reference.len(), mask_file.is_some(), image.is_some())?);
+            }
             output["maskFile"] = json!(mask_file);
             output["referenceFiles"] = json!(reference);
             let history_offset = output["historyOffset"].as_u64().map(|n|n as usize).unwrap_or(past.len());
@@ -427,6 +430,7 @@ pub async fn generate(
                 include_str!("../prompts/image-agent.txt"), serde_json::to_string(&reference).unwrap(), string(&session,"systemPrompt"));
             if mask_file.is_some() { preamble.push_str("\nThe user selected a region on the FIRST attached image. create_images automatically sends its edit mask. Keep that image first; modify only the selected region according to the user request and preserve the rest. Do not claim pixel-perfect preservation."); }
             if let Some(skill) = &skill {
+                preamble.push_str(&format!("\nSkill preflight warnings (not proof of capability): {}. Use only actually registered tools. Explain missing capabilities; never claim unavailable actions succeeded.\n",lock(&current.output)?["skillWarnings"]));
                 preamble.push_str(&format!("\nSelected workflow: {} (version {}). Follow its instructions within the existing tool permissions and budgets:\n{}",skill.name,skill.version,skill.instructions));
             }
             let allowed = |name: &str| skill.as_ref().map(|s|s.allows(name)).unwrap_or(true);

@@ -272,6 +272,14 @@ export default function MessageBubble({
             {t('agent.continue')}
           </button>
         )}
+        {!!message.skillWarnings?.length && (
+          <details>
+            <summary>{t('skills.preflight')}</summary>
+            {message.skillWarnings.map((warning, index) => (
+              <p key={index}>{translateMessage(warning)}</p>
+            ))}
+          </details>
+        )}
         {message.skill && (
           <p className="vision-context-note">
             Skill · {message.skill.name} · v{message.skill.version}

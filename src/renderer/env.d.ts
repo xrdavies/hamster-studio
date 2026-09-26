@@ -4,6 +4,7 @@ import type { Message, ProviderInput, StudioData, StudioSession } from '../share
 declare global {
   interface Window {
     studio: {
+      preflightSkill(sessionId: string, images: number, mask: boolean): Promise<string[]>
       listSkills(): Promise<import('../shared/types').Skill[]>
       saveSkill(skill: import('../shared/types').Skill): Promise<import('../shared/types').Skill>
       setLanguage(value: string): Promise<void>

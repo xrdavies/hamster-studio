@@ -1,4 +1,6 @@
 export type Skill = {
+  schemaVersion?: number
+  requirements?: { minImages: number; maxImages: number; capabilities: string[] }
   id: string
   version: number
   name: string
@@ -64,6 +66,7 @@ export type ImageStep = {
 
 export type Message = {
   skill?: Skill
+  skillWarnings?: string[]
   skillDraft?: Skill
   canContinue?: boolean
   retryAttempt?: number

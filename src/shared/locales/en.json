@@ -250,5 +250,21 @@
   "skills.save": "Confirm and save copy",
   "skills.saved": "Saved to your local skill library.",
   "skills.busy": "Wait for the current task to finish.",
-  "skills.review": "Review skill draft"
+  "skills.review": "Review skill draft",
+  "skills.requirements": "Input and capability requirements",
+  "skills.minImages": "Minimum references",
+  "skills.maxImages": "Maximum references",
+  "skills.capabilities": "Capabilities (comma separated)",
+  "skills.templateHelp": "Use six nonempty headings: ## Purpose, ## Inputs, ## Outputs, ## Steps, ## Acceptance, ## Limits. Body text may use your language.",
+  "skills.invalidTemplate": "Fill the six template sections in order.",
+  "skills.invalidRequirements": "Invalid input requirements.",
+  "skills.preflight": "Skill preflight",
+  "skills.preflightHelp": "These requirements are missing or unverified. Continue to attempt the workflow? This does not grant unavailable tools; model requests may fail or incur charges.",
+  "skills.imageModelMissing": "Image model is not configured or unavailable.",
+  "skills.maskRequired": "The skill requires a selected edit region.",
+  "skills.toolCallingUnknown": "Tool calling: unverified",
+  "skills.visionUnknown": "Vision: unverified",
+  "skills.imageEditUnknown": "Image editing: unverified",
+  "skills.multiReferenceUnknown": "Multiple references: unverified",
+  "skills.maskUnknown": "Mask editing: unverified"
 }
