@@ -283,11 +283,11 @@
   "skills.useCreator": "Create with Skill Creator",
   "skills.testNewChat": "Try in a new conversation",
   "skills.readOnly": "Built-in workflow · read only",
-  "skills.snapshotHelp": "Save a new copy; existing sessions keep their snapshots.",
+  "skills.snapshotHelp": "Save to the local Skill library; existing sessions keep their snapshots.",
   "skills.unsaved": "Unsaved changes",
   "skills.discardHelp": "Discard unsaved changes and continue?",
   "skills.pick": "Choose a Skill for this conversation",
   "skills.creatorDescription": "Design and refine reusable workflows through conversation",
-  "skills.saveShort": "保存",
+  "skills.saveShort": "Save",
   "skills.descriptionLimit": "Up to 140 characters"
 }

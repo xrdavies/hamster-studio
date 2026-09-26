@@ -283,7 +283,7 @@
   "skills.useCreator": "使用 Creator 生成草稿",
   "skills.testNewChat": "在新会话中试运行",
   "skills.readOnly": "内置流程 · 只读",
-  "skills.snapshotHelp": "保存为新副本，已有会话保留原快照。",
+  "skills.snapshotHelp": "保存后加入本地 Skill 库，已有会话保留原快照。",
   "skills.unsaved": "未保存修改",
   "skills.discardHelp": "放弃未保存的修改并继续？",
   "skills.pick": "选择当前会话的 Skill",

@@ -2088,6 +2088,11 @@ button svg {
   font-size: 22px;
   letter-spacing: -0.02em;
 }
+.skill-editor-heading {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
 .skill-title-input {
   width: min(100%, 420px);
   border: 0;
@@ -2153,11 +2158,11 @@ button svg {
   gap: 18px;
 }
 .skill-editor-identity {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  grid-template-columns: 1fr;
 }
 .skill-tool-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 .skill-tool-grid label {
@@ -2237,7 +2242,12 @@ button svg {
 }
 .skill-editor-section input:not([type='checkbox']),
 .skill-editor-section textarea {
+  width: 100%;
   font-size: 13px;
+}
+.skill-editor-identity textarea {
+  min-height: 96px;
+  max-height: 140px;
 }
 .skill-instructions textarea {
   min-height: 520px;
