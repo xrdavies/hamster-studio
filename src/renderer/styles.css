@@ -2056,8 +2056,8 @@ button svg {
   gap: 5px;
   text-align: left;
   width: 100%;
-  padding: 12px;
-  margin-bottom: 6px;
+  padding: 8px 10px;
+  margin-bottom: 2px;
   border-radius: 8px;
   background: transparent;
   color: var(--ink);
