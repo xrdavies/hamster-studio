@@ -81,6 +81,8 @@ export type Message = {
 
   agent?: boolean
   maskFile?: string
+  markerFile?: string
+  markerPrompt?: string
   referenceFile?: string
   referenceFiles?: string[]
   steps?: ImageStep[]

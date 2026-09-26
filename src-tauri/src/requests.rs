@@ -59,6 +59,7 @@ pub async fn generate(
     kind: String,
     reference_files: Option<Vec<String>>,
     mask_file: Option<String>,
+    marker_file: Option<String>,
     resume_id: Option<String>,
 ) -> Result<Value> {
     let reference_files = reference_files.unwrap_or_default();
@@ -93,12 +94,12 @@ pub async fn generate(
             if !models.as_array().map(|v|v.contains(&json!(model))).unwrap_or(false) {return Err("ui.modelCapabilityChangedOrIsUnavailableSelectAModelAgain".into())}
             let secret=password(string(&provider,"id"))?;
             let mut history=lock(&s.store)?.history(&session_id)?;
-            let user=json!({"id":id(),"sessionId":session_id,"role":"user","kind":kind,"content":text.trim(),"referenceFiles":reference_files,"maskFile":mask_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"done","error":""});
+            let user=json!({"id":id(),"sessionId":session_id,"role":"user","kind":kind,"content":text.trim(),"referenceFiles":reference_files,"maskFile":mask_file,"markerFile":marker_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"done","error":""});
             emit(&app,&s,&user)?;
             assistant=Some(json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":kind,"content":"","imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"streaming","error":""}));
             let output=assistant.as_mut().unwrap(); emit(&app,&s,output)?;
             if kind=="image" {
-                let name = create_image(&s, &provider, model, &secret, text.trim(), &reference_files, mask_file.as_deref()).await?;
+                let name = create_image(&s, &provider, model, &secret, text.trim(), &reference_files, mask_file.as_deref(), marker_file.as_deref()).await?;
                 output["imageFiles"]=json!([name]);
             } else {
                 if !string(&session,"systemPrompt").is_empty() {history.insert(0,json!({"role":"system","content":session["systemPrompt"]}));}
@@ -138,15 +139,15 @@ pub(crate) async fn create_image(
     secret: &str,
     prompt: &str,
     references: &[String],
-    mask: Option<&str>,
+    mask: Option<&str>, marker: Option<&str>,
 ) -> Result<String> {
-    image_deadline(std::time::Duration::from_secs(600), create_image_request(s, provider, model, secret, prompt, references, mask)).await
+    image_deadline(std::time::Duration::from_secs(600), create_image_request(s, provider, model, secret, prompt, references, mask, marker)).await
 }
 async fn image_deadline<T>(duration: std::time::Duration, request: impl std::future::Future<Output = Result<T>>) -> Result<T> {
     tokio::time::timeout(duration, request).await.map_err(|_| "agent.imageTimeout".to_string())?
 }
 async fn create_image_request(
-    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, references: &[String], mask: Option<&str>,
+    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, references: &[String], mask: Option<&str>, marker: Option<&str>,
 ) -> Result<String> {
     crate::validate_edit_mask(s, references, mask)?;
     let request = if !references.is_empty() {
@@ -159,6 +160,10 @@ async fn create_image_request(
         if let Some(file) = mask {
             let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e|e.to_string())?;
             form = form.part("mask", reqwest::multipart::Part::bytes(bytes).file_name("mask.png").mime_str("image/png").map_err(|e|e.to_string())?);
+        }
+        if let Some(file) = marker {
+            let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?;
+            form = form.part("marker", reqwest::multipart::Part::bytes(bytes).file_name("marker.png").mime_str("image/png").map_err(|e| e.to_string())?);
         }
         s.client.post(url(string(provider, "baseUrl"), "/images/edits")?).multipart(form)
     } else {
@@ -310,7 +315,7 @@ mod tests {
             client: reqwest::Client::new(),
         };
         let provider = json!({"baseUrl":format!("http://{address}")});
-        let first = create_image(&state, &provider, "image-model", "test-key", "draw", &[], None)
+        let first = create_image(&state, &provider, "image-model", "test-key", "draw", &[], None, None)
             .await
             .unwrap();
         assert_eq!(
@@ -335,13 +340,13 @@ mod tests {
             "test-key",
             "edit",
             &[first.clone(), first.clone()],
-            Some(&mask),
+            Some(&mask), None,
         )
         .await
         .unwrap();
         assert_ne!(first, second);
         assert!(
-            create_image(&state, &provider, "image-model", "test-key", "draw", &[], None)
+            create_image(&state, &provider, "image-model", "test-key", "draw", &[], None, None)
                 .await
                 .unwrap_err()
                 .contains("unsupported model")

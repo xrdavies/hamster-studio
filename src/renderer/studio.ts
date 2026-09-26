@@ -72,13 +72,13 @@ window.studio = {
   deleteProvider: (id) => invoke('delete_provider', { id }),
   saveSession: (session) => invoke('save_session', { session }),
   deleteSession: (id) => invoke('delete_session', { id }),
-  sendChat: (sessionId, text, referenceFiles, maskFile) =>
-    invoke('generate', { sessionId, text, kind: 'chat', referenceFiles, maskFile }),
+  sendChat: (sessionId, text, referenceFiles, maskFile, markerFile) =>
+    invoke('generate', { sessionId, text, kind: 'chat', referenceFiles, maskFile, markerFile }),
   continueAgent: (sessionId, messageId) =>
     invoke('generate', { sessionId, text: 'continue', kind: 'chat', resumeId: messageId }),
   approveImageStep: (sessionId, stepId, allow) => invoke('approve', { sessionId, stepId, allow }),
-  generateImage: (sessionId, text, referenceFiles, maskFile) =>
-    invoke('generate', { sessionId, text, kind: 'image', referenceFiles, maskFile }),
+  generateImage: (sessionId, text, referenceFiles, maskFile, markerFile) =>
+    invoke('generate', { sessionId, text, kind: 'image', referenceFiles, maskFile, markerFile }),
   onImageDrag: (callback) => {
     let disposed = false
     let off: (() => void) | undefined
@@ -100,6 +100,7 @@ window.studio = {
   importImages: (sessionId, remaining) => invoke('import_images', { sessionId, remaining }),
   stopChat: (id) => invoke('stop_chat', { id }),
   saveMask: (file, data) => invoke('save_mask', { file, data }),
+  saveMarker: (file, data) => invoke('save_marker', { file, data }),
   readImage: (file) => invoke('read_image', { file }),
   exportImages: (files) => invoke('export_images', { files }),
   retryImageStep: (sessionId, messageId, stepId) =>

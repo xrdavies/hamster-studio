@@ -182,7 +182,7 @@ impl ImageTool {
             let mut files = Vec::new();
             for _ in 0..args.count {
                 run.update(|o| { let step = step_mut(o, &step_id); step["dispatchState"] = json!("unknown"); step["dispatchedAt"] = json!(now()); })?;
-                let file = requests::create_image(&state, &provider, &model, &secret, &args.prompt, &sources, run.mask_file.as_deref()).await?;
+                let file = requests::create_image(&state, &provider, &model, &secret, &args.prompt, &sources, run.mask_file.as_deref(), None).await?;
                 files.push(file.clone());
                 run.update(|o| {
                     o["imageFiles"].as_array_mut().unwrap().push(json!(file));

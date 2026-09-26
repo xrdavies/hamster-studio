@@ -32,6 +32,7 @@ declare global {
         text: string,
         referenceFiles?: string[],
         maskFile?: string,
+        markerFile?: string,
       ): Promise<StudioData>
       stopChat(sessionId: string): Promise<void>
       generateImage(
@@ -39,6 +40,7 @@ declare global {
         prompt: string,
         referenceFiles?: string[],
         maskFile?: string,
+        markerFile?: string,
       ): Promise<StudioData>
       onImageDrag(
         callback: (event: import('@tauri-apps/api/webview').DragDropEvent) => void,
@@ -46,6 +48,7 @@ declare global {
       importDroppedImage(sessionId: string, path: string): Promise<string>
       importImages(sessionId: string, remaining: number): Promise<string[]>
       saveMask(file: string, data: string): Promise<string>
+      saveMarker(file: string, data: string): Promise<string>
       readImage(file: string): Promise<string>
       exportImages(files: string[]): Promise<boolean>
       retryImageStep(sessionId: string, messageId: string, stepId: string): Promise<StudioData>
