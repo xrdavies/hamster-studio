@@ -78,7 +78,13 @@ fn image_sources(args: &ImageArgs, attached: &[String]) -> Result<Vec<String>> {
         Some("variants") => {}
         _ => return Err("Choose output_mode: compose for one result using relevant references; variants for alternatives of the SAME task; individual for editing ONE asset in a batch. count never maps references to separate outputs.".into()),
     }
-    let sources = explicit.unwrap_or_else(|| attached.to_vec());
+    // Long sessions can make the model repeat a stale image ID. When the user
+    // attached exactly one image, that attachment is the unambiguous source.
+    let sources = match (explicit, attached) {
+        (Some(_), [file]) => vec![file.clone()],
+        (Some(files), _) => files,
+        (None, files) => files.to_vec(),
+    };
     if sources.len() > 6 { return Err("images.referenceLimit".into()); }
     Ok(sources)
 }
@@ -545,6 +551,8 @@ mod tests {
         }
         let variants = serde_json::from_value(json!({"prompt":"Combine references", "count":3,"output_mode":"variants","source_image_ids":attached})).unwrap();
         assert_eq!(image_sources(&variants, &attached).unwrap(), attached);
+        let stale: ImageArgs = serde_json::from_value(json!({"prompt":"edit", "count":1,"output_mode":"individual","source_image_ids":["old.png"]})).unwrap();
+        assert_eq!(image_sources(&stale, &["new.png".into()]).unwrap(), vec!["new.png"]);
     }
     #[test]
     fn duplicate_and_unknown_requests_require_session_scoped_confirmation() {
