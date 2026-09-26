@@ -10,10 +10,9 @@ const SECTIONS: &[&str] = &["Purpose", "Inputs", "Outputs", "Steps", "Acceptance
 pub struct Requirements {
     pub min_images: usize,
     pub max_images: usize,
-    pub capabilities: Vec<String>,
 }
 impl Default for Requirements {
-    fn default() -> Self {Self {min_images:0,max_images:6,capabilities:vec![]}}
+    fn default() -> Self {Self {min_images:0,max_images:6}}
 }
 fn default_schema() -> u32 {1}
 fn validate_sections(text: &str) -> Result<()> {
@@ -48,7 +47,7 @@ impl Skill {
         if ![1,2].contains(&self.schema_version) {return Err("Unsupported skill schema".into());}
         if self.schema_version == 2 {validate_sections(&self.instructions)?;}
         let r = &self.requirements;
-        if r.min_images > r.max_images || r.max_images > 6 || r.capabilities.len() > 32 || r.capabilities.iter().any(|c| c.trim().is_empty() || c.len() > 100) {return Err("skills.invalidRequirements".into());}
+        if r.min_images > r.max_images || r.max_images > 6 {return Err("skills.invalidRequirements".into());}
         if self.name.trim().is_empty() || self.name.len() > 160 || self.description.len() > 1000 || self.instructions.trim().is_empty() || self.instructions.len() > 20000 || self.version == 0 {
             return Err("Invalid skill: name or instructions empty/too long, or invalid version".into());
         }
@@ -107,14 +106,12 @@ pub fn preflight(skill: &Skill, images: usize, mask: bool, image_model: bool) ->
     let mut warnings = Vec::new();
     if images < r.min_images || images > r.max_images {warnings.push(format!("Reference images: expected {}–{}, supplied {}",r.min_images,r.max_images,images));}
     if skill.allows("create_images") && !image_model {warnings.push("skills.imageModelMissing".into());}
-    if r.capabilities.iter().any(|c|c == "mask") && !mask {warnings.push("skills.maskRequired".into());}
     warnings.push("tool_calling".into());
     for tool in &skill.tools { if !TOOLS.contains(&tool.as_str()) && tool != "draft_skill" {warnings.push(format!("Unavailable tool: {tool}"));} }
-    if images > 0 || skill.allows("view_image") || r.capabilities.iter().any(|c|c == "vision") {warnings.push("vision".into());}
+    if images > 0 || skill.allows("view_image") {warnings.push("vision".into());}
     if skill.allows("create_images") && images > 0 {warnings.push("image_edit".into());}
     if skill.allows("create_images") && images > 1 {warnings.push("multi_reference".into());}
     if skill.allows("create_images") && mask {warnings.push("mask".into());}
-    for c in &r.capabilities {if !warnings.contains(c) {warnings.push(c.clone());}}
     Ok(warnings.into_iter().map(|warning| match warning.as_str() {
         "tool_calling" => "skills.toolCallingUnknown".into(),
         "vision" => "skills.visionUnknown".into(),
@@ -156,7 +153,7 @@ impl rig::tool::Tool for DraftSkill {
     type Output = Value;
     type Error = std::io::Error;
     fn description(&self) -> String { "Propose a local skill draft for user review, testing and explicit save. Does not install or execute it.".into() }
-    fn parameters(&self) -> Value {json!({"type":"object","properties":{"name":{"type":"string"},"description":{"type":"string"},"tools":{"type":"array","items":{"type":"string"}},"instructions":{"type":"string","description":"Exactly six nonempty Markdown sections in this order: ## Purpose, ## Inputs, ## Outputs, ## Steps, ## Acceptance, ## Limits. Body text in the user language."},"requirements":{"type":"object","properties":{"minImages":{"type":"integer","minimum":0,"maximum":6},"maxImages":{"type":"integer","minimum":0,"maximum":6},"capabilities":{"type":"array","items":{"type":"string"}}},"required":["minImages","maxImages","capabilities"],"additionalProperties":false}},"required":["name","description","tools","instructions","requirements"],"additionalProperties":false})}
+    fn parameters(&self) -> Value {json!({"type":"object","properties":{"name":{"type":"string"},"description":{"type":"string"},"tools":{"type":"array","items":{"type":"string"}},"instructions":{"type":"string","description":"Exactly six nonempty Markdown sections in this order: ## Purpose, ## Inputs, ## Outputs, ## Steps, ## Acceptance, ## Limits. Body text in the user language."},"requirements":{"type":"object","properties":{"minImages":{"type":"integer","minimum":0,"maximum":6},"maxImages":{"type":"integer","minimum":0,"maximum":6}},"required":["minImages","maxImages"],"additionalProperties":false}},"required":["name","description","tools","instructions","requirements"],"additionalProperties":false})}
     async fn call(&self, _: &mut rig::tool::ToolContext, args: DraftArgs) -> std::result::Result<Value,Self::Error> {
         let skill = Skill {schema_version:2,requirements:args.requirements,id:format!("draft-{}",now()),version:1,name:args.name,description:args.description,tools:args.tools,instructions:args.instructions};
         if let Err(error) = skill.validate(false) {return Ok(json!({"error":error,"recoverable":true}));}
@@ -173,11 +170,10 @@ mod tests {
         skill.instructions = "## Purpose\nOnly one section".into();
         assert!(skill.validate(false).is_err());
         skill = builtins().remove(1);
-        skill.requirements = Requirements {min_images:2,max_images:3,capabilities:vec!["mask".into(),"animation".into()]};
+        skill.requirements = Requirements {min_images:2,max_images:3};
         skill.tools.push("animate".into());
         let warnings = preflight(&skill,0,false,false).unwrap();
         assert!(warnings.contains(&"skills.imageModelMissing".into()));
-        assert!(warnings.contains(&"skills.maskRequired".into()));
         assert!(warnings.iter().any(|s|s.contains("animate")));
         assert!(warnings.iter().any(|s|s.contains("Reference images")));
         skill.requirements.min_images = 4;

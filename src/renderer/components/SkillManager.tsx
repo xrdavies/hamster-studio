@@ -12,7 +12,7 @@ export const emptySkill = (): Skill => ({
   name: '',
   description: '',
   tools: [],
-  requirements: { minImages: 0, maxImages: 6, capabilities: [] },
+  requirements: { minImages: 0, maxImages: 6 },
   instructions: '## Purpose\n\n## Inputs\n\n## Outputs\n\n## Steps\n\n## Acceptance\n\n## Limits\n',
 })
 export default function SkillManager({
@@ -30,7 +30,6 @@ export default function SkillManager({
   const [working, setWorking] = useState(false)
   const [error, setError] = useState('')
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
-  const [capabilityInput, setCapabilityInput] = useState('')
   const builtin = !!editing?.id.startsWith('builtin-')
   const dirty = JSON.stringify(editing) !== baseline
   useEffect(() => {
@@ -42,24 +41,7 @@ export default function SkillManager({
   function change(skill: Skill | undefined) {
     setEditing(skill)
     setBaseline(JSON.stringify(skill))
-    setCapabilityInput('')
     setError('')
-  }
-  function addCapabilities(value: string) {
-    if (!editing) return
-    const additions = value.split(',').map((item) => item.trim()).filter(Boolean)
-    if (!additions.length) return
-    const current = editing.requirements?.capabilities || []
-    setEditing({
-      ...editing,
-      requirements: {
-        minImages: 0,
-        maxImages: 6,
-        ...editing.requirements,
-        capabilities: [...new Set([...current, ...additions])],
-      },
-    })
-    setCapabilityInput('')
   }
   function leave(action: () => void) {
     if (dirty)
@@ -244,14 +226,8 @@ export default function SkillManager({
                       <fieldset disabled={working}>
                         <legend>{t('skills.requirements')}</legend>
                         <div className="skill-requirement-grid">
-                          <label>{t('skills.minImages')}<input type="number" min="0" max="6" value={editing.requirements?.minImages ?? 0} onChange={(event) => setEditing({ ...editing, requirements: { ...(editing.requirements || { minImages: 0, maxImages: 6, capabilities: [] }), minImages: Number(event.target.value) } })} /></label>
-                          <label>{t('skills.maxImages')}<input type="number" min="0" max="6" value={editing.requirements?.maxImages ?? 6} onChange={(event) => setEditing({ ...editing, requirements: { ...(editing.requirements || { minImages: 0, maxImages: 6, capabilities: [] }), maxImages: Number(event.target.value) } })} /></label>
-                          <label className="skill-capabilities">{t('skills.capabilities')}
-                            <div className="skill-tag-input">
-                              <div className="skill-tags">{(editing.requirements?.capabilities || []).map((capability) => <button type="button" key={capability} onClick={() => setEditing({ ...editing, requirements: { minImages: 0, maxImages: 6, ...editing.requirements, capabilities: editing.requirements?.capabilities.filter((item) => item !== capability) || [] } })}>{capability} ×</button>)}</div>
-                              <input value={capabilityInput} placeholder="输入后按回车" onChange={(event) => setCapabilityInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); addCapabilities(capabilityInput) } }} onBlur={() => addCapabilities(capabilityInput)} />
-                            </div>
-                          </label>
+                          <label>{t('skills.minImages')}<input type="number" min="0" max="6" value={editing.requirements?.minImages ?? 0} onChange={(event) => setEditing({ ...editing, requirements: { ...(editing.requirements || { minImages: 0, maxImages: 6 }), minImages: Number(event.target.value) } })} /></label>
+                          <label>{t('skills.maxImages')}<input type="number" min="0" max="6" value={editing.requirements?.maxImages ?? 6} onChange={(event) => setEditing({ ...editing, requirements: { ...(editing.requirements || { minImages: 0, maxImages: 6 }), maxImages: Number(event.target.value) } })} /></label>
                         </div>
                       </fieldset>
                     </div>
