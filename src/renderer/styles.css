@@ -2103,9 +2103,62 @@ button svg {
   line-height: 1.6;
 }
 .skill-editor {
-  max-width: 900px;
+  max-width: 1100px;
   gap: 18px;
   padding-bottom: 18px;
+}
+.skill-editor-main {
+  display: grid;
+  gap: 18px;
+}
+.skill-editor-identity {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+.skill-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.skill-tool-grid label {
+  margin: 0 !important;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+}
+.skill-requirement-grid {
+  display: grid;
+  grid-template-columns: 120px 120px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+.skill-requirement-grid label {
+  margin: 0 !important;
+}
+.skill-tag-input {
+  display: grid;
+  gap: 8px;
+}
+.skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.skill-tags button {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+}
+.skill-instructions-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.skill-instructions-heading span {
+  color: #686874;
+  font-size: 11px;
 }
 .skill-editor-section {
   display: grid;
@@ -2135,7 +2188,7 @@ button svg {
   font-size: 13px;
 }
 .skill-instructions textarea {
-  min-height: 430px;
+  min-height: 520px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
 }
@@ -2160,6 +2213,34 @@ button svg {
   flex: 1;
   font-size: 12px;
   color: #686874;
+}
+@media (min-width: 1100px) {
+  .skill-editor {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    align-items: start;
+  }
+  .skill-instructions {
+    position: sticky;
+    top: 0;
+  }
+}
+@media (max-width: 720px) {
+  .skill-manager-body {
+    grid-template-columns: 1fr;
+  }
+  .skill-library {
+    max-height: 180px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .skill-manager-content {
+    padding: 20px 16px 0;
+  }
+  .skill-editor-identity,
+  .skill-requirement-grid,
+  .skill-editor {
+    grid-template-columns: 1fr;
+  }
 }
 .skill-manager-empty {
   padding: 48px;
