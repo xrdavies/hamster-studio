@@ -64,7 +64,7 @@ fn validate(args: &ImageArgs, used: usize) -> Result<()> {
 }
 fn attachment_id(index: usize) -> String { format!("attachment_{}", index + 1) }
 fn attachment_manifest(files: &[String]) -> Value {
-    json!({"attachments": files.iter().enumerate().map(|(i, file)| json!({"id": attachment_id(i), "imageId": file})).collect::<Vec<_>>()})
+    json!({"attachments": files.iter().enumerate().map(|(i, _)| json!({"id": attachment_id(i)})).collect::<Vec<_>>()})
 }
 pub(super) fn resolve_attachment(handle: &str, attached: &[String]) -> Result<String> {
     let index = handle.strip_prefix("attachment_").and_then(|n| n.parse::<usize>().ok()).and_then(|n| n.checked_sub(1)).ok_or("Unknown attachment handle")?;
