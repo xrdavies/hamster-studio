@@ -6,6 +6,7 @@ declare global {
     studio: {
       preflightSkill(sessionId: string, images: number, mask: boolean): Promise<string[]>
       listSkills(): Promise<import('../shared/types').Skill[]>
+      deleteSkill(id: string): Promise<void>
       saveSkill(skill: import('../shared/types').Skill): Promise<import('../shared/types').Skill>
       setLanguage(value: string): Promise<void>
       openAboutLink(key: string): Promise<void>

@@ -386,7 +386,11 @@ export default function App() {
     })
   }
 
-  const [skillPanel, setSkillPanel] = useState<{ sessionId: string; draft?: Skill } | null>(null)
+  const [skillPanel, setSkillPanel] = useState<{
+    sessionId: string
+    draft?: Skill
+    management?: boolean
+  } | null>(null)
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const isMac = /Mac/.test(navigator.platform)
   return (
@@ -404,8 +408,10 @@ export default function App() {
         <SkillPanel
           selected={data.sessions.find((item) => item.id === skillPanel.sessionId)?.skill}
           draft={skillPanel.draft}
+          management={skillPanel.management}
           onClose={() => setSkillPanel(null)}
           onSelect={async (skill) => {
+            if (skillPanel.management) throw new Error('skills.manageOnly')
             if (activeRequests.current.has(skillPanel.sessionId)) throw new Error(t('skills.busy'))
             await window.studio.saveSession({ id: skillPanel.sessionId, skill })
             await refreshData()
@@ -432,6 +438,7 @@ export default function App() {
         }}
         onDelete={deleteSession}
         onNew={createSession}
+        onSkills={() => setSkillPanel({ sessionId: session?.id || '', management: true })}
         onSettings={() => {
           setSettingsPage('general')
           setSettings(true)

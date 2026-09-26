@@ -276,5 +276,10 @@
   "skills.creatorActive": "Current workflow: Skill Creator",
   "skills.resumeDraft": "Continue editing draft",
   "skills.creatorNext": "Describe the workflow you want in the message box.",
-  "skills.creatorPlaceholder": "Describe the Skill you want: inputs, desired output and steps…"
+  "skills.creatorPlaceholder": "Describe the Skill you want: inputs, desired output and steps…",
+  "skills.manage": "Skills",
+  "skills.manageHelp": "Manage built-in and local Skills. Copy a workflow to edit it, or create a new one with Skill Creator.",
+  "skills.delete": "Delete Skill",
+  "skills.manageOnly": "Select a Skill from a conversation to use it.",
+  "skills.deleteHelp": "Delete this local Skill? Existing sessions keep their saved snapshots."
 }

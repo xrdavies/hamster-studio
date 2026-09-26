@@ -1,5 +1,14 @@
 import { t } from '../i18n'
-import { Archive, MessageSquarePlus, Pin, PinOff, Search, Settings, Trash2 } from 'lucide-react'
+import {
+  Archive,
+  MessageSquarePlus,
+  Pin,
+  PinOff,
+  Search,
+  Settings,
+  Trash2,
+  Sparkles,
+} from 'lucide-react'
 import type { StudioData, StudioSession } from '../../shared/types'
 
 const time = (value: number) =>
@@ -18,6 +27,7 @@ export default function SessionSidebar({
   onDelete,
   onNew,
   onSettings,
+  onSkills,
   onUpdate,
 }: {
   data: StudioData
@@ -32,6 +42,7 @@ export default function SessionSidebar({
   onDelete: (session: StudioSession) => void
   onNew: () => void
   onSettings: () => void
+  onSkills: () => void
   onUpdate: (session: StudioSession, values: Partial<StudioSession>) => Promise<void>
 }) {
   return (
@@ -93,6 +104,10 @@ export default function SessionSidebar({
         ))}
       </div>
       <div className="sidebar-bottom">
+        <button onClick={onSkills}>
+          <Sparkles size={17} />
+          {t('skills.manage')}
+        </button>
         <button onClick={onSettings}>
           <Settings size={17} />
           {t('ui.settings')}

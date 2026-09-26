@@ -134,6 +134,12 @@ pub fn preflight_skill(state: State<AppState>, session_id: String, images: usize
     if !provider["chatModels"].as_array().is_some_and(|models|models.contains(&session["chatModel"])) {return Err("ui.selectAChatModelFirst".into());}
     preflight(&skill, images, mask, crate::agent::image_config(&state,&session).ok().flatten().is_some())
 }
+#[tauri::command]
+pub fn delete_skill(state: State<AppState>, id: String) -> Result<()> {
+    if id.starts_with("builtin-") || id.trim().is_empty() { return Err("Cannot delete a built-in skill".into()); }
+    let path = state.directory.join("skills").join(format!("{id}.json"));
+    std::fs::remove_file(path).map_err(|e| e.to_string())
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DraftArgs {

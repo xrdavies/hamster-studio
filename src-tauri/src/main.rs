@@ -432,6 +432,7 @@ fn main() {
             skills::list_skills,
             skills::preflight_skill,
             skills::save_skill,
+            skills::delete_skill,
             save_session,
             delete_session,
             save_provider,

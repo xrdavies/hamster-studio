@@ -8,11 +8,13 @@ export default function SkillPanel({
   draft,
   onSelect,
   onClose,
+  management = false,
 }: {
   selected?: Skill | null
   draft?: Skill
   onSelect: (skill: Skill | null) => Promise<void>
   onClose: () => void
+  management?: boolean
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [skills, setSkills] = useState<Skill[]>([])
@@ -22,6 +24,7 @@ export default function SkillPanel({
   const [showEditor, setShowEditor] = useState(!!editing)
   const [error, setError] = useState('')
   const [working, setWorking] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState<Skill>()
   useEffect(() => {
     dialog.current?.showModal()
     void window.studio
@@ -29,6 +32,20 @@ export default function SkillPanel({
       .then(setSkills)
       .catch((reason) => setError(translateMessage(String(reason))))
   }, [])
+  async function remove(skill: Skill) {
+    if (skill.id.startsWith('builtin-')) return
+    setRemoveTarget(undefined)
+    setWorking(true)
+    try {
+      await window.studio.deleteSkill(skill.id)
+      setSkills(await window.studio.listSkills())
+      if (selected?.id === skill.id) await onSelect(null)
+    } catch (reason) {
+      setError(translateMessage(String(reason)))
+    } finally {
+      setWorking(false)
+    }
+  }
   async function choose(skill: Skill | null) {
     setWorking(true)
     try {
@@ -86,7 +103,14 @@ export default function SkillPanel({
             <button
               className="primary"
               disabled={working || !skills.some((skill) => skill.id === 'builtin-creator')}
-              onClick={() => void choose(skills.find((skill) => skill.id === 'builtin-creator')!)}
+              onClick={() => {
+                const creator = skills.find((skill) => skill.id === 'builtin-creator')
+                if (creator) {
+                  setEditing({ ...creator, id: 'draft-copy' })
+                  setShowEditor(true)
+                  setError('')
+                }
+              }}
             >
               <Plus size={16} />
               {t('skills.create')}
@@ -99,14 +123,14 @@ export default function SkillPanel({
       </header>
       {!showEditor && (
         <>
-          <p className="muted">{t('skills.chooseHelp')}</p>
+          <p className="muted">{management ? t('skills.manageHelp') : t('skills.chooseHelp')}</p>
           <div className="skill-list">
             <div className="skill-row">
               <button
                 className="skill-choice"
                 disabled={working}
                 aria-pressed={!selected}
-                onClick={() => void choose(null)}
+                onClick={() => (management ? undefined : void choose(null))}
               >
                 <MessageSquare size={18} />
                 <span>
@@ -117,14 +141,14 @@ export default function SkillPanel({
               </button>
             </div>
             {skills
-              .filter((skill) => skill.id !== 'builtin-creator')
+              .filter((skill) => management || skill.id !== 'builtin-creator')
               .map((skill) => (
                 <div className="skill-row" key={skill.id}>
                   <button
                     className="skill-choice"
                     disabled={working}
                     aria-pressed={selected?.id === skill.id}
-                    onClick={() => void choose(skill)}
+                    onClick={() => (management ? undefined : void choose(skill))}
                   >
                     <Sparkles size={18} />
                     <span>
@@ -154,6 +178,17 @@ export default function SkillPanel({
                   >
                     <Copy size={16} />
                   </button>
+                  {management && !skill.id.startsWith('builtin-') && (
+                    <button
+                      className="skill-copy danger"
+                      disabled={working}
+                      title={t('skills.delete')}
+                      aria-label={t('skills.delete')}
+                      onClick={() => setRemoveTarget(skill)}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
               ))}
             {selected?.id === 'builtin-creator' && (
@@ -301,6 +336,20 @@ export default function SkillPanel({
             </button>
           </footer>
         </section>
+      )}
+      {removeTarget && (
+        <div className="skill-remove-confirm" role="alertdialog">
+          <strong>{t('skills.delete')}</strong>
+          <p>{t('skills.deleteHelp')}</p>
+          <div>
+            <button className="secondary" onClick={() => setRemoveTarget(undefined)}>
+              {t('ui.cancel')}
+            </button>
+            <button className="danger" onClick={() => void remove(removeTarget)}>
+              {t('ui.confirm')}
+            </button>
+          </div>
+        </div>
       )}
       {error && <p role="status">{error}</p>}
     </dialog>

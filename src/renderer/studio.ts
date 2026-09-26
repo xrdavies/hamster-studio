@@ -62,6 +62,7 @@ window.studio = {
   preflightSkill: (sessionId, images, mask) =>
     invoke('preflight_skill', { sessionId, images, mask }),
   listSkills: () => invoke('list_skills'),
+  deleteSkill: (id) => invoke('delete_skill', { id }),
   saveSkill: (skill) => invoke('save_skill', { skill }),
   setLanguage: async () => {},
   version: getVersion,

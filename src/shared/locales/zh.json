@@ -276,5 +276,10 @@
   "skills.creatorActive": "当前流程：Skill Creator",
   "skills.resumeDraft": "继续编辑草稿",
   "skills.creatorNext": "请在输入框描述你想创建的流程。",
-  "skills.creatorPlaceholder": "描述你想创建的 Skill：输入素材、期望产物和制作要求……"
+  "skills.creatorPlaceholder": "描述你想创建的 Skill：输入素材、期望产物和制作要求……",
+  "skills.manage": "Skills 管理",
+  "skills.manageHelp": "管理内置和本地 Skill。可复制流程进行编辑，也可以使用 Skill Creator 创建新的流程。",
+  "skills.delete": "删除 Skill",
+  "skills.manageOnly": "请从具体会话中选择 Skill 才能使用。",
+  "skills.deleteHelp": "删除这个本地 Skill？已有会话会保留已保存的快照。"
 }
