@@ -132,7 +132,7 @@ impl Tool for ViewImage {
     type Output = Value;
     type Error = std::io::Error;
     fn description(&self) -> String {
-        "Load a session image as actual visual input on the next model turn. Requires a vision-capable conversation model. Use before inspecting or comparing images. Up to 6 images per task.".into()
+        "Load an image using its request-scoped attachment handle (for example attachment_1) as actual visual input on the next model turn. Requires a vision-capable model.".into()
     }
     fn parameters(&self) -> Value {
         json!({"type":"object","properties":{"image_id":{"type":"string"}},"required":["image_id"],"additionalProperties":false})
@@ -142,17 +142,21 @@ impl Tool for ViewImage {
         _: &mut ToolContext,
         args: ViewArgs,
     ) -> std::result::Result<Value, Self::Error> {
-        if owned_path(&self.0, &args.image_id).is_err() {
+        let image_id = match super::resolve_attachment(&args.image_id, &self.0.reference) {
+            Ok(id) => id,
+            Err(_) => return Ok(invalid_reference()),
+        };
+        if owned_path(&self.0, &image_id).is_err() {
             return Ok(invalid_reference());
         }
         let mut viewed = lock(&self.0.viewed).map_err(std::io::Error::other)?;
-        if !viewed.contains(&args.image_id) {
+        if !viewed.contains(&image_id) {
             if viewed.len() >= 6 {
                 return Ok(
                     json!({"error":"Visual context limit reached (6 images). Start a new task to inspect more images."}),
                 );
             }
-            viewed.push(args.image_id.clone());
+            viewed.push(image_id.clone());
         }
         let ids = viewed.clone();
         drop(viewed);
@@ -160,7 +164,7 @@ impl Tool for ViewImage {
             .update(|o| o["viewedImageIds"] = json!(ids))
             .map_err(std::io::Error::other)?;
         Ok(
-            json!({"imageId":args.image_id,"status":"Image supplied as visual context on the next model turn"}),
+            json!({"attachmentId":args.image_id,"status":"Image supplied as visual context on the next model turn"}),
         )
     }
 }

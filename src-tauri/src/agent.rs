@@ -62,7 +62,15 @@ fn validate(args: &ImageArgs, used: usize) -> Result<()> {
     }
     Ok(())
 }
-// Reference selection is explicit for independent edits; attached images must not leak in.
+fn attachment_id(index: usize) -> String { format!("attachment_{}", index + 1) }
+fn attachment_manifest(files: &[String]) -> Value {
+    json!({"attachments": files.iter().enumerate().map(|(i, file)| json!({"id": attachment_id(i), "imageId": file})).collect::<Vec<_>>()})
+}
+pub(super) fn resolve_attachment(handle: &str, attached: &[String]) -> Result<String> {
+    let index = handle.strip_prefix("attachment_").and_then(|n| n.parse::<usize>().ok()).and_then(|n| n.checked_sub(1)).ok_or("Unknown attachment handle")?;
+    attached.get(index).cloned().ok_or("Unknown attachment handle".into())
+}
+// Reference selection is explicit and uses request-scoped handles.
 fn image_sources(args: &ImageArgs, attached: &[String]) -> Result<Vec<String>> {
     if args.source_image_ids.is_some() && args.source_image_id.is_some() {
         return Err("Use source_image_ids OR source_image_id, not both.".into());
@@ -78,13 +86,8 @@ fn image_sources(args: &ImageArgs, attached: &[String]) -> Result<Vec<String>> {
         Some("variants") => {}
         _ => return Err("Choose output_mode: compose for one result using relevant references; variants for alternatives of the SAME task; individual for editing ONE asset in a batch. count never maps references to separate outputs.".into()),
     }
-    // Long sessions can make the model repeat a stale image ID. When the user
-    // attached exactly one image, that attachment is the unambiguous source.
-    let sources = match (explicit, attached) {
-        (Some(_), [file]) => vec![file.clone()],
-        (Some(files), _) => files,
-        (None, files) => files.to_vec(),
-    };
+    let sources = explicit.unwrap_or_else(|| attached.iter().enumerate().map(|(i, _)| attachment_id(i)).collect());
+    for handle in &sources { resolve_attachment(handle, attached)?; }
     if sources.len() > 6 { return Err("images.referenceLimit".into()); }
     Ok(sources)
 }
@@ -109,10 +112,10 @@ impl Tool for ImageTool {
     type Output = Value;
     type Error = std::io::Error;
     fn description(&self) -> String {
-        "Create images. Each result is ONE image. output_mode=compose combines relevant references into one result (count=1); variants repeats the SAME prompt and references for alternative results; individual edits ONE explicit source image (count=1). For separately restoring/exporting multiple assets, call this tool separately per asset with its own source ID and asset-specific prompt. Never put a batch instruction requesting separate files in one prompt. Missing configuration, multiple variants and additional attempts require user approval. Returns image IDs, not visual observations.".into()
+        "Create images. Use request-scoped attachment handles such as attachment_1 from the attachment manifest; never use internal image IDs. Each result is ONE image. output_mode=compose combines references into one result; variants repeats one prompt; individual edits one explicit attachment.".into()
     }
     fn parameters(&self) -> Value {
-        json!({"type":"object","properties":{"output_mode":{"type":"string","enum":["compose","variants","individual"],"description":"Independent assets require separate individual calls, each with one explicit source and count=1."},"prompt":{"type":"string","description":"Describe one output image, never a batch of separate files."},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_ids":{"type":"array","items":{"type":"string"},"maxItems":6,"description":"Ordered reference image IDs; empty array generates a new image"},"source_image_id":{"type":"string","description":"Session image ID to edit; empty string generates a new image"}},"required":["prompt","count","output_mode"],"additionalProperties":false})
+        json!({"type":"object","properties":{"output_mode":{"type":"string","enum":["compose","variants","individual"]},"prompt":{"type":"string"},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_ids":{"type":"array","items":{"type":"string","pattern":"^attachment_[1-6]$"},"maxItems":6},"source_image_id":{"type":"string","pattern":"^attachment_[1-6]$"}},"required":["prompt","count","output_mode"],"additionalProperties":false})
     }
     async fn call(
         &self,
@@ -133,10 +136,11 @@ impl ImageTool {
             .map(|s| s["count"].as_u64().unwrap_or(0) as usize)
             .sum();
 
-        let sources = match image_sources(&args, &run.reference) {
+        let handles = match image_sources(&args, &run.reference) {
             Ok(sources) => sources,
             Err(error) => return Ok(json!({"error":error,"recoverable":true})),
         };
+        let sources: Vec<String> = handles.iter().map(|h| resolve_attachment(h, &run.reference)).collect::<Result<_>>()?;
         let source = sources.first();
         if run.mask_file.is_some() && sources.first() != run.reference.first() {
             return Ok(json!({"error":"The selected region belongs to the first attached image. Keep that image first in source_image_ids.","recoverable":true}));
@@ -432,8 +436,8 @@ pub async fn generate(
                 .redirect(reqwest_rig::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
             let client = rig::providers::openai::Client::builder().api_key(key).http_client(http)
                 .base_url(requests::url(string(&provider,"baseUrl"),"")?).build().map_err(|e|e.to_string())?.completions_api();
-            let mut preamble = format!("{}\nReference image ID for editing (use exactly this ID, never invent IDs): {}.\nSession instructions:\n{}",
-                include_str!("../prompts/image-agent.txt"), serde_json::to_string(&reference).unwrap(), string(&session,"systemPrompt"));
+            let mut preamble = format!("{}\nAttachment manifest (use these request-scoped handles; never use internal image IDs): {}\nSession instructions:\n{}",
+                include_str!("../prompts/image-agent.txt"), serde_json::to_string(&attachment_manifest(&reference)).unwrap(), string(&session,"systemPrompt"));
             if mask_file.is_some() { preamble.push_str("\nThe user selected a region on the FIRST attached image. create_images automatically sends its edit mask. Keep that image first; modify only the selected region according to the user request and preserve the rest. Do not claim pixel-perfect preservation."); }
             if let Some(skill) = &skill {
                 preamble.push_str(&format!("\nSkill preflight warnings (not proof of capability): {}. Use only actually registered tools. Explain missing capabilities; never claim unavailable actions succeeded.\n",lock(&current.output)?["skillWarnings"]));
@@ -537,9 +541,10 @@ mod tests {
     #[test]
     fn independent_edits_never_include_other_attached_assets() {
         let attached = vec!["bird.png".into(), "wordmark.png".into(), "hand.png".into()];
-        for file in &attached {
-            let args: ImageArgs = serde_json::from_value(json!({"prompt":"Restore this asset only", "count":1,"output_mode":"individual","source_image_ids":[file]})).unwrap();
-            assert_eq!(image_sources(&args, &attached).unwrap(), vec![file.clone()]);
+        for (index, _) in attached.iter().enumerate() {
+            let handle = attachment_id(index);
+            let args: ImageArgs = serde_json::from_value(json!({"prompt":"Restore this asset only", "count":1,"output_mode":"individual","source_image_ids":[handle]})).unwrap();
+            assert_eq!(image_sources(&args, &attached).unwrap(), vec![attachment_id(index)]);
         }
         for invalid in [
             json!({"prompt":"batch", "count":3,"output_mode":"individual","source_image_ids":attached}),
@@ -549,10 +554,11 @@ mod tests {
         ] {
             assert!(image_sources(&serde_json::from_value(invalid).unwrap(), &attached).is_err());
         }
-        let variants = serde_json::from_value(json!({"prompt":"Combine references", "count":3,"output_mode":"variants","source_image_ids":attached})).unwrap();
-        assert_eq!(image_sources(&variants, &attached).unwrap(), attached);
+        let handles = vec![attachment_id(0), attachment_id(1), attachment_id(2)];
+        let variants = serde_json::from_value(json!({"prompt":"Combine references", "count":3,"output_mode":"variants","source_image_ids":handles})).unwrap();
+        assert_eq!(image_sources(&variants, &attached).unwrap(), handles);
         let stale: ImageArgs = serde_json::from_value(json!({"prompt":"edit", "count":1,"output_mode":"individual","source_image_ids":["old.png"]})).unwrap();
-        assert_eq!(image_sources(&stale, &["new.png".into()]).unwrap(), vec!["new.png"]);
+        assert!(image_sources(&stale, &["new.png".into()]).is_err());
     }
     #[test]
     fn duplicate_and_unknown_requests_require_session_scoped_confirmation() {
