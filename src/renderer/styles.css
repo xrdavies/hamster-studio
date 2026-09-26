@@ -2128,7 +2128,7 @@ button svg {
 }
 .skill-requirement-grid {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(220px, 2fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: start;
   gap: 14px;
 }
@@ -2137,12 +2137,14 @@ button svg {
 }
 .skill-requirement-grid > label:not(.skill-capabilities) {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 74px;
+  grid-template-columns: minmax(0, 1fr) 68px;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 .skill-capabilities {
   min-width: 0;
+  grid-column: 1 / -1;
 }
 .skill-tag-input {
   display: grid;
@@ -2225,7 +2227,7 @@ button svg {
 }
 @media (min-width: 1100px) {
   .skill-editor {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-columns: 360px minmax(0, 1fr);
     align-items: start;
   }
   .skill-instructions {
