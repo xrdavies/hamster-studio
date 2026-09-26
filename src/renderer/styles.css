@@ -2072,7 +2072,7 @@ button svg {
 }
 .skill-manager-content {
   overflow: auto;
-  padding: 28px 34px 0;
+  padding: 28px 34px 84px;
   background: #fff;
 }
 .skill-editor-heading h2 {
@@ -2128,12 +2128,21 @@ button svg {
 }
 .skill-requirement-grid {
   display: grid;
-  grid-template-columns: 120px 120px minmax(0, 1fr);
+  grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) minmax(220px, 2fr);
   align-items: start;
   gap: 14px;
 }
 .skill-requirement-grid label {
   margin: 0 !important;
+}
+.skill-requirement-grid > label:not(.skill-capabilities) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 74px;
+  align-items: center;
+  gap: 8px;
+}
+.skill-capabilities {
+  min-width: 0;
 }
 .skill-tag-input {
   display: grid;
@@ -2234,7 +2243,7 @@ button svg {
     border-bottom: 1px solid var(--line);
   }
   .skill-manager-content {
-    padding: 20px 16px 0;
+    padding: 20px 16px 84px;
   }
   .skill-editor-identity,
   .skill-requirement-grid,
