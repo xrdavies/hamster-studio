@@ -1,3 +1,12 @@
+export type Skill = {
+  id: string
+  version: number
+  name: string
+  description: string
+  tools: string[]
+  instructions: string
+}
+
 import type { ModelKind } from './model-capabilities'
 
 export type Provider = {
@@ -19,6 +28,7 @@ export type ProviderModels = {
 }
 
 export type StudioSession = {
+  skill?: Skill | null
   id: string
   title: string
   providerId: string
@@ -53,6 +63,8 @@ export type ImageStep = {
 }
 
 export type Message = {
+  skill?: Skill
+  skillDraft?: Skill
   canContinue?: boolean
   retryAttempt?: number
   retryDelay?: number

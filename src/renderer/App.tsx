@@ -1,9 +1,10 @@
+import SkillPanel from './components/SkillPanel'
 import hamsterLogo from './assets/hamster-logo-256.png'
 import UpdateNotice from './components/UpdateNotice'
 import { translateMessage, t, useLanguage } from './i18n'
 import { useEffect, useRef, useState } from 'react'
 import { Check, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import type { Message, StudioData, StudioSession } from '../shared/types'
+import type { Message, StudioData, StudioSession, Skill } from '../shared/types'
 import type { ModelKind } from '../shared/model-capabilities'
 import SessionTitle from './components/SessionTitle'
 import SessionSidebar from './components/SessionSidebar'
@@ -361,6 +362,7 @@ export default function App() {
     })
   }
 
+  const [skillPanel, setSkillPanel] = useState<{ sessionId: string; draft?: Skill } | null>(null)
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const isMac = /Mac/.test(navigator.platform)
   return (
@@ -374,6 +376,18 @@ export default function App() {
         </div>
         <div className="desktop-titlebar-space" data-tauri-drag-region />
       </header>
+      {skillPanel && (
+        <SkillPanel
+          selected={data.sessions.find((item) => item.id === skillPanel.sessionId)?.skill}
+          draft={skillPanel.draft}
+          onClose={() => setSkillPanel(null)}
+          onSelect={async (skill) => {
+            if (activeRequests.current.has(skillPanel.sessionId)) throw new Error(t('skills.busy'))
+            await window.studio.saveSession({ id: skillPanel.sessionId, skill })
+            await refreshData()
+          }}
+        />
+      )}
       <SessionSidebar
         data={data}
         session={session}
@@ -453,6 +467,7 @@ export default function App() {
                   <MessageBubble
                     key={item.id}
                     message={item}
+                    onSkillDraft={(draft) => setSkillPanel({ sessionId: item.sessionId, draft })}
                     onRetry={retry}
                     onRetryStep={(message, stepId) =>
                       askConfirm(t('images.retryMissing'), t('images.retryNotice'), async () => {
@@ -526,6 +541,7 @@ export default function App() {
             </div>
             <Composer
               key={session.id}
+              onSkills={() => setSkillPanel({ sessionId: session.id })}
               providers={data.providers}
               session={session}
               modelKind={modelKind}

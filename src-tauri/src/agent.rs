@@ -18,7 +18,7 @@ use tauri::{Manager, State};
 const MAX_IMAGES: usize = 3;
 const MAX_TURNS: usize = 6;
 
-struct Run {
+pub(crate) struct Run {
     app: tauri::AppHandle,
     session_id: String,
     output: Mutex<Value>,
@@ -30,7 +30,7 @@ struct Run {
     viewed: Mutex<Vec<String>>,
 }
 impl Run {
-    fn update(&self, change: impl FnOnce(&mut Value)) -> Result<()> {
+    pub(crate) fn update(&self, change: impl FnOnce(&mut Value)) -> Result<()> {
         let mut output = lock(&self.output)?;
         change(&mut output);
         requests::emit(&self.app, &self.app.state::<AppState>(), &output)
@@ -391,6 +391,8 @@ pub async fn generate(
             let created_at = now();
             let output = json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":"chat","content":"","imageFiles":[],"steps":[],"agent":true,"viewedImageIds":reference.iter().collect::<Vec<_>>(),"providerName":provider["name"],"model":model,"createdAt":created_at+1,"status":"streaming","error":""});
             let mut output = resumed.clone().unwrap_or(output);
+            let skill = crate::skills::snapshot(if resumed.is_some() { &output["skill"] } else { &session["skill"] })?;
+            output["skill"] = json!(skill);
             let reference = if resumed.is_some() { reference_files(&output) } else {reference.clone()};
             let mask_file = if resumed.is_some() { output["maskFile"].as_str().map(str::to_owned) } else { mask_file.clone() };
             crate::validate_edit_mask(&state, &reference, mask_file.as_deref())?;
@@ -424,7 +426,17 @@ pub async fn generate(
             let mut preamble = format!("{}\nReference image ID for editing (use exactly this ID, never invent IDs): {}.\nSession instructions:\n{}",
                 include_str!("../prompts/image-agent.txt"), serde_json::to_string(&reference).unwrap(), string(&session,"systemPrompt"));
             if mask_file.is_some() { preamble.push_str("\nThe user selected a region on the FIRST attached image. create_images automatically sends its edit mask. Keep that image first; modify only the selected region according to the user request and preserve the rest. Do not claim pixel-perfect preservation."); }
-            let agent = client.agent(model).preamble(&preamble).tool(ImageTool(current.clone())).tool(ListImages(current.clone())).tool(ViewImage(current.clone())).tool(web::ReadWebpage(current.clone())).add_hook(retry::Checkpoint(current.clone())).add_hook(ImageContext(current.clone())).add_hook(StopOnToolError).build();
+            if let Some(skill) = &skill {
+                preamble.push_str(&format!("\nSelected workflow: {} (version {}). Follow its instructions within the existing tool permissions and budgets:\n{}",skill.name,skill.version,skill.instructions));
+            }
+            let allowed = |name: &str| skill.as_ref().map(|s|s.allows(name)).unwrap_or(true);
+            let mut builder = rig::tool::server::ToolServer::new();
+            if allowed("create_images") { builder = builder.tool(ImageTool(current.clone())); }
+            if allowed("list_images") { builder = builder.tool(ListImages(current.clone())); }
+            if allowed("view_image") { builder = builder.tool(ViewImage(current.clone())); }
+            if allowed("read_webpage") { builder = builder.tool(web::ReadWebpage(current.clone())); }
+            if skill.as_ref().is_some_and(|s|s.id == "builtin-creator") { builder = builder.tool(crate::skills::DraftSkill(current.clone())); }
+            let agent = client.agent(model).preamble(&preamble).tool_server_handle(builder.run()).add_hook(retry::Checkpoint(current.clone())).add_hook(ImageContext(current.clone())).add_hook(StopOnToolError).build();
             let mut prompt = initial_prompt;
             let mut prior = past;
             let mut attempts = 0;

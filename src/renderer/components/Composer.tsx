@@ -3,6 +3,7 @@ import { t } from '../i18n'
 import { useEffect, useId, useRef, useState } from 'react'
 import {
   ChevronDown,
+  Sparkles,
   Image as ImageIcon,
   MessageSquare,
   Send,
@@ -18,6 +19,7 @@ import type { ModelKind } from '../../shared/model-capabilities'
 type ModelChoice = { providerId: string; providerName: string; model: string; kind: ModelKind }
 
 export default function Composer({
+  onSkills,
   providers,
   session,
   modelKind,
@@ -35,6 +37,7 @@ export default function Composer({
   onClearReference,
   onImportImage,
 }: {
+  onSkills: () => void
   providers: Provider[]
   session: StudioSession
   modelKind: ModelKind
@@ -123,6 +126,16 @@ export default function Composer({
       <div className="composer">
         <div className="composer-modelbar">
           <ModelMenu choices={choices} selected={selected} onSelect={onModel} disabled={busy} />
+          <button
+            type="button"
+            className="creation-settings-toggle"
+            disabled={busy || modelKind !== 'chat'}
+            onClick={onSkills}
+            title={t('skills.help')}
+          >
+            <Sparkles size={16} />
+            {session.skill?.name || 'Skills'}
+          </button>
           <button
             type="button"
             className="creation-settings-toggle composer-icon-button"

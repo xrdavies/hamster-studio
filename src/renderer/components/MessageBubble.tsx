@@ -9,6 +9,7 @@ import type { Message } from '../../shared/types'
 export default function MessageBubble({
   message,
   busy,
+  onSkillDraft,
   onRetry,
   onRetryStep,
   onCopy,
@@ -17,6 +18,7 @@ export default function MessageBubble({
   onRegenerate,
   onApprove,
 }: {
+  onSkillDraft: (skill: import('../../shared/types').Skill) => void
   busy: boolean
   message: Message
   onRetryStep: (message: Message, stepId: string) => void
@@ -268,6 +270,20 @@ export default function MessageBubble({
         {message.canContinue && message.status === 'error' && (
           <button className="secondary" disabled={busy} onClick={() => onRetry(message)}>
             {t('agent.continue')}
+          </button>
+        )}
+        {message.skill && (
+          <p className="vision-context-note">
+            Skill · {message.skill.name} · v{message.skill.version}
+          </p>
+        )}
+        {message.skillDraft && (
+          <button
+            className="secondary"
+            disabled={busy}
+            onClick={() => onSkillDraft(message.skillDraft!)}
+          >
+            {t('skills.review')} · {message.skillDraft.name}
           </button>
         )}
         {message.content && (

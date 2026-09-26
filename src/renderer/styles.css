@@ -1886,3 +1886,51 @@ button svg {
   width: 100%;
   max-height: none;
 }
+
+.skill-panel {
+  max-height: 85vh;
+  overflow: auto;
+}
+.skill-panel header strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.skill-list,
+.skill-editor {
+  display: grid;
+  gap: 12px;
+}
+.skill-row {
+  display: flex;
+  gap: 8px;
+}
+.skill-row > button:first-child {
+  flex: 1;
+  display: grid;
+  text-align: left;
+  gap: 4px;
+}
+.skill-row small {
+  color: var(--muted);
+}
+.skill-editor label {
+  display: grid;
+  gap: 6px;
+}
+.skill-editor :is(input:not([type='checkbox']), textarea) {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+}
+.skill-editor fieldset {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.skill-editor fieldset label {
+  display: inline-flex;
+  margin-right: 12px;
+}

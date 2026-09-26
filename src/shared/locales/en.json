@@ -236,5 +236,19 @@
   "images.retryNotice": "Only missing results from this step will be generated using the current image model. Existing results are preserved. The provider may charge again if an earlier request completed without returning a result.",
   "images.exportAll": "Export all results",
   "images.resultNumber": "Result {number}",
-  "images.viewSource": "View source"
+  "images.viewSource": "View source",
+  "skills.help": "Choose a workflow or Skill Creator. Skills use existing tools; a chat model with tool calling is required.",
+  "skills.none": "Normal conversation",
+  "skills.editCopy": "Edit a copy",
+  "skills.draft": "Skill draft",
+  "skills.name": "Name",
+  "skills.description": "Description",
+  "skills.tools": "Required tools",
+  "skills.instructions": "Workflow instructions",
+  "skills.testHelp": "Test selects this draft for the next message. Supply inputs and send to run it; image generation may incur charges. Saved copies do not replace existing versions.",
+  "skills.test": "Select for testing",
+  "skills.save": "Confirm and save copy",
+  "skills.saved": "Saved to your local skill library.",
+  "skills.busy": "Wait for the current task to finish.",
+  "skills.review": "Review skill draft"
 }

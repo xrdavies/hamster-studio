@@ -59,6 +59,8 @@ void listen<{ timestamp: number; stage: string; metadata: Record<string, unknown
 ).catch(() => {})
 
 window.studio = {
+  listSkills: () => invoke('list_skills'),
+  saveSkill: (skill) => invoke('save_skill', { skill }),
   setLanguage: async () => {},
   version: getVersion,
   openAboutLink: (key) => openUrl(aboutUrl(key)),

@@ -131,6 +131,7 @@ impl Store {
             "imageModel",
             "modelKind",
             "imageProviderId",
+            "skill",
             "systemPrompt",
             "pinned",
             "archived",

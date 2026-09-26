@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod agent;
+mod skills;
 mod diagnostics;
 mod catalog;
 mod requests;
@@ -57,6 +58,8 @@ fn load(s: State<AppState>) -> Result<Value> {
 }
 #[tauri::command]
 fn save_session(s: State<AppState>, session: Value) -> Result<Value> {
+    skills::snapshot(&session["skill"])?;
+    if session.get("skill").is_some() && lock(&s.active)?.contains_key(string(&session,"id")) { return Err("skills.busy".into()); }
     lock(&s.store)?.session(&session)?;
     data(&s)
 }
@@ -426,6 +429,8 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             load,
+            skills::list_skills,
+            skills::save_skill,
             save_session,
             delete_session,
             save_provider,
