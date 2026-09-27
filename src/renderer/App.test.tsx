@@ -146,7 +146,7 @@ it('isolates drafts, pending requests, errors and image retries when switching s
   hooks.values[0] = data
   studio.generateImage.mockImplementation(async () => data)
   await find(render(), MessageBubble)!.props.onRetry(data.messages[1])
-  expect(studio.generateImage).toHaveBeenLastCalledWith('a', 'draw', [], undefined)
+  expect(studio.generateImage).toHaveBeenLastCalledWith('a', 'draw', [], undefined, undefined)
   expect(studio.sendChat).toHaveBeenCalledTimes(1)
   await find(render(), Composer)!.props.onImportImage()
   expect(studio.importImages).toHaveBeenLastCalledWith('a', 6)
