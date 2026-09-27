@@ -59,6 +59,7 @@ pub async fn generate(
     kind: String,
     reference_files: Option<Vec<String>>,
     mask_file: Option<String>,
+    marker_file: Option<String>,
     resume_id: Option<String>,
 ) -> Result<Value> {
     let reference_files = reference_files.unwrap_or_default();
@@ -67,7 +68,7 @@ pub async fn generate(
         return Err("Invalid request".into());
     }
     if kind == "chat" {
-        return crate::agent::generate(app, s, session_id, text, reference_files, mask_file, resume_id).await;
+        return crate::agent::generate(app, s, session_id, text, reference_files, mask_file, marker_file, resume_id).await;
     }
     let token = tokio_util::sync::CancellationToken::new();
     {
@@ -93,13 +94,14 @@ pub async fn generate(
             if !models.as_array().map(|v|v.contains(&json!(model))).unwrap_or(false) {return Err("ui.modelCapabilityChangedOrIsUnavailableSelectAModelAgain".into())}
             let secret=password(string(&provider,"id"))?;
             let mut history=lock(&s.store)?.history(&session_id)?;
-            let user=json!({"id":id(),"sessionId":session_id,"role":"user","kind":kind,"content":text.trim(),"referenceFiles":reference_files,"maskFile":mask_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"done","error":""});
+            let user=json!({"id":id(),"sessionId":session_id,"role":"user","kind":kind,"content":text.trim(),"referenceFiles":reference_files,"maskFile":mask_file,"markerFile":marker_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"done","error":""});
             emit(&app,&s,&user)?;
             assistant=Some(json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":kind,"content":"","imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"streaming","error":""}));
             let output=assistant.as_mut().unwrap(); emit(&app,&s,output)?;
             if kind=="image" {
-                let name = create_image(&s, &provider, model, &secret, text.trim(), &reference_files, mask_file.as_deref()).await?;
+                let name = create_image(&s, &provider, model, &secret, text.trim(), &reference_files, mask_file.as_deref(), marker_file.as_deref()).await?;
                 output["imageFiles"]=json!([name]);
+                output["imageInputs"] = json!(image_input_roles(&reference_files, marker_file.as_deref()));
             } else {
                 if !string(&session,"systemPrompt").is_empty() {history.insert(0,json!({"role":"system","content":session["systemPrompt"]}));}
                 history.push(json!({"role":"user","content":text.trim()}));
@@ -138,23 +140,64 @@ pub(crate) async fn create_image(
     secret: &str,
     prompt: &str,
     references: &[String],
-    mask: Option<&str>,
+    mask: Option<&str>, marker: Option<&str>,
 ) -> Result<String> {
-    image_deadline(std::time::Duration::from_secs(600), create_image_request(s, provider, model, secret, prompt, references, mask)).await
+    image_deadline(std::time::Duration::from_secs(600), create_image_request(s, provider, model, secret, prompt, references, mask, marker)).await
+}
+pub(crate) fn image_input_roles(references: &[String], marker: Option<&str>) -> Vec<Value> {
+    let mut inputs = references.iter().enumerate().map(|(index, file)| json!({"index":index,"role":if index == 0 && marker.is_some() {"clean_original"} else {"reference"},"file":file})).collect::<Vec<_>>();
+    if let Some(file) = marker { inputs.insert(1, json!({"index":1,"role":"annotated_marker","file":file})); for (index, input) in inputs.iter_mut().enumerate() { input["index"] = json!(index); } }
+    inputs
 }
 async fn image_deadline<T>(duration: std::time::Duration, request: impl std::future::Future<Output = Result<T>>) -> Result<T> {
     tokio::time::timeout(duration, request).await.map_err(|_| "agent.imageTimeout".to_string())?
 }
+const PRESERVE_TRANSPARENCY: &str = "Preserve the transparent background and alpha channel of Image 1. Output an RGBA PNG with transparency; never flatten onto black or any other solid background.";
+
+fn has_transparency(bytes: &[u8]) -> Result<bool> {
+    let image = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format().map_err(|e| e.to_string())?
+        .decode().map_err(|e| format!("Cannot decode image: {e}"))?;
+    Ok(image.color().has_alpha() && image.to_rgba32f().pixels().any(|p| p[3] < 1.0))
+}
+
+fn validate_transparency(required: bool, bytes: &[u8]) -> Result<()> {
+    if required && !has_transparency(bytes)? {
+        return Err("ui.imageTransparencyLost".into());
+    }
+    Ok(())
+}
+
 async fn create_image_request(
-    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, references: &[String], mask: Option<&str>,
+    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, references: &[String], mask: Option<&str>, marker: Option<&str>,
 ) -> Result<String> {
     crate::validate_edit_mask(s, references, mask)?;
+    if let Some(file) = marker {
+        if mask.is_some() { return Err("Choose mask editing or smart markers, not both".into()); }
+        let source = references.first().ok_or("Markers require a source image")?;
+        if !file.starts_with(&format!("marker-{source}-")) { return Err("Markers do not belong to the first source image".into()); }
+        crate::validate_mask(&std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?)?;
+    }
+    let mut prompt = if marker.is_some() {
+        format!("{prompt}\n\nImage input roles: Image 1 is the clean original and the only editing base. Image 2 is the same original with numbered region annotations, provided ONLY for location guidance. Any later images are supplementary references. Match region numbers and original pixel coordinates to Image 2, then apply the requested edits to Image 1. Never copy annotation outlines, number badges or yellow highlighting into the result. Preserve the original canvas dimensions, framing, text, lighting, colors and all content outside the requested regions. Return one edited version of Image 1, not a collage or annotated image.")
+    } else { prompt.to_owned() };
+    let mut inputs: Vec<&str> = references.iter().map(String::as_str).collect();
+    if let Some(file) = marker { inputs.insert(1, file); }
+
+    let preserve_transparency = match references.first() {
+        Some(file) => has_transparency(&std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?)?,
+        None => false,
+    };
+    if preserve_transparency {
+        prompt.push_str("\n\n");
+        prompt.push_str(PRESERVE_TRANSPARENCY);
+    }
     let request = if !references.is_empty() {
         let mut form = reqwest::multipart::Form::new().text("model", model.to_owned()).text("prompt", prompt.to_owned()).text("n", "1").text("response_format", "b64_json");
-        for (index, file) in references.iter().enumerate() {
+        for (index, file) in inputs.iter().enumerate() {
             let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e| e.to_string())?;
             let part = reqwest::multipart::Part::bytes(bytes).file_name(format!("reference-{index}.{}", file.rsplit('.').next().unwrap_or("png"))).mime_str(crate::image_mime(file)).map_err(|e| e.to_string())?;
-            form = form.part(if references.len() == 1 { "image" } else { "image[]" }, part);
+            form = form.part(if inputs.len() == 1 { "image" } else { "image[]" }, part);
         }
         if let Some(file) = mask {
             let bytes = std::fs::read(crate::image_path(s, file)?).map_err(|e|e.to_string())?;
@@ -208,6 +251,7 @@ async fn create_image_request(
     if bytes.is_empty() {
         return Err("ui.providerReturnedNoImage".into());
     }
+    validate_transparency(preserve_transparency, &bytes)?;
     let name = format!("{}.png", id());
     std::fs::write(s.directory.join("images").join(&name), bytes).map_err(|e| e.to_string())?;
     Ok(name)
@@ -216,6 +260,21 @@ async fn create_image_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn detects_actual_transparency_and_rejects_flattened_results() {
+        for format in [image::ImageFormat::Png, image::ImageFormat::WebP] {
+            for alpha in [0, 128, 255] {
+                let image = image::RgbaImage::from_pixel(2, 2, image::Rgba([20, 30, 40, alpha]));
+                let mut bytes = std::io::Cursor::new(Vec::new());
+                image::DynamicImage::ImageRgba8(image).write_to(&mut bytes, format).unwrap();
+                let bytes = bytes.into_inner();
+                assert_eq!(has_transparency(&bytes).unwrap(), alpha < 255);
+                assert_eq!(validate_transparency(true, &bytes).is_ok(), alpha < 255);
+                assert!(validate_transparency(false, &bytes).is_ok());
+            }
+        }
+        assert!(has_transparency(b"invalid image").is_err());
+    }
     #[tokio::test]
     async fn image_timeout_is_classified_without_retry() {
         let calls = std::sync::atomic::AtomicUsize::new(0);
@@ -246,7 +305,7 @@ mod tests {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         let server = std::thread::spawn(move || {
-            for index in 0..3 {
+            for index in 0..5 {
                 let (mut socket, _) = listener.accept().unwrap();
                 socket
                     .set_read_timeout(Some(std::time::Duration::from_secs(5)))
@@ -275,17 +334,35 @@ mod tests {
                 assert!(request
                     .to_lowercase()
                     .contains("authorization: bearer test-key"));
-                if index == 1 {
+                if index == 1 || index >= 3 {
                     assert!(request.starts_with("POST /v1/images/edits"));
                     assert!(request.contains("reference-0.png"));
-                    assert!(request.contains("reference-1.png"));
-                    assert_eq!(request.matches("name=\"image[]\"").count(), 2);
-                    assert!(request.contains("name=\"mask\""));
+                    if index == 1 {
+                        assert!(request.contains("reference-1.png"));
+                        assert_eq!(request.matches("name=\"image[]\"").count(), 2);
+                        assert!(request.contains("name=\"mask\""));
+                        assert!(!request.contains(PRESERVE_TRANSPARENCY));
+                    } else {
+                        assert!(request.contains(PRESERVE_TRANSPARENCY));
+                        if index == 3 {
+                            assert!(request.contains("name=\"image\""));
+                        } else {
+                            assert_eq!(request.matches("name=\"image[]\"").count(), 2);
+                            assert!(request.contains("Image 2 is the same original"));
+                            assert!(!request.contains("name=\"mask\""));
+                        }
+                    }
                 } else {
                     assert!(request.starts_with("POST /v1/images/generations"));
                     assert!(request.contains("b64_json"));
                 }
-                let (status, body) = if index == 2 {
+                let mut encoded = std::io::Cursor::new(Vec::new());
+                let output = if index == 3 { image::DynamicImage::new_rgba8(1, 1) } else { image::DynamicImage::new_rgb8(1, 1) };
+                output.write_to(&mut encoded, image::ImageFormat::Png).unwrap();
+                let image_body = json!({"data":[{"b64_json":base64::engine::general_purpose::STANDARD.encode(encoded.into_inner())}]}).to_string();
+                let (status, body) = if index >= 3 {
+                    ("200 OK", image_body.as_str())
+                } else if index == 2 {
                     (
                         "400 Bad Request",
                         r#"{"error":{"message":"unsupported model"}}"#,
@@ -310,13 +387,17 @@ mod tests {
             client: reqwest::Client::new(),
         };
         let provider = json!({"baseUrl":format!("http://{address}")});
-        let first = create_image(&state, &provider, "image-model", "test-key", "draw", &[], None)
+        let first = create_image(&state, &provider, "image-model", "test-key", "draw", &[], None, None)
             .await
             .unwrap();
         assert_eq!(
             std::fs::read(crate::image_path(&state, &first).unwrap()).unwrap(),
             b"image"
         );
+        // Subsequent edits decode the original to determine actual transparency.
+        let mut original = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(1, 1).write_to(&mut original, image::ImageFormat::Png).unwrap();
+        std::fs::write(crate::image_path(&state, &first).unwrap(), original.into_inner()).unwrap();
         let mask = format!("mask-{first}-test.png");
         let mut bytes = vec![0u8; 33];
         bytes[..8].copy_from_slice(b"\x89PNG\r\n\x1a\n");
@@ -335,17 +416,27 @@ mod tests {
             "test-key",
             "edit",
             &[first.clone(), first.clone()],
-            Some(&mask),
+            Some(&mask), None,
         )
         .await
         .unwrap();
         assert_ne!(first, second);
         assert!(
-            create_image(&state, &provider, "image-model", "test-key", "draw", &[], None)
+            create_image(&state, &provider, "image-model", "test-key", "draw", &[], None, None)
                 .await
                 .unwrap_err()
                 .contains("unsupported model")
         );
+        let mut transparent = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgba8(1, 1).write_to(&mut transparent, image::ImageFormat::Png).unwrap();
+        std::fs::write(crate::image_path(&state, &first).unwrap(), transparent.into_inner()).unwrap();
+        let edited = create_image(&state, &provider, "image-model", "test-key", "edit", &[first.clone()], None, None).await.unwrap();
+        assert!(has_transparency(&std::fs::read(crate::image_path(&state, &edited).unwrap()).unwrap()).unwrap());
+        let marker = format!("marker-{first}-test.png");
+        std::fs::copy(crate::image_path(&state, &first).unwrap(), directory.join("images").join(&marker)).unwrap();
+        let before = std::fs::read_dir(directory.join("images")).unwrap().count();
+        assert_eq!(create_image(&state, &provider, "image-model", "test-key", "edit", &[first], None, Some(&marker)).await.unwrap_err(), "ui.imageTransparencyLost");
+        assert_eq!(std::fs::read_dir(directory.join("images")).unwrap().count(), before);
         server.join().unwrap();
         std::fs::remove_dir_all(directory).unwrap();
     }

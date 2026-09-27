@@ -1796,6 +1796,9 @@ button svg {
   touch-action: none;
   cursor: crosshair;
 }
+.region-stage canvas.marker-canvas {
+  opacity: 1;
+}
 
 /* Keep the native macOS window controls alongside the app branding. */
 .app.desktop-layout {

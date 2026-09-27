@@ -1,4 +1,5 @@
 import RegionEditor from './RegionEditor'
+import MarkerEditor from './MarkerEditor'
 import { t } from '../i18n'
 import { useEffect, useId, useRef, useState } from 'react'
 import {
@@ -11,6 +12,7 @@ import {
   ImagePlus,
   Info,
   Paintbrush,
+  LocateFixed,
   X,
 } from 'lucide-react'
 import type { Provider, StudioSession } from '../../shared/types'
@@ -34,6 +36,8 @@ export default function Composer({
   referenceFiles,
   mask,
   onMask,
+  marker,
+  onMarker,
   onClearReference,
   onImportImage,
 }: {
@@ -52,10 +56,13 @@ export default function Composer({
   referenceFiles: string[]
   mask?: { file: string; mask: string }
   onMask: (value?: { file: string; mask: string }) => void
+  marker?: { file: string; marker: string; prompt: string }
+  onMarker: (value?: { file: string; marker: string; prompt: string }) => void
   onImportImage: () => Promise<void>
   onClearReference: (file: string) => void
 }) {
   const [editing, setEditing] = useState('')
+  const [marking, setMarking] = useState('')
   const [importing, setImporting] = useState(false)
   const [savingImageModel, setSavingImageModel] = useState(false)
   const [imageSettingError, setImageSettingError] = useState('')
@@ -123,6 +130,7 @@ export default function Composer({
           onSave={(value) => onMask({ file: editing, mask: value })}
         />
       )}
+      {marking && <MarkerEditor file={marking} onClose={() => setMarking('')} onSave={(value, prompt) => { onMarker({ file: marking, marker: value, prompt }); setMarking('') }} />}
       <div className="composer">
         <div className="composer-modelbar">
           <ModelMenu choices={choices} selected={selected} onSelect={onModel} disabled={busy} />
@@ -233,7 +241,7 @@ export default function Composer({
               </span>
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || !!marker}
                 className={mask?.file === file ? 'reference-edit selected' : 'reference-edit'}
                 aria-pressed={mask?.file === file}
                 title={t('images.editRegion')}
@@ -242,6 +250,7 @@ export default function Composer({
               >
                 <Paintbrush size={14} />
               </button>
+              <button type="button" disabled={busy || !!mask} className={marker?.file === file ? 'reference-edit selected' : 'reference-edit'} aria-pressed={marker?.file === file} title={t('images.smartMarker')} aria-label={t('images.smartMarker')} onClick={() => setMarking(file)}><LocateFixed size={14} /></button>
               {mask?.file === file && (
                 <button
                   type="button"
@@ -254,6 +263,7 @@ export default function Composer({
                   {t('images.regionSelected')} <X size={12} />
                 </button>
               )}
+              {marker?.file === file && <button type="button" disabled={busy} onClick={() => onMarker(undefined)} className="reference-region-status" aria-label={t('images.removeRegion')} title={t('images.removeRegion')}>{t('images.markerSelected')} <X size={12} /></button>}
               <button
                 type="button"
                 aria-label={t('ui.removeReferenceImage')}

@@ -262,6 +262,16 @@ fn save_mask(s: State<AppState>, file: String, data: String) -> Result<String> {
     std::fs::write(s.directory.join("images").join(&name), bytes).map_err(|e| e.to_string())?;
     Ok(name)
 }
+#[tauri::command]
+fn save_marker(s: State<AppState>, file: String, data: String) -> Result<String> {
+    crate::image_path(&s, &file)?;
+    let encoded = data.strip_prefix("data:image/png;base64,").ok_or("Invalid marker format")?;
+    let bytes = base64::engine::general_purpose::STANDARD.decode(encoded).map_err(|e| e.to_string())?;
+    validate_mask(&bytes)?;
+    let name = format!("marker-{}-{}.png", file, store::id());
+    std::fs::write(s.directory.join("images").join(&name), bytes).map_err(|e| e.to_string())?;
+    Ok(name)
+}
 fn validate_mask(bytes: &[u8]) -> Result<()> {
     if bytes.len() < 33 || !bytes.starts_with(b"\x89PNG\r\n\x1a\n") || &bytes[12..16] != b"IHDR" || bytes[25] != 6 { return Err("Invalid RGBA PNG mask".into()); }
     let width = u32::from_be_bytes(bytes[16..20].try_into().unwrap()) as u64;
@@ -444,6 +454,7 @@ fn main() {
             install_catalog,
             read_image,
             save_mask,
+            save_marker,
             import_images,
             import_dropped_image,
             export_image,

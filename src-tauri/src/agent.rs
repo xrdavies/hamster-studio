@@ -27,6 +27,7 @@ pub(crate) struct Run {
     image_key: Option<Result<String>>,
     reference: Vec<String>,
     mask_file: Option<String>,
+    marker_file: Option<String>,
     viewed: Mutex<Vec<String>>,
 }
 impl Run {
@@ -62,7 +63,15 @@ fn validate(args: &ImageArgs, used: usize) -> Result<()> {
     }
     Ok(())
 }
-// Reference selection is explicit for independent edits; attached images must not leak in.
+fn attachment_id(index: usize) -> String { format!("attachment_{}", index + 1) }
+fn attachment_manifest(files: &[String]) -> Value {
+    json!({"attachments": files.iter().enumerate().map(|(i, _)| json!({"id": attachment_id(i)})).collect::<Vec<_>>()})
+}
+pub(super) fn resolve_attachment(handle: &str, attached: &[String]) -> Result<String> {
+    let index = handle.strip_prefix("attachment_").and_then(|n| n.parse::<usize>().ok()).and_then(|n| n.checked_sub(1)).ok_or("Unknown attachment handle")?;
+    attached.get(index).cloned().ok_or("Unknown attachment handle".into())
+}
+// Reference selection is explicit and uses request-scoped handles.
 fn image_sources(args: &ImageArgs, attached: &[String]) -> Result<Vec<String>> {
     if args.source_image_ids.is_some() && args.source_image_id.is_some() {
         return Err("Use source_image_ids OR source_image_id, not both.".into());
@@ -78,7 +87,8 @@ fn image_sources(args: &ImageArgs, attached: &[String]) -> Result<Vec<String>> {
         Some("variants") => {}
         _ => return Err("Choose output_mode: compose for one result using relevant references; variants for alternatives of the SAME task; individual for editing ONE asset in a batch. count never maps references to separate outputs.".into()),
     }
-    let sources = explicit.unwrap_or_else(|| attached.to_vec());
+    let sources = explicit.unwrap_or_else(|| attached.iter().enumerate().map(|(i, _)| attachment_id(i)).collect());
+    for handle in &sources { resolve_attachment(handle, attached)?; }
     if sources.len() > 6 { return Err("images.referenceLimit".into()); }
     Ok(sources)
 }
@@ -103,10 +113,10 @@ impl Tool for ImageTool {
     type Output = Value;
     type Error = std::io::Error;
     fn description(&self) -> String {
-        "Create images. Each result is ONE image. output_mode=compose combines relevant references into one result (count=1); variants repeats the SAME prompt and references for alternative results; individual edits ONE explicit source image (count=1). For separately restoring/exporting multiple assets, call this tool separately per asset with its own source ID and asset-specific prompt. Never put a batch instruction requesting separate files in one prompt. Missing configuration, multiple variants and additional attempts require user approval. Returns image IDs, not visual observations.".into()
+        "Create images. Use request-scoped attachment handles such as attachment_1 from the attachment manifest; never use internal image IDs. Each result is ONE image. output_mode=compose combines references into one result; variants repeats one prompt; individual edits one explicit attachment.".into()
     }
     fn parameters(&self) -> Value {
-        json!({"type":"object","properties":{"output_mode":{"type":"string","enum":["compose","variants","individual"],"description":"Independent assets require separate individual calls, each with one explicit source and count=1."},"prompt":{"type":"string","description":"Describe one output image, never a batch of separate files."},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_ids":{"type":"array","items":{"type":"string"},"maxItems":6,"description":"Ordered reference image IDs; empty array generates a new image"},"source_image_id":{"type":"string","description":"Session image ID to edit; empty string generates a new image"}},"required":["prompt","count","output_mode"],"additionalProperties":false})
+        json!({"type":"object","properties":{"output_mode":{"type":"string","enum":["compose","variants","individual"]},"prompt":{"type":"string"},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_ids":{"type":"array","items":{"type":"string","pattern":"^attachment_[1-6]$"},"maxItems":6},"source_image_id":{"type":"string","pattern":"^attachment_[1-6]$"}},"required":["prompt","count","output_mode"],"additionalProperties":false})
     }
     async fn call(
         &self,
@@ -127,18 +137,19 @@ impl ImageTool {
             .map(|s| s["count"].as_u64().unwrap_or(0) as usize)
             .sum();
 
-        let sources = match image_sources(&args, &run.reference) {
+        let handles = match image_sources(&args, &run.reference) {
             Ok(sources) => sources,
             Err(error) => return Ok(json!({"error":error,"recoverable":true})),
         };
+        let sources: Vec<String> = handles.iter().map(|h| resolve_attachment(h, &run.reference)).collect::<Result<_>>()?;
         let source = sources.first();
-        if run.mask_file.is_some() && sources.first() != run.reference.first() {
+        if (run.mask_file.is_some() || run.marker_file.is_some()) && sources.first() != run.reference.first() {
             return Ok(json!({"error":"The selected region belongs to the first attached image. Keep that image first in source_image_ids.","recoverable":true}));
         }
         for file in &sources {
             if assets::owned_path(run, file).is_err() { return Ok(assets::invalid_reference()); }
         }
-        let fingerprint = json!([run.image_provider.as_ref().map(|p| &p["id"]), run.image_model, args.prompt.trim(), sources, args.count, run.mask_file]);
+        let fingerprint = json!([run.image_provider.as_ref().map(|p| &p["id"]), run.image_model, args.prompt.trim(), sources, args.count, run.mask_file, run.marker_file]);
         if let Some(step) = lock(&run.output)?["steps"].as_array().unwrap().iter().find(|step| step["fingerprint"] == fingerprint && step["status"] == "done") {
             return Ok(json!({"imageFiles":step["imageFiles"],"reused":true}));
         }
@@ -160,9 +171,10 @@ impl ImageTool {
                 "status":if needs_approval {"waiting"} else {"running"},
                 "needsConfiguration":run.image_provider.is_none(),
                 "operation":if source.is_some(){"edit"}else{"generate"},
-                "sourceImageId":source,"sourceImageIds":sources,"maskFile":run.mask_file,"imageFiles":[],"error":""
+                "sourceImageId":source,"sourceImageIds":sources,"maskFile":run.mask_file,"markerFile":run.marker_file,"imageFiles":[],"error":""
             }));
         })?;
+        run.update(|output| { step_mut(output, &step_id)["imageInputs"] = json!(requests::image_input_roles(&sources, run.marker_file.as_deref())); })?;
         let step_started = std::time::Instant::now();
         crate::diagnostics::record(&run.app, "image.step.start", json!({"sessionId":run.session_id,"stepId":step_id,"count":args.count,"hasReference":source.is_some(),"requiresApproval":needs_approval,"repeated":repeated}));
         let result: Result<Value> = async {
@@ -178,11 +190,11 @@ impl ImageTool {
                 let secret = password(string(&provider,"id"))?;
                 (provider, model, secret)
             };
-            run.update(|o| { let step = step_mut(o, &step_id); step["status"] = json!("running"); step["model"] = json!(model); step["providerName"] = provider["name"].clone(); step["fingerprint"] = json!([provider["id"], model, args.prompt.trim(), sources, args.count, run.mask_file]); })?;
+            run.update(|o| { let step = step_mut(o, &step_id); step["status"] = json!("running"); step["model"] = json!(model); step["providerName"] = provider["name"].clone(); step["fingerprint"] = json!([provider["id"], model, args.prompt.trim(), sources, args.count, run.mask_file, run.marker_file]); })?;
             let mut files = Vec::new();
             for _ in 0..args.count {
                 run.update(|o| { let step = step_mut(o, &step_id); step["dispatchState"] = json!("unknown"); step["dispatchedAt"] = json!(now()); })?;
-                let file = requests::create_image(&state, &provider, &model, &secret, &args.prompt, &sources, run.mask_file.as_deref()).await?;
+                let file = requests::create_image(&state, &provider, &model, &secret, &args.prompt, &sources, run.mask_file.as_deref(), run.marker_file.as_deref()).await?;
                 files.push(file.clone());
                 run.update(|o| {
                     o["imageFiles"].as_array_mut().unwrap().push(json!(file));
@@ -190,7 +202,7 @@ impl ImageTool {
                     step_mut(o,&step_id)["dispatchState"] = json!("received");
                 })?;
             }
-            Ok(json!({"imageFiles":files,"prompt":args.prompt,"sourceImageId":source,"sourceImageIds":sources,"maskFile":run.mask_file,"operation":if source.is_some(){"edit"}else{"generate"}}))
+            Ok(json!({"imageFiles":files,"prompt":args.prompt,"sourceImageId":source,"sourceImageIds":sources,"maskFile":run.mask_file,"markerFile":run.marker_file,"imageInputs":requests::image_input_roles(&sources, run.marker_file.as_deref()),"operation":if source.is_some(){"edit"}else{"generate"}}))
         }.await;
         run.update(|o| {
             let step = step_mut(o, &step_id);
@@ -233,8 +245,8 @@ pub async fn retry_image_step(app: tauri::AppHandle, state: State<'_, AppState>,
         active.insert(session_id.clone(), token.clone());
     }
     let output = json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":"chat","agent":true,"content":"","imageFiles":[],"steps":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"streaming","error":"","retryOfStep":step_id});
-    let run = Arc::new(Run {app:app.clone(), session_id:session_id.clone(),output:Mutex::new(output),image_provider:Some(provider),image_model:model,image_key:Some(Ok(secret)),reference:reference.clone(),mask_file,viewed:Mutex::new(vec![])});
-    let args = ImageArgs {prompt:string(step,"prompt").into(),count,output_mode:Some(if count > 1 {"variants"} else if reference.len() == 1 {"individual"} else {"compose"}.into()),source_image_ids:Some(reference),source_image_id:None};
+    let run = Arc::new(Run {app:app.clone(), session_id:session_id.clone(),output:Mutex::new(output),image_provider:Some(provider),image_model:model,image_key:Some(Ok(secret)),reference:reference.clone(),mask_file,marker_file:step["markerFile"].as_str().map(str::to_owned),viewed:Mutex::new(vec![])});
+    let args = ImageArgs {prompt:string(step,"prompt").into(),count,output_mode:Some(if count > 1 {"variants"} else if reference.len() == 1 {"individual"} else {"compose"}.into()),source_image_ids:Some(reference.iter().enumerate().map(|(i, _)| attachment_id(i)).collect()),source_image_id:None};
     let tool = ImageTool(run.clone());
     let result = tokio::select! {
         _ = token.cancelled() => Err("ui.generationStopped".to_owned()),
@@ -352,6 +364,7 @@ pub async fn generate(
     text: String,
     reference: Vec<String>,
     mask_file: Option<String>,
+    marker_file: Option<String>,
     resume_id: Option<String>,
 ) -> Result<Value> {
     let started = std::time::Instant::now();
@@ -395,11 +408,13 @@ pub async fn generate(
             output["skill"] = json!(skill);
             let reference = if resumed.is_some() { reference_files(&output) } else {reference.clone()};
             let mask_file = if resumed.is_some() { output["maskFile"].as_str().map(str::to_owned) } else { mask_file.clone() };
+            let marker_file = if resumed.is_some() { output["markerFile"].as_str().map(str::to_owned) } else { marker_file.clone() };
             crate::validate_edit_mask(&state, &reference, mask_file.as_deref())?;
             if let Some(skill) = &skill {
                 output["skillWarnings"] = json!(crate::skills::preflight(skill, reference.len(), mask_file.is_some(), image.is_some())?);
             }
             output["maskFile"] = json!(mask_file);
+            output["markerFile"] = json!(marker_file);
             output["referenceFiles"] = json!(reference);
             let history_offset = output["historyOffset"].as_u64().map(|n|n as usize).unwrap_or(past.len());
             output["historyOffset"] = json!(history_offset);
@@ -415,10 +430,10 @@ pub async fn generate(
                 }
                 output["status"] = json!("streaming"); output["error"] = json!(""); output["errorDetail"] = json!(""); output["canContinue"] = json!(false);
             }
-            let current = Arc::new(Run {app:app.clone(),session_id:session_id.clone(),output:Mutex::new(output),image_provider:image.as_ref().map(|(p,_)|p.clone()),image_model:image.map(|(_,m)|m).unwrap_or_default(),image_key,mask_file:mask_file.clone(),reference:reference.clone(),viewed:Mutex::new(reference.iter().cloned().collect())});
+            let current = Arc::new(Run {app:app.clone(),session_id:session_id.clone(),output:Mutex::new(output),image_provider:image.as_ref().map(|(p,_)|p.clone()),image_model:image.map(|(_,m)|m).unwrap_or_default(),image_key,mask_file:mask_file.clone(),marker_file:marker_file.clone(),reference:reference.clone(),viewed:Mutex::new(reference.iter().cloned().collect())});
             run = Some(current.clone());
             crate::diagnostics::record(&app, "agent.start", json!({"sessionId":session_id,"messageId":lock(&current.output)?["id"],"providerId":provider["id"],"model":model,"historyMessages":past.len(),"hasReference":!reference.is_empty()}));
-            if resumed.is_none() { requests::emit(&app,&state,&json!({"id":id(),"sessionId":session_id,"role":"user","kind":"chat","content":text.trim(),"referenceFiles":reference,"maskFile":mask_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":created_at,"status":"done","error":""}))?; }
+            if resumed.is_none() { requests::emit(&app,&state,&json!({"id":id(),"sessionId":session_id,"role":"user","kind":"chat","content":text.trim(),"referenceFiles":reference,"maskFile":mask_file,"markerFile":marker_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":created_at,"status":"done","error":""}))?; }
             current.update(|_|{})?;
             let http = rig::http_client::ReqwestClient::builder()
                 .connect_timeout(std::time::Duration::from_secs(30))
@@ -426,9 +441,10 @@ pub async fn generate(
                 .redirect(reqwest_rig::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
             let client = rig::providers::openai::Client::builder().api_key(key).http_client(http)
                 .base_url(requests::url(string(&provider,"baseUrl"),"")?).build().map_err(|e|e.to_string())?.completions_api();
-            let mut preamble = format!("{}\nReference image ID for editing (use exactly this ID, never invent IDs): {}.\nSession instructions:\n{}",
-                include_str!("../prompts/image-agent.txt"), serde_json::to_string(&reference).unwrap(), string(&session,"systemPrompt"));
+            let mut preamble = format!("{}\nAttachment manifest (use these request-scoped handles; never use internal image IDs): {}\nSession instructions:\n{}",
+                include_str!("../prompts/image-agent.txt"), serde_json::to_string(&attachment_manifest(&reference)).unwrap(), string(&session,"systemPrompt"));
             if mask_file.is_some() { preamble.push_str("\nThe user selected a region on the FIRST attached image. create_images automatically sends its edit mask. Keep that image first; modify only the selected region according to the user request and preserve the rest. Do not claim pixel-perfect preservation."); }
+            if marker_file.is_some() { preamble.push_str("\nThe user supplied a marker overlay for the FIRST attached image. create_images automatically sends the clean original as Image 1 and its annotated copy as Image 2 through standard image inputs. Keep attachment_1 first and include all region coordinates and instructions in the editing prompt. Use the marker overlay together with the coordinate instructions to locate the requested regions; do not preserve marker lines or labels in the output."); }
             if let Some(skill) = &skill {
                 preamble.push_str(&format!("\nSkill preflight warnings (not proof of capability): {}. Use only actually registered tools. Explain missing capabilities; never claim unavailable actions succeeded.\n",lock(&current.output)?["skillWarnings"]));
                 preamble.push_str(&format!("\nSelected workflow: {} (version {}). Follow its instructions within the existing tool permissions and budgets:\n{}",skill.name,skill.version,skill.instructions));
@@ -531,9 +547,10 @@ mod tests {
     #[test]
     fn independent_edits_never_include_other_attached_assets() {
         let attached = vec!["bird.png".into(), "wordmark.png".into(), "hand.png".into()];
-        for file in &attached {
-            let args: ImageArgs = serde_json::from_value(json!({"prompt":"Restore this asset only", "count":1,"output_mode":"individual","source_image_ids":[file]})).unwrap();
-            assert_eq!(image_sources(&args, &attached).unwrap(), vec![file.clone()]);
+        for (index, _) in attached.iter().enumerate() {
+            let handle = attachment_id(index);
+            let args: ImageArgs = serde_json::from_value(json!({"prompt":"Restore this asset only", "count":1,"output_mode":"individual","source_image_ids":[handle]})).unwrap();
+            assert_eq!(image_sources(&args, &attached).unwrap(), vec![attachment_id(index)]);
         }
         for invalid in [
             json!({"prompt":"batch", "count":3,"output_mode":"individual","source_image_ids":attached}),
@@ -543,8 +560,11 @@ mod tests {
         ] {
             assert!(image_sources(&serde_json::from_value(invalid).unwrap(), &attached).is_err());
         }
-        let variants = serde_json::from_value(json!({"prompt":"Combine references", "count":3,"output_mode":"variants","source_image_ids":attached})).unwrap();
-        assert_eq!(image_sources(&variants, &attached).unwrap(), attached);
+        let handles = vec![attachment_id(0), attachment_id(1), attachment_id(2)];
+        let variants = serde_json::from_value(json!({"prompt":"Combine references", "count":3,"output_mode":"variants","source_image_ids":handles})).unwrap();
+        assert_eq!(image_sources(&variants, &attached).unwrap(), handles);
+        let stale: ImageArgs = serde_json::from_value(json!({"prompt":"edit", "count":1,"output_mode":"individual","source_image_ids":["old.png"]})).unwrap();
+        assert!(image_sources(&stale, &["new.png".into()]).is_err());
     }
     #[test]
     fn duplicate_and_unknown_requests_require_session_scoped_confirmation() {
