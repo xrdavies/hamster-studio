@@ -130,7 +130,16 @@ export default function Composer({
           onSave={(value) => onMask({ file: editing, mask: value })}
         />
       )}
-      {marking && <MarkerEditor file={marking} onClose={() => setMarking('')} onSave={(value, prompt) => { onMarker({ file: marking, marker: value, prompt }); setMarking('') }} />}
+      {marking && (
+        <MarkerEditor
+          file={marking}
+          onClose={() => setMarking('')}
+          onSave={(value, prompt) => {
+            onMarker({ file: marking, marker: value, prompt })
+            setMarking('')
+          }}
+        />
+      )}
       <div className="composer">
         <div className="composer-modelbar">
           <ModelMenu choices={choices} selected={selected} onSelect={onModel} disabled={busy} />
@@ -250,7 +259,17 @@ export default function Composer({
               >
                 <Paintbrush size={14} />
               </button>
-              <button type="button" disabled={busy || !!mask} className={marker?.file === file ? 'reference-edit selected' : 'reference-edit'} aria-pressed={marker?.file === file} title={t('images.smartMarker')} aria-label={t('images.smartMarker')} onClick={() => setMarking(file)}><LocateFixed size={14} /></button>
+              <button
+                type="button"
+                disabled={busy || !!mask}
+                className={marker?.file === file ? 'reference-edit selected' : 'reference-edit'}
+                aria-pressed={marker?.file === file}
+                title={t('images.smartMarker')}
+                aria-label={t('images.smartMarker')}
+                onClick={() => setMarking(file)}
+              >
+                <LocateFixed size={14} />
+              </button>
               {mask?.file === file && (
                 <button
                   type="button"
@@ -263,7 +282,18 @@ export default function Composer({
                   {t('images.regionSelected')} <X size={12} />
                 </button>
               )}
-              {marker?.file === file && <button type="button" disabled={busy} onClick={() => onMarker(undefined)} className="reference-region-status" aria-label={t('images.removeRegion')} title={t('images.removeRegion')}>{t('images.markerSelected')} <X size={12} /></button>}
+              {marker?.file === file && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onMarker(undefined)}
+                  className="reference-region-status"
+                  aria-label={t('images.removeRegion')}
+                  title={t('images.removeRegion')}
+                >
+                  {t('images.markerSelected')} <X size={12} />
+                </button>
+              )}
               <button
                 type="button"
                 aria-label={t('ui.removeReferenceImage')}

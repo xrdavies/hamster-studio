@@ -158,49 +158,49 @@ export default function SkillManager({
                   </span>
                 </header>
                 <div className="skill-editor-actions">
-                <button
-                  className="secondary"
-                  disabled={working}
-                  onClick={() =>
-                    leave(() => {
-                      const creator = skills.find((s) => s.id === 'builtin-creator')
-                      if (creator) void run(creator)
-                    })
-                  }
-                >
-                  {t('skills.useCreator')}
-                </button>
-                <button
-                  className="secondary"
-                  disabled={working}
-                  onClick={() =>
-                    leave(() =>
-                      change({
-                        ...editing,
-                        id: 'draft-copy',
-                        tools: editing.tools.filter((tool) => tool !== 'draft_skill'),
-                      }),
-                    )
-                  }
-                >
-                  {t('skills.editCopy')}
-                </button>
-                {!builtin && !editing.id.startsWith('draft-') && (
                   <button
-                    className="danger"
+                    className="secondary"
                     disabled={working}
                     onClick={() =>
-                      setConfirm({
-                        title: t('skills.delete'),
-                        message: t('skills.deleteHelp'),
-                        confirm: () => void remove(),
+                      leave(() => {
+                        const creator = skills.find((s) => s.id === 'builtin-creator')
+                        if (creator) void run(creator)
                       })
                     }
                   >
-                    <Trash2 size={15} />
-                    {t('skills.delete')}
+                    {t('skills.useCreator')}
                   </button>
-                )}
+                  <button
+                    className="secondary"
+                    disabled={working}
+                    onClick={() =>
+                      leave(() =>
+                        change({
+                          ...editing,
+                          id: 'draft-copy',
+                          tools: editing.tools.filter((tool) => tool !== 'draft_skill'),
+                        }),
+                      )
+                    }
+                  >
+                    {t('skills.editCopy')}
+                  </button>
+                  {!builtin && !editing.id.startsWith('draft-') && (
+                    <button
+                      className="danger"
+                      disabled={working}
+                      onClick={() =>
+                        setConfirm({
+                          title: t('skills.delete'),
+                          message: t('skills.deleteHelp'),
+                          confirm: () => void remove(),
+                        })
+                      }
+                    >
+                      <Trash2 size={15} />
+                      {t('skills.delete')}
+                    </button>
+                  )}
                 </div>
               </div>
               <fieldset className="skill-editor-fields" disabled={working || builtin}>
@@ -209,7 +209,14 @@ export default function SkillManager({
                     <div className="skill-editor-section skill-editor-identity">
                       <label>
                         {t('skills.description')}
-                        <textarea rows={4} maxLength={140} value={editing.description} onChange={(event) => setEditing({ ...editing, description: event.target.value })} />
+                        <textarea
+                          rows={4}
+                          maxLength={140}
+                          value={editing.description}
+                          onChange={(event) =>
+                            setEditing({ ...editing, description: event.target.value })
+                          }
+                        />
                         <small className="field-counter">{editing.description.length}/140</small>
                       </label>
                     </div>
@@ -217,9 +224,28 @@ export default function SkillManager({
                       <fieldset disabled={working}>
                         <legend>{t('skills.tools')}</legend>
                         <div className="skill-tool-grid">
-                          {[...new Set(['create_images', 'list_images', 'view_image', 'read_webpage', ...editing.tools])].map((tool) => (
+                          {[
+                            ...new Set([
+                              'create_images',
+                              'list_images',
+                              'view_image',
+                              'read_webpage',
+                              ...editing.tools,
+                            ]),
+                          ].map((tool) => (
                             <label key={tool}>
-                              <input type="checkbox" checked={editing.tools.includes(tool)} onChange={(event) => setEditing({ ...editing, tools: event.target.checked ? [...editing.tools, tool] : editing.tools.filter((value) => value !== tool) })} />
+                              <input
+                                type="checkbox"
+                                checked={editing.tools.includes(tool)}
+                                onChange={(event) =>
+                                  setEditing({
+                                    ...editing,
+                                    tools: event.target.checked
+                                      ? [...editing.tools, tool]
+                                      : editing.tools.filter((value) => value !== tool),
+                                  })
+                                }
+                              />
                               {tool}
                             </label>
                           ))}
@@ -228,9 +254,19 @@ export default function SkillManager({
                     </div>
                   </div>
                   <div className="skill-editor-section skill-instructions">
-                    <div className="skill-instructions-heading"><strong>{t('skills.instructions')}</strong><span>Markdown</span></div>
+                    <div className="skill-instructions-heading">
+                      <strong>{t('skills.instructions')}</strong>
+                      <span>Markdown</span>
+                    </div>
                     <p className="muted">{t('skills.templateHelp')}</p>
-                    <textarea rows={18} maxLength={20000} value={editing.instructions} onChange={(event) => setEditing({ ...editing, instructions: event.target.value })} />
+                    <textarea
+                      rows={18}
+                      maxLength={20000}
+                      value={editing.instructions}
+                      onChange={(event) =>
+                        setEditing({ ...editing, instructions: event.target.value })
+                      }
+                    />
                   </div>
                 </section>
               </fieldset>

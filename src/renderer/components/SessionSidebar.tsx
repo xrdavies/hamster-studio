@@ -73,7 +73,9 @@ export default function SessionSidebar({
             <button className="session-main" onClick={() => onSelect(item.id)}>
               <span className="session-copy">
                 {(() => {
-                  const latest = data.messages.filter((message) => message.sessionId === item.id).at(-1)
+                  const latest = data.messages
+                    .filter((message) => message.sessionId === item.id)
+                    .at(-1)
                   const hasTitle = item.title.trim() && item.title !== t('ui.newConversation')
                   return hasTitle ? (
                     <>
@@ -81,7 +83,9 @@ export default function SessionSidebar({
                         {item.pinned && <Pin size={11} />}
                         {item.title}
                       </span>
-                      <span className="session-preview">{latest?.content || t('ui.emptyConversation')} · {time(item.updatedAt)}</span>
+                      <span className="session-preview">
+                        {latest?.content || t('ui.emptyConversation')} · {time(item.updatedAt)}
+                      </span>
                     </>
                   ) : (
                     <span className="session-title session-fallback">

@@ -64,7 +64,9 @@ export default function App() {
   const previousSession = useRef('')
   const followBottom = useRef(true)
   const [masks, setMasks] = useState<Record<string, { file: string; mask: string } | undefined>>({})
-  const [markers, setMarkers] = useState<Record<string, { file: string; marker: string; prompt: string } | undefined>>({})
+  const [markers, setMarkers] = useState<
+    Record<string, { file: string; marker: string; prompt: string } | undefined>
+  >({})
   const [references, setReferences] = useState<Record<string, string[]>>({})
   const scrollBottom = () => {
     const el = messagesRef.current
@@ -274,7 +276,9 @@ export default function App() {
     kind: ModelKind,
     referenceFiles = references[target.id] || [],
     editMask: { file: string; mask: string } | null | undefined = masks[target.id],
-    editMarker: { file: string; marker: string; prompt: string } | null | undefined = markers[target.id],
+    editMarker: { file: string; marker: string; prompt: string } | null | undefined = markers[
+      target.id
+    ],
   ) {
     if (activeRequests.current.has(target.id)) return
     activeRequests.current.add(target.id)
@@ -283,10 +287,14 @@ export default function App() {
     try {
       const maskFile =
         editMask && referenceFiles.includes(editMask.file) ? editMask.mask : undefined
-      const markerFile = editMarker && referenceFiles.includes(editMarker.file) ? editMarker.marker : undefined
+      const markerFile =
+        editMarker && referenceFiles.includes(editMarker.file) ? editMarker.marker : undefined
       if (markerFile && editMarker) {
         prompt = `${prompt}\n\n${editMarker.prompt}`
-        referenceFiles = [editMarker.file, ...referenceFiles.filter((file) => file !== editMarker.file)]
+        referenceFiles = [
+          editMarker.file,
+          ...referenceFiles.filter((file) => file !== editMarker.file),
+        ]
       }
       if (maskFile && editMask)
         referenceFiles = [editMask.file, ...referenceFiles.filter((file) => file !== editMask.file)]
@@ -296,7 +304,8 @@ export default function App() {
         await window.studio.generateImage(target.id, prompt, referenceFiles, maskFile, markerFile)
       else {
         const reference = referenceFiles
-        if (reference.length) await window.studio.sendChat(target.id, prompt, reference, maskFile, markerFile)
+        if (reference.length)
+          await window.studio.sendChat(target.id, prompt, reference, maskFile, markerFile)
         else await window.studio.sendChat(target.id, prompt)
         setReferences((current) => ({ ...current, [target.id]: [] }))
         setMasks((current) => ({ ...current, [target.id]: undefined }))
@@ -378,7 +387,11 @@ export default function App() {
           }
         : null,
       previous.markerFile
-        ? { file: previous.referenceFiles?.[0] || previous.referenceFile || '', marker: previous.markerFile, prompt: '' }
+        ? {
+            file: previous.referenceFiles?.[0] || previous.referenceFile || '',
+            marker: previous.markerFile,
+            prompt: '',
+          }
         : null,
     )
   }
