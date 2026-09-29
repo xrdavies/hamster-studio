@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
-  invoke: vi.fn(async () => {}),
+  invoke: vi.fn(async (_command?: string) => {}),
   check: vi.fn(),
   relaunch: vi.fn(),
   drag: vi.fn(),
@@ -24,7 +24,7 @@ afterEach(() => {
 it('keeps download and install explicit, and checks native active requests before installation', async () => {
   vi.useFakeTimers()
   vi.stubEnv('DEV', false)
-  vi.stubGlobal('window', {})
+  vi.stubGlobal('window', new EventTarget())
   const update = {
     version: '0.0.2',
     close: vi.fn(),
@@ -38,18 +38,21 @@ it('keeps download and install explicit, and checks native active requests befor
   expect(update.download).not.toHaveBeenCalled()
   await window.studio.downloadUpdate()
   expect(update.install).not.toHaveBeenCalled()
-  mocks.invoke.mockRejectedValueOnce(new Error('busy'))
+  mocks.invoke.mockImplementation(async (command?: string) => {
+    if (command === 'can_install') throw new Error('busy')
+  })
   await expect(window.studio.installUpdate()).rejects.toThrow('busy')
   expect(update.install).not.toHaveBeenCalled()
+  mocks.invoke.mockImplementation(async () => {})
   await window.studio.installUpdate()
-  expect(mocks.invoke).toHaveBeenCalledWith('can_install')
+  expect(mocks.invoke).toHaveBeenCalledWith('can_install', undefined)
   expect(update.install).toHaveBeenCalledTimes(1)
   expect(mocks.relaunch).toHaveBeenCalledTimes(1)
 })
 
 it('routes image references and approvals to their own session', async () => {
   vi.stubEnv('DEV', true)
-  vi.stubGlobal('window', {})
+  vi.stubGlobal('window', new EventTarget())
   await import('./studio')
   await window.studio.sendChat('session-a', 'make it blue', ['image-a.png', 'image-b.png'])
   expect(mocks.invoke).toHaveBeenLastCalledWith('generate', {
@@ -68,7 +71,7 @@ it('routes image references and approvals to their own session', async () => {
 
 it('cleans up late drag subscriptions and scopes dropped imports', async () => {
   vi.stubEnv('DEV', true)
-  vi.stubGlobal('window', {})
+  vi.stubGlobal('window', new EventTarget())
   let handler: (event: { payload: unknown }) => void = () => {}
   let resolve!: (off: () => void) => void
   mocks.drag.mockImplementation((callback) => {
@@ -94,4 +97,16 @@ it('cleans up late drag subscriptions and scopes dropped imports', async () => {
     sessionId: 'session-a',
     path: '/tmp/local.png',
   })
+})
+
+it('records frontend errors and opens logs scoped to a message', async () => {
+  vi.stubEnv('DEV', true)
+  vi.stubGlobal('window', new EventTarget())
+  await import('./studio')
+  window.dispatchEvent(
+    Object.assign(new Event('error'), { message: 'failed', error: { stack: 'trace' } }),
+  )
+  expect(mocks.invoke).toHaveBeenLastCalledWith('frontend_error', { message: 'trace' })
+  await window.studio.readLogs('message-a')
+  expect(mocks.invoke).toHaveBeenLastCalledWith('read_logs', { requestId: 'message-a' })
 })

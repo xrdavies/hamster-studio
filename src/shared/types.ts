@@ -68,6 +68,8 @@ export type Message = {
   skillWarnings?: string[]
   skillDraft?: Skill
   canContinue?: boolean
+  retryAt?: number
+  retryKind?: string
   retryAttempt?: number
   retryDelay?: number
 

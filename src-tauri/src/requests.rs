@@ -1,3 +1,4 @@
+use std::error::Error as _;
 use crate::{
     data, lock, password,
     store::{id, now, string, Result},
@@ -99,7 +100,10 @@ pub async fn generate(
             assistant=Some(json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":kind,"content":"","imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"streaming","error":""}));
             let output=assistant.as_mut().unwrap(); emit(&app,&s,output)?;
             if kind=="image" {
-                let name = create_image(&s, &provider, model, &secret, text.trim(), &reference_files, mask_file.as_deref(), marker_file.as_deref()).await?;
+                let context=json!({"sessionId":session_id,"messageId":output["id"]});
+                let name = create_image_retry(&s, &provider, model, &secret, text.trim(), &reference_files, mask_file.as_deref(), marker_file.as_deref(), &context, |attempt,at| {
+                    output["retryAttempt"]=json!(attempt);output["retryAt"]=json!(at);output["retryKind"]=json!("image");emit(&app,&s,output)
+                }).await?;
                 output["imageFiles"]=json!([name]);
                 output["imageInputs"] = json!(image_input_roles(&reference_files, marker_file.as_deref()));
             } else {
@@ -122,17 +126,20 @@ pub async fn generate(
     };
     lock(&s.active)?.remove(&session_id);
     if let Err(error) = result {
+        crate::diagnostics::write("image.run.error",json!({"sessionId":session_id,"messageId":assistant.as_ref().map(|o|o["id"].clone()),"error":error}));
         if let Some(mut output) = assistant {
             output["status"] = json!("error");
-            output["error"] = json!(error);
+            output["errorDetail"] = json!(error);
+            output["error"] = json!(if error.starts_with("ui.") || error.starts_with("agent.") { error.as_str() } else { "agent.imageFailed" });
             emit(&app, &s, &output)?;
         }
-        return Err(error);
+        return Err(if error.starts_with("ui.") || error.starts_with("agent.") {error} else {"agent.imageFailed".into()});
     }
     data(&s)
 }
 
 /// Both direct generation and Agent tools use the same image transport.
+#[cfg(test)]
 pub(crate) async fn create_image(
     s: &AppState,
     provider: &Value,
@@ -142,7 +149,35 @@ pub(crate) async fn create_image(
     references: &[String],
     mask: Option<&str>, marker: Option<&str>,
 ) -> Result<String> {
-    image_deadline(std::time::Duration::from_secs(600), create_image_request(s, provider, model, secret, prompt, references, mask, marker)).await
+    create_image_retry(s,provider,model,secret,prompt,references,mask,marker,&json!({}),|_,_|Ok(())).await
+}
+pub(crate) async fn create_image_retry(
+    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str,
+    references: &[String], mask: Option<&str>, marker: Option<&str>,
+    context: &Value, mut progress: impl FnMut(usize,u64)->Result<()>,
+) -> Result<String> {
+    crate::diagnostics::register_secret(secret);
+    let mut budget=crate::agent::retry::Budget::new();
+    loop {
+        let mut context=context.clone();
+        context["requestId"]=json!(id());
+        let started=std::time::Instant::now();
+        let mut retry_after=None;
+        let result=tokio::time::timeout_at(budget.deadline(), image_deadline(std::time::Duration::from_secs(600),
+            create_image_request(s,provider,model,secret,prompt,references,mask,marker,&context,&mut retry_after))).await
+            .unwrap_or_else(|_|Err("agent.imageTimeout".into()));
+        match result {
+            Ok(file)=>{progress(0,0)?; crate::diagnostics::write("image.finished",json!({"context":context,"file":file,"elapsedMs":started.elapsed().as_millis()}));return Ok(file);}
+            Err(error)=>{
+                crate::diagnostics::write("image.error",json!({"context":context,"error":error,"elapsedMs":started.elapsed().as_millis()}));
+                let Some((attempt,delay))=budget.next(&error,retry_after) else {progress(0,0)?;return Err(if crate::agent::retry::transient(&error) { "agent.retryExhausted".into() } else {error});};
+                progress(attempt,now()+delay.as_millis() as u64)?;
+                crate::diagnostics::write("image.retry",json!({"context":context,"attempt":attempt,"delayMs":delay.as_millis()}));
+                tokio::time::sleep(delay).await;
+                progress(attempt,0)?;
+            }
+        }
+    }
 }
 pub(crate) fn image_input_roles(references: &[String], marker: Option<&str>) -> Vec<Value> {
     let mut inputs = references.iter().enumerate().map(|(index, file)| json!({"index":index,"role":if index == 0 && marker.is_some() {"clean_original"} else {"reference"},"file":file})).collect::<Vec<_>>();
@@ -169,7 +204,7 @@ fn validate_transparency(required: bool, bytes: &[u8]) -> Result<()> {
 }
 
 async fn create_image_request(
-    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, references: &[String], mask: Option<&str>, marker: Option<&str>,
+    s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, references: &[String], mask: Option<&str>, marker: Option<&str>, context: &Value, retry_after: &mut Option<u64>,
 ) -> Result<String> {
     crate::validate_edit_mask(s, references, mask)?;
     if let Some(file) = marker {
@@ -209,21 +244,17 @@ async fn create_image_request(
             .post(url(string(provider, "baseUrl"), "/images/generations")?)
             .json(&json!({"model":model,"prompt":prompt,"n":1,"response_format":"b64_json"}))
     };
-    let response = request
-        .bearer_auth(secret)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        return Err(format!(
-            "HTTP {}: {}",
-            status.as_u16(),
-            body.chars().take(1500).collect::<String>()
-        ));
-    }
-    let result: Value = response.json().await.map_err(|e| e.to_string())?;
+    let request=request.bearer_auth(secret).build().map_err(|e|e.to_string())?;
+    crate::diagnostics::write("image.request",json!({"context":context,"url":request.url().as_str(),"method":"POST","headers":request.headers().iter().map(|(k,v)|(k.to_string(),json!(v.to_str().unwrap_or("")))).collect::<serde_json::Map<_,_>>(),"body":{"model":model,"prompt":prompt,"n":1,"response_format":"b64_json","references":references,"mask":mask,"marker":marker}}));
+    let response = s.client.execute(request).await.map_err(|e|format!("{e}: {}",e.source().map(ToString::to_string).unwrap_or_default()))?;
+    let status=response.status();
+    *retry_after=response.headers().get("retry-after").and_then(|v|v.to_str().ok()).and_then(|s|s.parse().ok());
+    let headers=response.headers().iter().map(|(k,v)|(k.to_string(),json!(v.to_str().unwrap_or("")))).collect::<serde_json::Map<_,_>>();
+    let text=response.text().await.map_err(|e|e.to_string())?;
+    let parsed=serde_json::from_str::<Value>(&text);
+    crate::diagnostics::write("image.response",json!({"context":context,"status":status.as_u16(),"headers":headers,"body":parsed.as_ref().cloned().unwrap_or_else(|_|json!(text))}));
+    if !status.is_success() { return Err(format!("HTTP {}: {}",status.as_u16(),text.chars().take(1500).collect::<String>())); }
+    let result=parsed.map_err(|e|e.to_string())?;
     let image = &result["data"][0];
     let bytes = if let Some(encoded) = image["b64_json"].as_str() {
         base64::engine::general_purpose::STANDARD
@@ -305,7 +336,8 @@ mod tests {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         let server = std::thread::spawn(move || {
-            for index in 0..5 {
+            for request_index in 0usize..6 {
+                let index = request_index.saturating_sub(1);
                 let (mut socket, _) = listener.accept().unwrap();
                 socket
                     .set_read_timeout(Some(std::time::Duration::from_secs(5)))
@@ -329,6 +361,10 @@ mod tests {
                             break;
                         }
                     }
+                }
+                if request_index == 0 {
+                    write!(socket,"HTTP/1.1 503 Service Unavailable\r\nRetry-After: 0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();
+                    continue;
                 }
                 let request = String::from_utf8_lossy(&bytes);
                 assert!(request

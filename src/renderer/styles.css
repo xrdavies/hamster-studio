@@ -2323,3 +2323,30 @@ button svg {
   padding: 48px;
   text-align: center;
 }
+
+.retry-status {
+  display: block;
+  color: var(--accent);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.log-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.diagnostic-logs {
+  min-width: 0;
+}
+.diagnostic-logs pre {
+  height: 50vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+}

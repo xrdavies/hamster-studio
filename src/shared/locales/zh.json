@@ -294,5 +294,18 @@
   "skills.pick": "选择当前会话的 Skill",
   "skills.creatorDescription": "通过对话设计和完善可复用的创作流程",
   "skills.saveShort": "保存",
-  "skills.descriptionLimit": "最多 140 个字符"
+  "skills.descriptionLimit": "最多 140 个字符",
+  "logs.title": "诊断日志",
+  "logs.view": "查看日志",
+  "logs.privacy": "日志仅保存在本地，可能包含聊天内容和请求正文，认证凭据已脱敏。最多保留 10 个 10 MB 文件。导出前请确认是否愿意提供这些内容。",
+  "logs.refresh": "刷新",
+  "logs.export": "导出日志",
+  "logs.clear": "清空日志",
+  "logs.clearHelp": "删除所有本地诊断日志？此操作不可撤销。",
+  "logs.empty": "暂无日志。",
+  "logs.expired": "未找到该请求的日志，记录可能已被轮转清理。",
+  "retry.wait": "{seconds} 秒后重试 · {attempt}/5",
+  "retry.running": "正在重试 / 继续回复 · {attempt}/5",
+  "retry.image": "正在重试图片生成 · {attempt}/5",
+  "agent.retryExhausted": "网络请求未完成，已达到重试次数或恢复时间上限。可重试或查看日志。"
 }

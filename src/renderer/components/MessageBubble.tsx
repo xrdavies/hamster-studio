@@ -1,3 +1,4 @@
+import RetryStatus from './RetryStatus'
 import RegionEditor from './RegionEditor'
 import { translateMessage, t } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
@@ -10,6 +11,7 @@ export default function MessageBubble({
   message,
   busy,
   onSkillDraft,
+  onLogs,
   onRetry,
   onRetryStep,
   onCopy,
@@ -18,6 +20,7 @@ export default function MessageBubble({
   onRegenerate,
   onApprove,
 }: {
+  onLogs: () => void
   onSkillDraft: (skill: import('../../shared/types').Skill) => void
   busy: boolean
   message: Message
@@ -259,14 +262,7 @@ export default function MessageBubble({
             {message.webError && <span> · {translateMessage(message.webError)}</span>}
           </div>
         )}
-        {!!message.retryAttempt && message.status === 'streaming' && (
-          <p role="status" className="vision-context-note">
-            {t('agent.retrying', {
-              attempt: message.retryAttempt,
-              seconds: message.retryDelay || 0,
-            })}
-          </p>
-        )}
+        <RetryStatus message={message} />
         {message.canContinue && message.status === 'error' && (
           <button className="secondary" disabled={busy} onClick={() => onRetry(message)}>
             {t('agent.continue')}
@@ -300,11 +296,10 @@ export default function MessageBubble({
           </div>
         )}
         {message.error && <div className="form-error">{translateMessage(message.error)}</div>}
-        {message.errorDetail && (
-          <details>
-            <summary>{t('agent.errorDetails')}</summary>
-            <p className="form-error">{message.errorDetail}</p>
-          </details>
+        {message.status === 'error' && (
+          <button className="secondary" onClick={onLogs}>
+            {t('logs.view')}
+          </button>
         )}
         {images.length > 1 && (
           <button

@@ -32,7 +32,10 @@ export default function App() {
   const [pending, setPending] = useState<Record<string, boolean>>({})
   const activeRequests = useRef(new Set<string>())
   const [settings, setSettings] = useState(false)
-  const [settingsPage, setSettingsPage] = useState<'general' | 'providers' | 'about'>('general')
+  const [logRequest, setLogRequest] = useState<string | undefined>()
+  const [settingsPage, setSettingsPage] = useState<'general' | 'providers' | 'about' | 'logs'>(
+    'general',
+  )
   const [editing, setEditing] = useState<EditingProvider | null>(null)
   const [search, setSearch] = useState('')
   const [showArchived, setShowArchived] = useState(false)
@@ -559,6 +562,12 @@ export default function App() {
                   <MessageBubble
                     key={item.id}
                     message={item}
+                    onLogs={() => {
+                      setLogRequest(item.id)
+                      setEditing(null)
+                      setSettingsPage('logs')
+                      setSettings(true)
+                    }}
                     onSkillDraft={(draft) => {
                       setSkillManager({ draft })
                       setShowSkillManager(true)
@@ -698,8 +707,12 @@ export default function App() {
       {settings && (
         <SettingsPanel
           data={data}
+          logRequest={logRequest}
           page={settingsPage}
-          setPage={setSettingsPage}
+          setPage={(page) => {
+            setLogRequest(undefined)
+            setSettingsPage(page)
+          }}
           editing={editing}
           setEditing={setEditing}
           close={() => {

@@ -1,5 +1,5 @@
 import { getCurrentWebview } from '@tauri-apps/api/webview'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke as nativeInvoke, type InvokeArgs } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -8,6 +8,27 @@ import { relaunch } from '@tauri-apps/plugin-process'
 import { aboutUrl } from '../shared/about'
 import type { UpdateState } from '../shared/updates'
 import type { Message } from '../shared/types'
+
+// Log operation names and failures; request payloads are recorded by the transport.
+async function invoke<T>(command: string, args?: InvokeArgs): Promise<T> {
+  const log = ![
+    'frontend_error',
+    'read_logs',
+    'clear_logs',
+    'export_logs',
+    'read_image',
+    'load',
+    'catalog_state',
+  ].includes(command)
+  if (log) void nativeInvoke('frontend_operation', { command }).catch(() => {})
+  try {
+    return await nativeInvoke<T>(command, args)
+  } catch (error) {
+    if (log)
+      void nativeInvoke('frontend_operation', { command, error: String(error) }).catch(() => {})
+    throw error
+  }
+}
 
 let state: UpdateState = { status: import.meta.env.DEV ? 'disabled' : 'idle' }
 let update: Update | null = null
@@ -49,16 +70,19 @@ function onMessage(callback: (message: Message) => void) {
     off?.()
   }
 }
-// Native diagnostics contain allowlisted metadata only, never prompts or response bodies.
-void listen<{ timestamp: number; stage: string; metadata: Record<string, unknown> }>(
-  'diagnostic',
-  ({ payload }) => {
-    const log = payload.stage.endsWith('.error') ? console.error : console.info
-    log('[Hamster Studio]', payload.stage, payload)
-  },
-).catch(() => {})
+window.addEventListener('error', (event) => {
+  void invoke('frontend_error', { message: event.error?.stack || event.message }).catch(() => {})
+})
+window.addEventListener('unhandledrejection', (event) => {
+  void invoke('frontend_error', { message: String(event.reason?.stack || event.reason) }).catch(
+    () => {},
+  )
+})
 
 window.studio = {
+  readLogs: (requestId) => invoke('read_logs', { requestId }),
+  exportLogs: () => invoke('export_logs'),
+  clearLogs: () => invoke('clear_logs'),
   preflightSkill: (sessionId, images, mask) =>
     invoke('preflight_skill', { sessionId, images, mask }),
   listSkills: () => invoke('list_skills'),

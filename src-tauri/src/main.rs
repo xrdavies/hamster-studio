@@ -2,6 +2,7 @@
 mod agent;
 mod skills;
 mod diagnostics;
+mod diagnostic_http;
 mod catalog;
 mod requests;
 mod store;
@@ -34,7 +35,9 @@ fn key(id: &str) -> Result<keyring::Entry> {
     keyring::Entry::new("com.hamster.studio", id).map_err(|e| e.to_string())
 }
 fn password(id: &str) -> Result<String> {
-    key(id)?.get_password().map_err(|e| e.to_string())
+    let secret = key(id)?.get_password().map_err(|e| e.to_string())?;
+    diagnostics::register_secret(&secret);
+    Ok(secret)
 }
 fn image_path(s: &AppState, name: &str) -> Result<PathBuf> {
     if name.is_empty() || name.contains('/') || name.contains('\\') || ![".png", ".jpg", ".webp"].iter().any(|ext| name.ends_with(ext)) {
@@ -66,6 +69,7 @@ fn save_session(s: State<AppState>, session: Value) -> Result<Value> {
 #[tauri::command]
 fn delete_session(s: State<AppState>, id: String) -> Result<Value> {
     if let Some(token) = lock(&s.active)?.get(&id) {
+        diagnostics::write("request.cancel", json!({"sessionId":id}));
         token.cancel()
     }
     lock(&s.store)?.delete("sessions", &id)?;
@@ -332,6 +336,7 @@ async fn export_images(app: tauri::AppHandle, s: State<'_, AppState>, files: Vec
 #[tauri::command]
 fn stop_chat(s: State<AppState>, id: String) -> Result<()> {
     if let Some(token) = lock(&s.active)?.get(&id) {
+        diagnostics::write("request.cancel", json!({"sessionId":id}));
         token.cancel()
     }
     Ok(())
@@ -420,6 +425,7 @@ fn main() {
 
             let directory = app.path().app_data_dir()?;
             std::fs::create_dir_all(directory.join("images"))?;
+            diagnostics::init(&directory)?;
             let catalog = Catalog::load(&directory.join("model-capabilities.json"));
             let store = Store::open(&directory.join("studio.db")).map_err(std::io::Error::other)?;
             app.manage(AppState {
@@ -438,6 +444,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            diagnostics::read_logs, diagnostics::clear_logs, diagnostics::export_logs, diagnostics::frontend_error, diagnostics::frontend_operation,
             load,
             skills::list_skills,
             skills::preflight_skill,

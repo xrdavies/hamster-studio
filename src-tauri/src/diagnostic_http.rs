@@ -1,0 +1,188 @@
+// Logs the actual model HTTP exchange; retry decisions remain in the agent loop.
+use bytes::Bytes;
+use futures_util::StreamExt;
+use rig::http_client::*;
+use rig::wasm_compat::WasmCompatSend;
+use serde_json::{json, Value};
+use std::sync::{Arc, Mutex};
+
+#[derive(Clone, Debug, Default)]
+pub struct LoggedClient {
+    pub client: ReqwestClient,
+    pub budget: Arc<Mutex<crate::agent::retry::Budget>>,
+    pub context: Value,
+    pub retry_after: Arc<Mutex<Option<u64>>>,
+}
+fn headers(map: &HeaderMap) -> Value {
+    Value::Object(
+        map.iter()
+            .map(|(k, v)| (k.to_string(), json!(v.to_str().unwrap_or("[binary]"))))
+            .collect(),
+    )
+}
+impl HttpClientExt for LoggedClient {
+    fn send<T, U>(
+        &self,
+        req: Request<T>,
+    ) -> impl std::future::Future<Output = Result<Response<LazyBody<U>>>> + Send + 'static
+    where
+        T: Into<Bytes> + WasmCompatSend,
+        U: From<Bytes> + WasmCompatSend + 'static,
+    {
+        self.client.send(req)
+    }
+    fn send_multipart<U>(
+        &self,
+        req: Request<MultipartForm>,
+    ) -> impl std::future::Future<Output = Result<Response<LazyBody<U>>>> + Send + 'static
+    where
+        U: From<Bytes> + WasmCompatSend + 'static,
+    {
+        self.client.send_multipart(req)
+    }
+    async fn send_streaming<T>(&self, req: Request<T>) -> Result<StreamingResponse>
+    where
+        T: Into<Bytes> + WasmCompatSend,
+    {
+        *self.retry_after.lock().unwrap() = None;
+        let deadline = self.budget.lock().unwrap().deadline();
+        let request_id = crate::store::id();
+        let (parts, body) = req.into_parts();
+        let body: Bytes = body.into();
+        let mut context = self.context.clone();
+        context["requestId"] = json!(request_id);
+        crate::diagnostics::write(
+            "http.request",
+            json!({"context":context,"method":parts.method.as_str(),"url":parts.uri.to_string(),"headers":headers(&parts.headers),"body":serde_json::from_slice::<Value>(&body).unwrap_or_else(|_|json!(String::from_utf8_lossy(&body)))}),
+        );
+        let request = Request::from_parts(parts, body);
+        let started = std::time::Instant::now();
+        let response = tokio::time::timeout_at(deadline, self.client.send_streaming(request))
+            .await
+            .unwrap_or_else(|_| {
+                Err(Error::Instance(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "request timed out",
+                ))))
+            });
+        match response {
+            Err(error) => {
+                if let Some(h) = error.non_success_headers() {
+                    *self.retry_after.lock().unwrap() = h
+                        .get("retry-after")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| v.parse().ok());
+                }
+                crate::diagnostics::write(
+                    "http.error",
+                    json!({"context":context,"error":error.to_string(),"headers":error.non_success_headers().map(headers),"elapsedMs":started.elapsed().as_millis()}),
+                );
+                Err(error)
+            }
+            Ok(response) => {
+                crate::diagnostics::write(
+                    "http.response",
+                    json!({"context":context,"status":response.status().as_u16(),"headers":headers(response.headers())}),
+                );
+                let (parts, stream) = response.into_parts();
+                let stream = futures_util::stream::unfold(Some(stream), move |state| async move {
+                    let mut stream = state?;
+                    match tokio::time::timeout_at(deadline, stream.next()).await {
+                        Ok(Some(item)) => Some((item, Some(stream))),
+                        Ok(None) => None,
+                        Err(_) => Some((
+                            Err(Error::Instance(Box::new(std::io::Error::new(
+                                std::io::ErrorKind::TimedOut,
+                                "response stream timed out",
+                            )))),
+                            None,
+                        )),
+                    }
+                });
+                // Buffer only a single SSE line; log JSON so embedded credentials/images can be scrubbed.
+                let stream=stream.scan(Vec::<u8>::new(),move |buffer,chunk| {
+                    match &chunk {
+                        Ok(bytes) => {
+                            buffer.extend_from_slice(bytes);
+                            while let Some(end)=buffer.iter().position(|b|*b==b'\n') {
+                                let line:Vec<_>=buffer.drain(..=end).collect();
+                                let text=String::from_utf8_lossy(&line);
+                                let text=text.trim();
+                                if !text.is_empty() {
+                                    let payload=text.strip_prefix("data:").unwrap_or(text).trim();
+                                    crate::diagnostics::write("http.stream",json!({"context":context,"elapsedMs":started.elapsed().as_millis(),"event":serde_json::from_str::<Value>(payload).unwrap_or_else(|_|json!(payload))}));
+                                }
+                            }
+                            if buffer.len()>10*1024*1024 { buffer.clear(); crate::diagnostics::write("http.log.error",json!({"context":context,"error":"SSE log line exceeded 10 MB"})); }
+                        },
+                        Err(error)=>crate::diagnostics::write("http.stream.error",json!({"context":context,"error":error.to_string(),"elapsedMs":started.elapsed().as_millis()})),
+                    }
+                    std::future::ready(Some(chunk))
+                });
+                Ok(Response::from_parts(
+                    parts,
+                    Box::pin(stream) as rig::http_client::sse::BoxedStream,
+                ))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn streaming_transport_preserves_retry_after_and_response() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            for attempt in 0..2 {
+                let (mut socket, _) = listener.accept().unwrap();
+                socket
+                    .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                    .unwrap();
+                let mut request = [0; 4096];
+                assert!(socket.read(&mut request).unwrap() > 0);
+                let (status, content_type, body) = if attempt == 0 {
+                    (
+                        "429 Too Many Requests",
+                        "application/json",
+                        "{\"error\":\"busy\"}",
+                    )
+                } else {
+                    (
+                        "200 OK",
+                        "text/event-stream",
+                        "data: {\"text\":\"你好\"}\n\ndata: [DONE]\n\n",
+                    )
+                };
+                write!(socket,"HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nRetry-After: 3\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).unwrap();
+            }
+        });
+        let client = LoggedClient {
+            context: json!({}),
+            ..Default::default()
+        };
+        let request = || {
+            Request::builder()
+                .uri(format!("http://{address}"))
+                .body(Bytes::new())
+                .unwrap()
+        };
+        let error = match client.send_streaming(request()).await {
+            Err(e) => e,
+            Ok(_) => panic!("expected 429"),
+        };
+        assert!(crate::agent::retry::transient(&error.to_string()));
+        assert_eq!(*client.retry_after.lock().unwrap(), Some(3));
+        let mut response = client.send_streaming(request()).await.unwrap().into_body();
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.next().await {
+            bytes.extend_from_slice(&chunk.unwrap());
+        }
+        assert!(String::from_utf8(bytes).unwrap().contains("你好"));
+        assert_eq!(*client.retry_after.lock().unwrap(), None);
+        server.join().unwrap();
+    }
+}

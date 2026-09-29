@@ -1,4 +1,5 @@
 import { translateMessage, t } from '../i18n'
+import DiagnosticLogs from './DiagnosticLogs'
 import LanguageMenu from './LanguageMenu'
 import { useEffect, useState } from 'react'
 import {
@@ -43,6 +44,7 @@ export function makeEditing(input: ProviderInput): EditingProvider {
 }
 export default function SettingsPanel({
   data,
+  logRequest,
   page,
   setPage,
   editing,
@@ -51,9 +53,10 @@ export default function SettingsPanel({
   refresh,
   askConfirm,
 }: {
+  logRequest?: string
   data: StudioData
-  page: 'general' | 'providers' | 'about'
-  setPage: (page: 'general' | 'providers' | 'about') => void
+  page: 'general' | 'providers' | 'about' | 'logs'
+  setPage: (page: 'general' | 'providers' | 'about' | 'logs') => void
   editing: EditingProvider | null
   setEditing: (value: EditingProvider | null) => void
   close: () => void
@@ -404,8 +407,17 @@ export default function SettingsPanel({
             <Info size={16} />
             {t('settings.about')}
           </button>
+          <button
+            className={page === 'logs' ? 'active' : ''}
+            aria-current={page === 'logs' ? 'page' : undefined}
+            onClick={() => setPage('logs')}
+          >
+            <Info size={16} />
+            {t('logs.title')}
+          </button>
         </nav>
         <div className="settings-content">
+          {page === 'logs' && <DiagnosticLogs requestId={logRequest} askConfirm={askConfirm} />}
           {page === 'general' && (
             <>
               <div className="settings-title">

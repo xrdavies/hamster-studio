@@ -7,6 +7,8 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+bytes = "1"
+zip = { version = "4.6.1", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-updater = "2"

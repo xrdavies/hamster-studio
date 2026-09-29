@@ -294,5 +294,18 @@
   "skills.pick": "Choose a Skill for this conversation",
   "skills.creatorDescription": "Design and refine reusable workflows through conversation",
   "skills.saveShort": "Save",
-  "skills.descriptionLimit": "Up to 140 characters"
+  "skills.descriptionLimit": "Up to 140 characters",
+  "logs.title": "Diagnostic logs",
+  "logs.view": "View logs",
+  "logs.privacy": "Logs stay on this device and may include conversations and request bodies. Credentials are redacted. Up to ten 10 MB files are retained. Review before sharing.",
+  "logs.refresh": "Refresh",
+  "logs.export": "Export logs",
+  "logs.clear": "Clear logs",
+  "logs.clearHelp": "Delete all local diagnostic logs? This cannot be undone.",
+  "logs.empty": "No logs yet.",
+  "logs.expired": "No logs found for this request. They may have rotated out.",
+  "retry.wait": "Retry in {seconds}s · {attempt}/5",
+  "retry.running": "Retrying / continuing reply · {attempt}/5",
+  "retry.image": "Retrying image generation · {attempt}/5",
+  "agent.retryExhausted": "Request failed after reaching the retry or recovery time limit. Retry or view logs."
 }

@@ -3306,6 +3306,7 @@ name = "hamster-studio"
 version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
+ "bytes",
  "futures-util",
  "image",
  "keyring",
@@ -3325,6 +3326,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "uuid",
+ "zip",
 ]
 
 [[package]]

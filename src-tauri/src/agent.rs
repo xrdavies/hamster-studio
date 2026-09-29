@@ -22,6 +22,7 @@ pub(crate) struct Run {
     app: tauri::AppHandle,
     session_id: String,
     output: Mutex<Value>,
+    retry_budget: Arc<Mutex<retry::Budget>>,
     image_provider: Option<Value>,
     image_model: String,
     image_key: Option<Result<String>>,
@@ -194,7 +195,10 @@ impl ImageTool {
             let mut files = Vec::new();
             for _ in 0..args.count {
                 run.update(|o| { let step = step_mut(o, &step_id); step["dispatchState"] = json!("unknown"); step["dispatchedAt"] = json!(now()); })?;
-                let file = requests::create_image(&state, &provider, &model, &secret, &args.prompt, &sources, run.mask_file.as_deref(), run.marker_file.as_deref()).await?;
+                let context=json!({"sessionId":run.session_id,"messageId":lock(&run.output)?["id"],"stepId":step_id});
+                let file = requests::create_image_retry(&state, &provider, &model, &secret, &args.prompt, &sources, run.mask_file.as_deref(), run.marker_file.as_deref(), &context, |attempt,at|run.update(|o| {
+                    o["retryAttempt"]=json!(attempt);o["retryAt"]=json!(at);o["retryKind"]=json!("image");
+                })).await?;
                 files.push(file.clone());
                 run.update(|o| {
                     o["imageFiles"].as_array_mut().unwrap().push(json!(file));
@@ -212,7 +216,7 @@ impl ImageTool {
             }
         })?;
         crate::diagnostics::record(&run.app, if result.is_ok() { "image.step.finished" } else { "image.step.error" }, json!({"sessionId":run.session_id,"stepId":step_id,"elapsedMs":step_started.elapsed().as_millis(),"success":result.is_ok(),"httpStatus":result.as_ref().err().and_then(|e| crate::diagnostics::status_from_error(e)),"dispatchState":step_mut(&mut *lock(&run.output)?, &step_id)["dispatchState"]}));
-        // Tool errors end the run: paid operations are never retried automatically.
+        // Image transport retries internally; do not replay the whole tool after exhaustion.
         result
     }
 }
@@ -245,7 +249,7 @@ pub async fn retry_image_step(app: tauri::AppHandle, state: State<'_, AppState>,
         active.insert(session_id.clone(), token.clone());
     }
     let output = json!({"id":id(),"sessionId":session_id,"role":"assistant","kind":"chat","agent":true,"content":"","imageFiles":[],"steps":[],"providerName":provider["name"],"model":model,"createdAt":now(),"status":"streaming","error":"","retryOfStep":step_id});
-    let run = Arc::new(Run {app:app.clone(), session_id:session_id.clone(),output:Mutex::new(output),image_provider:Some(provider),image_model:model,image_key:Some(Ok(secret)),reference:reference.clone(),mask_file,marker_file:step["markerFile"].as_str().map(str::to_owned),viewed:Mutex::new(vec![])});
+    let run = Arc::new(Run {app:app.clone(), session_id:session_id.clone(),output:Mutex::new(output),retry_budget:Arc::new(Mutex::new(retry::Budget::new())),image_provider:Some(provider),image_model:model,image_key:Some(Ok(secret)),reference:reference.clone(),mask_file,marker_file:step["markerFile"].as_str().map(str::to_owned),viewed:Mutex::new(vec![])});
     let args = ImageArgs {prompt:string(step,"prompt").into(),count,output_mode:Some(if count > 1 {"variants"} else if reference.len() == 1 {"individual"} else {"compose"}.into()),source_image_ids:Some(reference.iter().enumerate().map(|(i, _)| attachment_id(i)).collect()),source_image_id:None};
     let tool = ImageTool(run.clone());
     let result = tokio::select! {
@@ -420,17 +424,11 @@ pub async fn generate(
             output["historyOffset"] = json!(history_offset);
             let mut initial_prompt = Message::user(text.trim());
             if let Some(row) = &resumed {
-                past = serde_json::from_value(row["checkpointHistory"].clone()).map_err(|e|e.to_string())?;
-                initial_prompt = serde_json::from_value(row["checkpointPrompt"].clone()).map_err(|e|e.to_string())?;
-                let offset = row["checkpointTextLength"].as_u64().unwrap_or(0) as usize;
-                if let Some(partial) = string(row,"content").get(offset..).filter(|s| !s.is_empty()) {
-                    past.push(initial_prompt);
-                    past.push(Message::assistant(partial));
-                    initial_prompt = Message::user("Continue the interrupted response without repeating existing text. Do not repeat completed tools.");
-                }
+                (past, initial_prompt) = retry::continuation(row)?;
+                output["retryPending"] = json!(false); output["retryAttempt"] = json!(0); output["retryAt"] = json!(0);
                 output["status"] = json!("streaming"); output["error"] = json!(""); output["errorDetail"] = json!(""); output["canContinue"] = json!(false);
             }
-            let current = Arc::new(Run {app:app.clone(),session_id:session_id.clone(),output:Mutex::new(output),image_provider:image.as_ref().map(|(p,_)|p.clone()),image_model:image.map(|(_,m)|m).unwrap_or_default(),image_key,mask_file:mask_file.clone(),marker_file:marker_file.clone(),reference:reference.clone(),viewed:Mutex::new(reference.iter().cloned().collect())});
+            let current = Arc::new(Run {app:app.clone(),session_id:session_id.clone(),output:Mutex::new(output),retry_budget:Arc::new(Mutex::new(retry::Budget::new())),image_provider:image.as_ref().map(|(p,_)|p.clone()),image_model:image.map(|(_,m)|m).unwrap_or_default(),image_key,mask_file:mask_file.clone(),marker_file:marker_file.clone(),reference:reference.clone(),viewed:Mutex::new(reference.iter().cloned().collect())});
             run = Some(current.clone());
             crate::diagnostics::record(&app, "agent.start", json!({"sessionId":session_id,"messageId":lock(&current.output)?["id"],"providerId":provider["id"],"model":model,"historyMessages":past.len(),"hasReference":!reference.is_empty()}));
             if resumed.is_none() { requests::emit(&app,&state,&json!({"id":id(),"sessionId":session_id,"role":"user","kind":"chat","content":text.trim(),"referenceFiles":reference,"maskFile":mask_file,"markerFile":marker_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":created_at,"status":"done","error":""}))?; }
@@ -439,6 +437,8 @@ pub async fn generate(
                 .connect_timeout(std::time::Duration::from_secs(30))
                 .timeout(std::time::Duration::from_secs(600))
                 .redirect(reqwest_rig::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
+            let retry_after = Arc::new(Mutex::new(None));
+            let http = crate::diagnostic_http::LoggedClient { client:http, context:json!({"sessionId":session_id,"messageId":lock(&current.output)?["id"]}), retry_after:retry_after.clone(), budget:current.retry_budget.clone() };
             let client = rig::providers::openai::Client::builder().api_key(key).http_client(http)
                 .base_url(requests::url(string(&provider,"baseUrl"),"")?).build().map_err(|e|e.to_string())?.completions_api();
             let mut preamble = format!("{}\nAttachment manifest (use these request-scoped handles; never use internal image IDs): {}\nSession instructions:\n{}",
@@ -459,8 +459,6 @@ pub async fn generate(
             let agent = client.agent(model).preamble(&preamble).tool_server_handle(builder.run()).add_hook(retry::Checkpoint(current.clone())).add_hook(ImageContext(current.clone())).add_hook(StopOnToolError).build();
             let mut prompt = initial_prompt;
             let mut prior = past;
-            let mut attempts = 0;
-            let retry_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(600);
             let mut finished = false;
             loop {
             let mut stream = agent.stream_prompt(prompt.clone()).history(prior.clone()).max_turns(MAX_TURNS).tool_concurrency(1).await;
@@ -482,32 +480,34 @@ pub async fn generate(
                     _ => {}
                 }
             }
+            drop(stream);
             if finished { break; }
             let detail = failure.unwrap_or_else(|| "Incomplete model response".into());
             let checkpoint = lock(&current.output)?.clone();
-            let partial = string(&checkpoint,"content").len() > checkpoint["checkpointTextLength"].as_u64().unwrap_or(0) as usize;
             let image_failed = checkpoint["steps"].as_array().is_some_and(|steps| steps.iter().any(|s| s["status"] == "error"));
-            if attempts >= 2 || partial || image_failed || !retry::transient(&detail) || tokio::time::Instant::now() >= retry_deadline {
+            crate::diagnostics::record(&app,"model.error",json!({"sessionId":session_id,"messageId":checkpoint["id"],"error":detail}));
+            let next=if image_failed {None} else {lock(&current.retry_budget)?.next(&detail,lock(&retry_after)?.take())};
+            if next.is_none() {
                 let code = if detail.contains("agent.approvalTimeout") { "agent.approvalTimeout" }
                     else if detail.contains("ui.imageGenerationCancelledByUser") { "ui.imageGenerationCancelledByUser" }
-                    else if image_failed { "agent.imageFailed" } else { "agent.modelFailed" };
+                    else if image_failed { "agent.imageFailed" } else if retry::transient(&detail) { "agent.retryExhausted" } else { "agent.modelFailed" };
                 current.update(|o| {o["errorDetail"] = json!(detail.clone()); o["retryAttempt"] = json!(0); o["canContinue"] = json!(!image_failed && !detail.contains("budget exhausted"));})?;
                 return Err(code.into());
             }
-            attempts += 1;
-            let delay = if attempts == 1 {2} else {5};
-            current.update(|o| {o["retryAttempt"] = json!(attempts); o["retryDelay"] = json!(delay);})?;
-            crate::diagnostics::record(&app, "model.retry", json!({"sessionId":session_id,"attempt":attempts,"delaySeconds":delay,"httpStatus":crate::diagnostics::status_from_error(&detail)}));
-            tokio::time::sleep(std::time::Duration::from_millis(delay * 1000 + now() % 400)).await;
-            prior = serde_json::from_value(checkpoint["checkpointHistory"].clone()).map_err(|e|e.to_string())?;
-            prompt = serde_json::from_value(checkpoint["checkpointPrompt"].clone()).map_err(|e|e.to_string())?;
+            let (attempt,delay)=next.unwrap();
+            current.update(|o| {o["retryAttempt"]=json!(attempt);o["retryAt"]=json!(now()+delay.as_millis() as u64);o["retryKind"]=json!("chat");o["retryPending"]=json!(true);})?;
+            crate::diagnostics::record(&app,"model.retry",json!({"sessionId":session_id,"messageId":checkpoint["id"],"attempt":attempt,"delayMs":delay.as_millis()}));
+            tokio::time::sleep(delay).await;
+            current.update(|o| {o["retryAt"]=json!(0);})?;
+            (prior,prompt)=retry::continuation(&checkpoint)?;
+
             }
             if !finished {return Err("ui.theAgentDidNotReturnACompleteResult".into())}
-            current.update(|o| {o["status"]=json!("done"); o["canContinue"]=json!(false);})?;
+            current.update(|o| {o["status"]=json!("done"); o["retryAttempt"]=json!(0); o["canContinue"]=json!(false);})?;
             Ok(())
         }) => result.unwrap_or_else(|_|Err("ui.taskTimedOutAndStopped".into()))
     };
-    crate::diagnostics::record(&app, "agent.finished", json!({"sessionId":session_id,"elapsedMs":started.elapsed().as_millis(),"success":result.is_ok(),"cancelled":token.is_cancelled()}));
+    crate::diagnostics::record(&app, "agent.finished", json!({"sessionId":session_id,"elapsedMs":started.elapsed().as_millis(),"success":result.is_ok(),"error":result.as_ref().err(),"messageId":run.as_ref().and_then(|r|r.output.lock().ok().map(|o|o["id"].clone())),"cancelled":token.is_cancelled()}));
     lock(&state.approvals)?.retain(|_, (owner, _)| owner != &session_id);
 
     if let Err(error) = result {
