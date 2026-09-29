@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod agent;
+mod image_export;
 mod skills;
 mod diagnostics;
 mod diagnostic_http;
@@ -307,13 +308,12 @@ async fn export_image(app: tauri::AppHandle, s: State<'_, AppState>, file: Strin
     let (sender, receiver) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
-        .set_file_name(format!("hamster-image.{}", file.rsplit('.').next().unwrap_or("png")))
+        .set_file_name(image_export::filename(&s, &file, &source)?)
         .save_file(move |path| {
             let _ = sender.send(path);
         });
     if let Some(path) = receiver.await.map_err(|e| e.to_string())? {
-        std::fs::copy(source, path.into_path().map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())?;
+        image_export::copy_unique(&source, &path.into_path().map_err(|e| e.to_string())?)?;
         return Ok(true);
     }
     Ok(false)
@@ -328,8 +328,8 @@ async fn export_images(app: tauri::AppHandle, s: State<'_, AppState>, files: Vec
     let directory = folder.into_path().map_err(|e|e.to_string())?.join(format!("hamster-images-{}",store::id()));
     std::fs::create_dir(&directory).map_err(|e|e.to_string())?;
     for (index, source) in sources.iter().enumerate() {
-        let extension = source.extension().and_then(|v|v.to_str()).unwrap_or("png");
-        std::fs::copy(source, directory.join(format!("{:02}.{extension}",index+1))).map_err(|e|e.to_string())?;
+        let name = image_export::filename(&s, &files[index], source)?;
+        image_export::copy_unique(source, &directory.join(name))?;
     }
     Ok(true)
 }
