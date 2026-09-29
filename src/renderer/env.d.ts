@@ -4,6 +4,7 @@ import type { Message, ProviderInput, StudioData, StudioSession } from '../share
 declare global {
   interface Window {
     studio: {
+      exportAnimation(messageId: string, file: string, frames: boolean): Promise<boolean>
       readLogs(requestId?: string): Promise<string>
       exportLogs(): Promise<boolean>
       clearLogs(): Promise<void>

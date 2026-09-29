@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::State;
 
-const TOOLS: &[&str] = &["create_images", "list_images", "view_image", "read_webpage"];
+const TOOLS: &[&str] = &["create_images", "list_images", "view_image", "read_webpage", "split_sprite_sheet", "compose_animation"];
 const SECTIONS: &[&str] = &["Purpose", "Inputs", "Outputs", "Steps", "Acceptance", "Limits"];
 fn default_schema() -> u32 {1}
 fn validate_sections(text: &str) -> Result<()> {
@@ -45,7 +45,7 @@ impl Skill {
     }
 }
 pub fn builtins() -> Vec<Skill> {
-    [include_str!("../skills/creator.json"), include_str!("../skills/character-sheet.json")].iter().map(|text|serde_json::from_str(text).expect("Valid bundled skill")).collect()
+    [include_str!("../skills/creator.json"), include_str!("../skills/character-sheet.json"), include_str!("../skills/sprite-animation.json")].iter().map(|text|serde_json::from_str(text).expect("Valid bundled skill")).collect()
 }
 pub fn snapshot(value: &Value) -> Result<Option<Skill>> {
     if value.is_null() { return Ok(None); }
@@ -77,7 +77,7 @@ pub fn list_skills(state: State<AppState>) -> Result<Vec<Skill>> {
         if skill.id.starts_with("builtin-") { return Err("Local skills cannot replace built-in IDs".into()); }
         result.push(skill);
     }
-    result[2..].sort_by(|a,b|a.name.cmp(&b.name));
+    result[builtins().len()..].sort_by(|a,b|a.name.cmp(&b.name));
     Ok(result)
 }
 #[tauri::command]

@@ -1,3 +1,4 @@
+import AnimationPreview from './AnimationPreview'
 import TaskStatus from './TaskStatus'
 import RegionEditor from './RegionEditor'
 import { translateMessage, t } from '../i18n'
@@ -380,6 +381,9 @@ export default function MessageBubble({
               </button>
             </div>
           </div>
+        ))}
+        {message.animations?.map((animation) => (
+          <AnimationPreview key={animation.file} animation={animation} messageId={message.id} />
         ))}
         {message.role === 'assistant' && (
           <div className="message-actions">

@@ -116,6 +116,8 @@ impl Store {
     }
     pub fn image_rows(&self) -> Result<Vec<Value>> {
         let mut rows = self.rows("messages")?;
+        let frames: Vec<Value> = rows.iter().flat_map(|row| row["frameSets"].as_array().into_iter().flatten().map(|set| json!({"sessionId":row["sessionId"],"createdAt":row["createdAt"],"imageFiles":set["frameFiles"],"content":"Animation frames","sourceImageId":set["sourceImageId"]}))).collect();
+        rows.extend(frames);
         rows.extend(self.rows("images")?);
         Ok(rows)
     }
@@ -214,6 +216,16 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn extracted_frames_remain_session_scoped_and_listable() {
+        let store=Store::open(Path::new(":memory:")).unwrap();
+        store.provider(&json!({"id":"p"})).unwrap();
+        store.session(&json!({"id":"a","providerId":"p","chatModel":"chat"})).unwrap();
+        store.message(&json!({"id":"m","sessionId":"a","status":"done","imageFiles":["sheet.png"],"frameSets":[{"sourceImageId":"sheet.png","frameFiles":["frame1.png","frame2.png"]}]})).unwrap();
+        assert!(store.owns_image("a","frame1.png").unwrap());
+        assert!(!store.owns_image("b","frame1.png").unwrap());
+        assert!(store.image_rows().unwrap().iter().any(|r|r["sourceImageId"]=="sheet.png"));
+    }
     #[test]
     fn removes_obsolete_skill_warnings_but_preserves_real_configuration_warnings() {
         let file = std::env::temp_dir().join(format!("{}.db", id()));

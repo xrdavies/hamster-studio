@@ -15,6 +15,9 @@ pub fn filename(state: &AppState, file: &str, source: &Path) -> Result<String> {
         row["imageFiles"]
             .as_array()
             .is_some_and(|files| files.iter().any(|item| item == file))
+            || row["animations"]
+                .as_array()
+                .is_some_and(|items| items.iter().any(|item| item["file"] == file))
     });
     let session = row
         .as_ref()

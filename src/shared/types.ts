@@ -63,7 +63,17 @@ export type ImageStep = {
   providerName?: string
 }
 
+export type AnimationResult = {
+  file: string
+  frameFiles: string[]
+  fps: number
+  looped: boolean
+  width: number
+  height: number
+}
 export type Message = {
+  animations?: AnimationResult[]
+  frameSets?: { sourceImageId: string; frameFiles: string[]; columns: number; rows: number }[]
   skill?: Skill
   skillWarnings?: string[]
   skillDraft?: Skill

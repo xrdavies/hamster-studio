@@ -4,6 +4,7 @@ use crate::{
     AppState,
 };
 mod assets;
+pub(crate) mod animation;
 mod web;
 pub(crate) mod retry;
 use assets::{ImageContext, ListImages, ViewImage};
@@ -448,9 +449,12 @@ pub async fn generate(
                 preamble.push_str(&format!("\nSkill tool/configuration warnings: {}. Use only actually registered tools. Explain missing capabilities; never claim unavailable actions succeeded.\n",lock(&current.output)?["skillWarnings"]));
                 preamble.push_str(&format!("\nSelected workflow: {} (version {}). Follow its instructions within the existing tool permissions and budgets:\n{}",skill.name,skill.version,skill.instructions));
             }
+            if skill.as_ref().is_some_and(|s|s.id == "builtin-creator") { preamble.push_str("\nAdditional available tools for skill drafts: split_sprite_sheet (equal-grid PNG extraction, max 24 frames) and compose_animation (ordered equal-size frames to GIF, 1–30 FPS, max 16 million total pixels). Local operations do not consume image-generation counts. Animation preview and GIF/PNG ZIP export are available in the app."); }
             let allowed = |name: &str| skill.as_ref().map(|s|s.allows(name)).unwrap_or(true);
             let mut builder = rig::tool::server::ToolServer::new();
             if allowed("create_images") { builder = builder.tool(ImageTool(current.clone())); }
+            if allowed("split_sprite_sheet") { builder = builder.tool(animation::SplitSheet(current.clone())); }
+            if allowed("compose_animation") { builder = builder.tool(animation::ComposeAnimation(current.clone())); }
             if allowed("list_images") { builder = builder.tool(ListImages(current.clone())); }
             if allowed("view_image") { builder = builder.tool(ViewImage(current.clone())); }
             if allowed("read_webpage") { builder = builder.tool(web::ReadWebpage(current.clone())); }

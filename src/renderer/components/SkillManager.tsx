@@ -230,6 +230,8 @@ export default function SkillManager({
                               'list_images',
                               'view_image',
                               'read_webpage',
+                              'split_sprite_sheet',
+                              'compose_animation',
                               ...editing.tools,
                             ]),
                           ].map((tool) => (

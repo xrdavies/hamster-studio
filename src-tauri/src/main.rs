@@ -445,6 +445,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             diagnostics::read_logs, diagnostics::clear_logs, diagnostics::export_logs, diagnostics::frontend_error, diagnostics::frontend_operation,
+            agent::animation::export_animation,
             load,
             skills::list_skills,
             skills::preflight_skill,

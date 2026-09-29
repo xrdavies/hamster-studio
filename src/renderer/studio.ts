@@ -80,6 +80,8 @@ window.addEventListener('unhandledrejection', (event) => {
 })
 
 window.studio = {
+  exportAnimation: (messageId, file, frames) =>
+    invoke('export_animation', { messageId, file, frames }),
   readLogs: (requestId) => invoke('read_logs', { requestId }),
   exportLogs: () => invoke('export_logs'),
   clearLogs: () => invoke('clear_logs'),

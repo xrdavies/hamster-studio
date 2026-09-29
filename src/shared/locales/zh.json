@@ -306,5 +306,15 @@
   "retry.wait": "{seconds} 秒后重试 · {attempt}/5",
   "retry.running": "正在重试 / 继续回复 · {attempt}/5",
   "retry.image": "正在重试图片生成 · {attempt}/5",
-  "agent.retryExhausted": "网络请求未完成，已达到重试次数或恢复时间上限。可重试或查看日志。"
+  "agent.retryExhausted": "网络请求未完成，已达到重试次数或恢复时间上限。可重试或查看日志。",
+  "animation.title": "序列帧动画",
+  "animation.frames": "帧",
+  "animation.frame": "帧",
+  "animation.play": "播放",
+  "animation.pause": "暂停",
+  "animation.previous": "上一帧",
+  "animation.next": "下一帧",
+  "animation.speed": "预览速度",
+  "animation.exportGif": "导出 GIF",
+  "animation.exportFrames": "导出 PNG 帧 ZIP"
 }

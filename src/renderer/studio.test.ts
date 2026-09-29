@@ -110,3 +110,15 @@ it('records frontend errors and opens logs scoped to a message', async () => {
   await window.studio.readLogs('message-a')
   expect(mocks.invoke).toHaveBeenLastCalledWith('read_logs', { requestId: 'message-a' })
 })
+
+it('exports animation frames using the owning message and animation file', async () => {
+  vi.stubEnv('DEV', true)
+  vi.stubGlobal('window', new EventTarget())
+  await import('./studio')
+  await window.studio.exportAnimation('message-a', 'animation.gif', true)
+  expect(mocks.invoke).toHaveBeenLastCalledWith('export_animation', {
+    messageId: 'message-a',
+    file: 'animation.gif',
+    frames: true,
+  })
+})

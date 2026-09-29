@@ -3,7 +3,11 @@ import { X, Check, Sparkles } from 'lucide-react'
 import { t, translateMessage } from '../i18n'
 import type { Skill } from '../../shared/types'
 export const skillName = (skill: Skill) =>
-  skill.id === 'builtin-character-sheet' ? t('skills.characterName') : skill.name
+  skill.id === 'builtin-sprite-animation'
+    ? t('animation.title')
+    : skill.id === 'builtin-character-sheet'
+      ? t('skills.characterName')
+      : skill.name
 export const skillDescription = (skill: Skill) =>
   skill.id === 'builtin-character-sheet'
     ? t('skills.characterDescription')
