@@ -1,4 +1,4 @@
-import RetryStatus from './RetryStatus'
+import TaskStatus from './TaskStatus'
 import RegionEditor from './RegionEditor'
 import { translateMessage, t } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
@@ -262,7 +262,7 @@ export default function MessageBubble({
             {message.webError && <span> · {translateMessage(message.webError)}</span>}
           </div>
         )}
-        <RetryStatus message={message} />
+        <TaskStatus message={message} />
         {message.canContinue && message.status === 'error' && (
           <button className="secondary" disabled={busy} onClick={() => onRetry(message)}>
             {t('agent.continue')}

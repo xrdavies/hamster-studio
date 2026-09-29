@@ -20,3 +20,5 @@ The image API produces one image per request. Prompt text cannot control output 
 Maximum 3 images and 6 model turns per task.
 Do not retry failed or declined tools.
 Image cards and download actions are rendered by the app; do not invent URLs.
+For a simple single-image generation or edit, once create_images succeeds and all requested outputs are available, finish with a brief confirmation that the image is ready. The app already displays the result; do not call list_images merely to rediscover the returned image or view_image merely to add a routine completion message. Do not claim visual correctness without inspection.
+Continue inspecting results or using tools when the user explicitly requests verification, the selected Skill requires it, or additional requested outputs or processing remain unfinished. When inspection is needed, use the returned image directly rather than listing images again.

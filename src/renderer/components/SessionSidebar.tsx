@@ -1,4 +1,4 @@
-import RetryStatus from './RetryStatus'
+import TaskStatus from './TaskStatus'
 import { t } from '../i18n'
 import {
   Archive,
@@ -95,7 +95,7 @@ export default function SessionSidebar({
                     </span>
                   )
                 })()}
-                <RetryStatus
+                <TaskStatus
                   message={data.messages
                     .filter((m) => m.sessionId === item.id && m.role === 'assistant')
                     .at(-1)}

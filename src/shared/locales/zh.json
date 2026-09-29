@@ -304,6 +304,7 @@
   "logs.clearHelp": "删除所有本地诊断日志？此操作不可撤销。",
   "logs.empty": "暂无日志。",
   "logs.expired": "未找到该请求的日志，记录可能已被轮转清理。",
+  "agent.checkingResult": "图片已生成，正在检查结果",
   "retry.wait": "{seconds} 秒后重试 · {attempt}/5",
   "retry.running": "正在重试 / 继续回复 · {attempt}/5",
   "retry.image": "正在重试图片生成 · {attempt}/5",

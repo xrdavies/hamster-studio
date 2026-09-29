@@ -304,6 +304,7 @@
   "logs.clearHelp": "Delete all local diagnostic logs? This cannot be undone.",
   "logs.empty": "No logs yet.",
   "logs.expired": "No logs found for this request. They may have rotated out.",
+  "agent.checkingResult": "Image generated, checking results",
   "retry.wait": "Retry in {seconds}s · {attempt}/5",
   "retry.running": "Retrying / continuing reply · {attempt}/5",
   "retry.image": "Retrying image generation · {attempt}/5",
