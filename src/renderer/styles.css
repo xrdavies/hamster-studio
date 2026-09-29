@@ -2337,11 +2337,48 @@ button svg {
   gap: 8px;
   flex-wrap: wrap;
 }
+.settings-content:has(.diagnostic-logs) {
+  display: flex;
+  min-height: 0;
+}
 .diagnostic-logs {
   min-width: 0;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-.diagnostic-logs pre {
-  height: 50vh;
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.log-header h3 {
+  margin: 0;
+}
+.log-actions {
+  margin-left: auto;
+}
+.log-output pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.log-output summary {
+  cursor: pointer;
+}
+.log-output details {
+  margin-bottom: 8px;
+}
+.log-output details pre {
+  padding: 8px 12px;
+}
+.log-output {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

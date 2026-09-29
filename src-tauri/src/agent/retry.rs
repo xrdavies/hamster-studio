@@ -9,6 +9,9 @@ pub(crate) struct Budget {
     deadline: Option<tokio::time::Instant>,
 }
 impl Budget {
+    pub fn attempt(&self) -> usize {
+        self.attempt
+    }
     pub fn new() -> Self {
         Self {
             attempt: 0,
