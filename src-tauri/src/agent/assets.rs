@@ -1,7 +1,7 @@
 use super::*;
 use base64::Engine;
 use rig::agent::{CompletionCallAction, CompletionCallEvent, RequestPatch};
-use rig::completion::message::{DocumentSourceKind, Image, ImageMediaType, UserContent};
+use rig::completion::message::{AssistantContent, DocumentSourceKind, Image, ImageMediaType, UserContent};
 use std::path::PathBuf;
 
 // Image IDs, never paths or base64, are stored in the conversation transcript.
@@ -68,9 +68,17 @@ fn image_message(file: &str, bytes: Vec<u8>) -> Result<Message> {
     ] })
 }
 
-fn with_visual_context(mut images: Vec<Message>, history: &[Message]) -> Vec<Message> {
-    images.extend_from_slice(history);
-    images
+fn with_visual_context(images: Vec<Message>, history: &[Message], prompt: &Message) -> Vec<Message> {
+    // Rig appends the prompt after patched history. Keep pending tool calls and
+    // their result prompt together; otherwise place images just before the prompt.
+    let insertion = history.iter().rposition(|message| {
+        matches!((message, prompt), (Message::Assistant { content: calls, .. }, Message::User { content: results })
+            if calls.iter().any(|call| matches!(call, AssistantContent::ToolCall(call)
+                if results.iter().any(|result| matches!(result, UserContent::ToolResult(result) if result.call == call.id)))))
+    }).unwrap_or(history.len());
+    let mut history = history.to_vec();
+    history.splice(insertion..insertion, images);
+    history
 }
 
 pub(super) struct ImageContext(pub Arc<Run>);
@@ -88,8 +96,7 @@ impl AgentHook for ImageContext {
                     std::fs::read(owned_path(&self.0, &file)?).map_err(|e| e.to_string())?;
                 history.push(image_message(&file, bytes)?);
             }
-            // Prepend to avoid separating an assistant tool call from its result prompt.
-            Ok(with_visual_context(history, event.history))
+            Ok(with_visual_context(history, event.history, event.prompt))
         })();
         match result {
             Ok(history) => CompletionCallAction::Patch(RequestPatch::new().history(history)),
@@ -183,7 +190,7 @@ mod tests {
     #[tokio::test]
     async fn visual_patch_reaches_model_without_persisting_binary_data() {
         use rig::test_utils::{MockCompletionModel, MockStreamEvent as E};
-        struct VisualHook;
+        struct VisualHook(Arc<Mutex<Vec<String>>>);
         impl AgentHook for VisualHook {
             async fn on_completion_call(
                 &self,
@@ -191,12 +198,15 @@ mod tests {
                 event: CompletionCallEvent<'_>,
             ) -> CompletionCallAction {
                 CompletionCallAction::Patch(RequestPatch::new().history(with_visual_context(
-                    vec![image_message("source.png", b"\x89PNG\r\n\x1a\n".to_vec()).unwrap()],
+                    self.0.lock().unwrap().iter().map(|file| {
+                        image_message(file, b"\x89PNG\r\n\x1a\n".to_vec()).unwrap()
+                    }).collect(),
                     event.history,
+                    event.prompt,
                 )))
             }
         }
-        struct Lookup;
+        struct Lookup(Arc<Mutex<Vec<String>>>);
         impl Tool for Lookup {
             const NAME: &'static str = "view_image";
             type Args = Value;
@@ -211,24 +221,32 @@ mod tests {
             async fn call(
                 &self,
                 _: &mut ToolContext,
-                _: Value,
+                args: Value,
             ) -> std::result::Result<Value, Self::Error> {
-                Ok(json!({"imageId":"source.png"}))
+                self.0.lock().unwrap().push(args["image_id"].as_str().unwrap().into());
+                Ok(json!({"imageId":args["image_id"]}))
             }
         }
         let model = MockCompletionModel::from_stream_turns([
             vec![
-                E::tool_call("view1", "view_image", json!({})),
+                E::tool_call("view1", "view_image", json!({"image_id":"generated.png"})),
+                E::tool_call("view2", "view_image", json!({"image_id":"comparison.png"})),
+                E::final_response_with_total_tokens(0),
+            ],
+            vec![
+                E::tool_call("view3", "view_image", json!({"image_id":"frame.png"})),
                 E::final_response_with_total_tokens(0),
             ],
             vec![E::text("seen"), E::final_response_with_total_tokens(0)],
         ]);
+        let viewed = Arc::new(Mutex::new(vec!["source.png".into()]));
         let agent = rig::agent::AgentBuilder::new(model.clone())
-            .tool(Lookup)
-            .add_hook(VisualHook)
+            .tool(Lookup(viewed.clone()))
+            .add_hook(VisualHook(viewed))
             .build();
         let mut stream = agent
             .stream_prompt("inspect")
+            .tool_concurrency(1)
             .max_turns(MAX_TURNS)
             .history([Message::user("earlier")])
             .await;
@@ -240,27 +258,47 @@ mod tests {
             }
         }
         let requests = model.requests();
-        assert_eq!(requests.len(), 2);
-        let wire_history: Vec<_> = requests[1]
-            .chat_history
-            .iter()
-            .cloned()
-            .flat_map(|m| Vec::<rig::providers::openai::completion::Message>::try_from(m).unwrap())
-            .collect();
-        let wire_json = serde_json::to_value(wire_history).unwrap();
-        assert!(wire_json
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|m| m["role"] == "tool" && m["tool_call_id"] == "view1"));
-        assert!(wire_json.to_string().contains("image_url"));
-        assert!(requests[0].chat_history.iter().any(|m| matches!(m, Message::User {content} if content.iter().any(|c| matches!(c, UserContent::Image(_))))));
-        assert!(serde_json::to_string(&requests[0].chat_history)
-            .unwrap()
-            .contains("earlier"));
-        let image = image_message("source.png", b"\x89PNG\r\n\x1a\n".to_vec()).unwrap();
-        let wire = Vec::<rig::providers::openai::completion::Message>::try_from(image).unwrap();
-        assert!(serde_json::to_string(&wire).unwrap().contains("image_url"));
+        assert_eq!(requests.len(), 3);
+        for (turn, request) in requests.iter().enumerate() {
+            let wire: Vec<_> = request.chat_history.iter().cloned()
+                .flat_map(|m| Vec::<rig::providers::openai::completion::Message>::try_from(m).unwrap())
+                .collect();
+            let wire = serde_json::to_value(wire).unwrap();
+            let messages = wire.as_array().unwrap();
+            assert_eq!(messages[0]["content"], "earlier");
+            let image_indices: Vec<_> = messages.iter().enumerate()
+                .filter(|(_, m)| m["content"].as_array().is_some_and(|items|
+                    items.iter().any(|item| item["type"] == "image_url")))
+                .map(|(i, _)| i).collect();
+            let expected = match turn {
+                0 => vec!["source.png"],
+                1 => vec!["source.png", "generated.png", "comparison.png"],
+                _ => vec!["source.png", "generated.png", "comparison.png", "frame.png"],
+            };
+            assert_eq!(image_indices.len(), expected.len());
+            for (index, file) in image_indices.iter().zip(expected) {
+                assert!(messages[*index]["content"][0]["text"].as_str().unwrap().contains(file));
+            }
+            let after_images = image_indices.last().unwrap() + 1;
+            if turn == 0 {
+                assert_eq!(messages[after_images]["content"], "inspect");
+                assert_eq!(after_images, messages.len() - 1);
+            } else {
+                let calls = messages[after_images]["tool_calls"].as_array().unwrap();
+                assert_eq!(calls[0]["id"], if turn == 1 { "view1" } else { "view3" });
+                assert_eq!(after_images + 1 + calls.len(), messages.len());
+            }
+            // Every tool batch, including earlier rounds, stays adjacent to all results.
+            for (index, message) in messages.iter().enumerate() {
+                if let Some(calls) = message["tool_calls"].as_array() {
+                    let results = &messages[index + 1..index + 1 + calls.len()];
+                    assert!(results.iter().all(|result| result["role"] == "tool"));
+                    for call in calls {
+                        assert!(results.iter().any(|result| result["tool_call_id"] == call["id"]));
+                    }
+                }
+            }
+        }
     }
     #[test]
     fn session_images_resolve_without_new_uploads_and_reject_foreign_ids() {
