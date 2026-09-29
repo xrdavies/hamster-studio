@@ -66,6 +66,31 @@ fn load(path: &std::path::Path) -> Result<image::DynamicImage> {
     }
     reader.decode().map_err(|e| e.to_string())
 }
+fn save_frame(
+    directory: &std::path::Path,
+    source: &image::DynamicImage,
+    cell: (u32, u32, u32, u32),
+) -> Result<String> {
+    // New outputs use an internally generated name; image_path is only for existing inputs.
+    let name = format!("{}.png", id());
+    let path = directory.join(&name);
+    let mut output = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .map_err(|e| format!("Cannot create animation frame: {e}"))?;
+    let (x, y, w, h) = cell;
+    if let Err(error) = source
+        .view(x, y, w, h)
+        .to_image()
+        .write_to(&mut output, image::ImageFormat::Png)
+    {
+        drop(output);
+        let _ = std::fs::remove_file(path);
+        return Err(format!("Cannot save animation frame: {error}"));
+    }
+    Ok(name)
+}
 pub struct SplitSheet(pub Arc<Run>);
 impl Tool for SplitSheet {
     const NAME: &'static str = "split_sprite_sheet";
@@ -96,9 +121,7 @@ impl Tool for SplitSheet {
             let result=(|| -> Result<Value> {
                 for (x,y,w,h) in cells {
                     if token.is_cancelled() {return Err("ui.taskStopped".into());}
-                    let name=format!("{}.png",id());
-                    frames.push(name.clone());
-                    source.view(x,y,w,h).to_image().save(crate::image_path(&state,&name)?).map_err(|e|e.to_string())?;
+                    frames.push(save_frame(&state.directory.join("images"), &source, (x,y,w,h))?);
                 }
                 let set=json!({"sourceImageId":file,"frameFiles":frames,"columns":args.columns,"rows":args.rows});
                 if token.is_cancelled() {return Err("ui.taskStopped".into());}
@@ -201,6 +224,53 @@ impl Tool for ComposeAnimation {
 mod tests {
     use super::*;
     use image::AnimationDecoder;
+    #[test]
+    fn new_frames_are_written_read_back_and_encoded_in_order() {
+        let directory = std::env::temp_dir().join(id());
+        std::fs::create_dir(&directory).unwrap();
+        let args = SplitArgs {
+            image_id: "sheet.png".into(),
+            columns: 4,
+            rows: 3,
+            frame_count: 12,
+            margin: 0,
+            spacing: 0,
+        };
+        let sheet = RgbaImage::from_fn(1448, 1086, |x, y| {
+            image::Rgba([((y / 362) * 4 + x / 362) as u8 * 20, 0, 0, 255])
+        });
+        let source_path = directory.join("sheet.png");
+        sheet.save(&source_path).unwrap();
+        let original = std::fs::read(&source_path).unwrap();
+        let source = load(&source_path).unwrap();
+        let mut frames = Vec::new();
+        for (index, cell) in rectangles(source.width(), source.height(), &args)
+            .unwrap()
+            .into_iter()
+            .enumerate()
+        {
+            let file = save_frame(&directory, &source, cell).unwrap();
+            let frame = load(&directory.join(file)).unwrap().to_rgba8();
+            assert_eq!(frame.dimensions(), (362, 362));
+            assert_eq!(frame.get_pixel(0, 0)[0], index as u8 * 20);
+            frames.push(frame);
+        }
+        let gif = directory.join("animation.gif");
+        std::fs::write(&gif, encode(frames, 12, true).unwrap()).unwrap();
+        let decoded = image::codecs::gif::GifDecoder::new(std::io::BufReader::new(
+            std::fs::File::open(gif).unwrap(),
+        ))
+        .unwrap()
+        .into_frames()
+        .collect_frames()
+        .unwrap();
+        assert_eq!(decoded.len(), 12);
+        assert_eq!(decoded[11].buffer().dimensions(), (362, 362));
+        assert_eq!(std::fs::read(source_path).unwrap(), original);
+        let error = save_frame(&directory.join("missing"), &source, (0, 0, 362, 362)).unwrap_err();
+        assert!(error.starts_with("Cannot create animation frame:"));
+        std::fs::remove_dir_all(directory).unwrap();
+    }
     #[test]
     fn grid_order_and_gif_roundtrip() {
         let args = SplitArgs {
