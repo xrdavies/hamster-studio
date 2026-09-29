@@ -83,8 +83,7 @@ window.studio = {
   readLogs: (requestId) => invoke('read_logs', { requestId }),
   exportLogs: () => invoke('export_logs'),
   clearLogs: () => invoke('clear_logs'),
-  preflightSkill: (sessionId, images, mask) =>
-    invoke('preflight_skill', { sessionId, images, mask }),
+  preflightSkill: (sessionId) => invoke('preflight_skill', { sessionId }),
   listSkills: () => invoke('list_skills'),
   deleteSkill: (id) => invoke('delete_skill', { id }),
   saveSkill: (skill) => invoke('save_skill', { skill }),

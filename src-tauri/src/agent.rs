@@ -415,7 +415,7 @@ pub async fn generate(
             let marker_file = if resumed.is_some() { output["markerFile"].as_str().map(str::to_owned) } else { marker_file.clone() };
             crate::validate_edit_mask(&state, &reference, mask_file.as_deref())?;
             if let Some(skill) = &skill {
-                output["skillWarnings"] = json!(crate::skills::preflight(skill, reference.len(), mask_file.is_some(), image.is_some())?);
+                output["skillWarnings"] = json!(crate::skills::preflight(skill, image.is_some())?);
             }
             output["maskFile"] = json!(mask_file);
             output["markerFile"] = json!(marker_file);
@@ -446,7 +446,7 @@ pub async fn generate(
             if mask_file.is_some() { preamble.push_str("\nThe user selected a region on the FIRST attached image. create_images automatically sends its edit mask. Keep that image first; modify only the selected region according to the user request and preserve the rest. Do not claim pixel-perfect preservation."); }
             if marker_file.is_some() { preamble.push_str("\nThe user supplied a marker overlay for the FIRST attached image. create_images automatically sends the clean original as Image 1 and its annotated copy as Image 2 through standard image inputs. Keep attachment_1 first and include all region coordinates and instructions in the editing prompt. Use the marker overlay together with the coordinate instructions to locate the requested regions; do not preserve marker lines or labels in the output."); }
             if let Some(skill) = &skill {
-                preamble.push_str(&format!("\nSkill preflight warnings (not proof of capability): {}. Use only actually registered tools. Explain missing capabilities; never claim unavailable actions succeeded.\n",lock(&current.output)?["skillWarnings"]));
+                preamble.push_str(&format!("\nSkill tool/configuration warnings: {}. Use only actually registered tools. Explain missing capabilities; never claim unavailable actions succeeded.\n",lock(&current.output)?["skillWarnings"]));
                 preamble.push_str(&format!("\nSelected workflow: {} (version {}). Follow its instructions within the existing tool permissions and budgets:\n{}",skill.name,skill.version,skill.instructions));
             }
             let allowed = |name: &str| skill.as_ref().map(|s|s.allows(name)).unwrap_or(true);

@@ -335,12 +335,7 @@ export default function App() {
     }
     if (session.skill && modelKind === 'chat') {
       try {
-        const files = references[session.id] || []
-        const warnings = await window.studio.preflightSkill(
-          session.id,
-          files.length,
-          !!masks[session.id] && files.includes(masks[session.id]!.file),
-        )
+        const warnings = await window.studio.preflightSkill(session.id)
         if (warnings.length) {
           askConfirm(
             t('skills.preflight'),

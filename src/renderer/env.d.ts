@@ -7,7 +7,7 @@ declare global {
       readLogs(requestId?: string): Promise<string>
       exportLogs(): Promise<boolean>
       clearLogs(): Promise<void>
-      preflightSkill(sessionId: string, images: number, mask: boolean): Promise<string[]>
+      preflightSkill(sessionId: string): Promise<string[]>
       listSkills(): Promise<import('../shared/types').Skill[]>
       deleteSkill(id: string): Promise<void>
       saveSkill(skill: import('../shared/types').Skill): Promise<import('../shared/types').Skill>

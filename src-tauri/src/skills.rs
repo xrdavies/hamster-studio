@@ -94,34 +94,22 @@ pub fn save_skill(state: State<AppState>, mut skill: Skill) -> Result<Skill> {
     file.write_all(&serde_json::to_vec_pretty(&skill).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
     Ok(skill)
 }
-pub fn preflight(skill: &Skill, images: usize, mask: bool, image_model: bool) -> Result<Vec<String>> {
+pub fn preflight(skill: &Skill, image_model: bool) -> Result<Vec<String>> {
     skill.validate(skill.id == "builtin-creator")?;
     let mut warnings = Vec::new();
     if skill.allows("create_images") && !image_model {warnings.push("skills.imageModelMissing".into());}
-    warnings.push("tool_calling".into());
     for tool in &skill.tools { if !TOOLS.contains(&tool.as_str()) && tool != "draft_skill" {warnings.push(format!("Unavailable tool: {tool}"));} }
-    if images > 0 || skill.allows("view_image") {warnings.push("vision".into());}
-    if skill.allows("create_images") && images > 0 {warnings.push("image_edit".into());}
-    if skill.allows("create_images") && images > 1 {warnings.push("multi_reference".into());}
-    if skill.allows("create_images") && mask {warnings.push("mask".into());}
-    Ok(warnings.into_iter().map(|warning| match warning.as_str() {
-        "tool_calling" => "skills.toolCallingUnknown".into(),
-        "vision" => "skills.visionUnknown".into(),
-        "image_edit" => "skills.imageEditUnknown".into(),
-        "multi_reference" => "skills.multiReferenceUnknown".into(),
-        "mask" => "skills.maskUnknown".into(),
-        _ => warning,
-    }).collect())
+    Ok(warnings)
 }
 #[tauri::command]
-pub fn preflight_skill(state: State<AppState>, session_id: String, images: usize, mask: bool) -> Result<Vec<String>> {
+pub fn preflight_skill(state: State<AppState>, session_id: String) -> Result<Vec<String>> {
     let session = crate::lock(&state.store)?.get("sessions", &session_id)?;
     let Some(skill) = snapshot(&session["skill"])? else {return Ok(vec![])};
     if session["modelKind"] != "chat" {return Err("ui.selectAChatModelFirst".into());}
     let mut provider = crate::lock(&state.store)?.get("providers", crate::store::string(&session,"providerId"))?;
     crate::lock(&state.catalog)?.provider(&mut provider);
     if !provider["chatModels"].as_array().is_some_and(|models|models.contains(&session["chatModel"])) {return Err("ui.selectAChatModelFirst".into());}
-    preflight(&skill, images, mask, crate::agent::image_config(&state,&session).ok().flatten().is_some())
+    preflight(&skill, crate::agent::image_config(&state,&session).ok().flatten().is_some())
 }
 #[tauri::command]
 pub fn delete_skill(state: State<AppState>, id: String) -> Result<()> {
@@ -162,8 +150,11 @@ mod tests {
         skill.instructions = "## Purpose\nOnly one section".into();
         assert!(skill.validate(false).is_err());
         skill = builtins().remove(1);
+        assert!(preflight(&skill, true).unwrap().is_empty());
+        assert!(preflight(&builtins().remove(0), false).unwrap().is_empty());
+        assert_eq!(preflight(&skill, false).unwrap(), vec!["skills.imageModelMissing"]);
         skill.tools.push("animate".into());
-        let warnings = preflight(&skill,0,false,false).unwrap();
+        let warnings = preflight(&skill,false).unwrap();
         assert!(warnings.contains(&"skills.imageModelMissing".into()));
         assert!(warnings.iter().any(|s|s.contains("animate")));
         skill.schema_version = 1;
@@ -175,7 +166,7 @@ mod tests {
         for skill in builtins() {assert!(snapshot(&json!(skill)).is_ok());}
         let mut skill = builtins().remove(1);
         skill.tools.push("shell".into());
-        assert!(preflight(&skill, 0, false, true).unwrap().iter().any(|warning|warning.contains("shell")));
+        assert!(preflight(&skill, true).unwrap().iter().any(|warning|warning.contains("shell")));
         let mut creator = builtins().remove(0);
         creator.instructions = "override".into();
         assert!(snapshot(&json!(creator)).is_err());

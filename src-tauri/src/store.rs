@@ -33,6 +33,12 @@ impl Store {
         let store = Self { db };
         for mut message in store.rows("messages")? {
             let mut migrated = false;
+            if let Some(warnings) = message["skillWarnings"].as_array_mut() {
+                let before = warnings.len();
+                warnings.retain(|warning| !matches!(warning.as_str(),
+                    Some("skills.toolCallingUnknown" | "skills.visionUnknown" | "skills.imageEditUnknown" | "skills.multiReferenceUnknown" | "skills.maskUnknown")));
+                migrated = warnings.len() != before;
+            }
             if let Some(error) = message["error"].as_str() {
                 let key = legacy_error(error);
                 if key != error { message["error"] = json!(key); migrated = true; }
@@ -208,6 +214,24 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn removes_obsolete_skill_warnings_but_preserves_real_configuration_warnings() {
+        let file = std::env::temp_dir().join(format!("{}.db", id()));
+        {
+            let store = Store::open(&file).unwrap();
+            store.provider(&json!({"id":"p"})).unwrap();
+            store.session(&json!({"id":"a","providerId":"p","chatModel":"chat"})).unwrap();
+            store.message(&json!({"id":"m","sessionId":"a","status":"done","content":"keep reply","skillWarnings":["skills.toolCallingUnknown","skills.visionUnknown","skills.imageEditUnknown","skills.multiReferenceUnknown","skills.maskUnknown","skills.imageModelMissing","Unavailable tool: shell"]})).unwrap();
+        }
+        for _ in 0..2 {
+            let store = Store::open(&file).unwrap();
+            let message = store.get("messages", "m").unwrap();
+            assert_eq!(message["skillWarnings"], json!(["skills.imageModelMissing","Unavailable tool: shell"]));
+            assert_eq!(message["content"], "keep reply");
+            assert_eq!(message["status"], "done");
+        }
+        std::fs::remove_file(file).unwrap();
+    }
     #[test]
     fn sessions_are_isolated_and_deletion_drops_late_messages() {
         let store = Store::open(Path::new(":memory:")).unwrap();
