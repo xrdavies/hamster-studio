@@ -225,6 +225,53 @@ mod tests {
     use super::*;
     use image::AnimationDecoder;
     #[test]
+    fn splitting_and_encoding_preserve_anchor_relative_motion() {
+        let directory = std::env::temp_dir().join(id());
+        std::fs::create_dir(&directory).unwrap();
+        let args = SplitArgs {
+            image_id: "sheet.png".into(),
+            columns: 2,
+            rows: 2,
+            frame_count: 4,
+            margin: 1,
+            spacing: 1,
+        };
+        let cells = rectangles(35, 35, &args).unwrap();
+        let mut sheet = RgbaImage::from_pixel(35, 35, image::Rgba([255, 255, 255, 255]));
+        // Fixed canvas anchor (8, 12); deliberate bounce and lateral motion remain intact.
+        let positions = [(8, 12), (8, 10), (10, 9), (8, 11)];
+        for ((x, y, _, _), (px, py)) in cells.iter().zip(positions) {
+            sheet.put_pixel(x + px, y + py, image::Rgba([255, 0, 0, 255]));
+        }
+        let source = image::DynamicImage::ImageRgba8(sheet);
+        let frames: Vec<_> = cells
+            .into_iter()
+            .map(|cell| {
+                let file = save_frame(&directory, &source, cell).unwrap();
+                load(&directory.join(file)).unwrap().to_rgba8()
+            })
+            .collect();
+        let decoded = image::codecs::gif::GifDecoder::new(std::io::Cursor::new(
+            encode(frames.clone(), 8, true).unwrap(),
+        ))
+        .unwrap()
+        .into_frames()
+        .collect_frames()
+        .unwrap();
+        assert_eq!(decoded.len(), positions.len());
+        for ((frame, decoded), position) in frames.iter().zip(&decoded).zip(positions) {
+            assert_eq!(frame.dimensions(), (16, 16));
+            assert_eq!(decoded.buffer(), frame);
+            let red_pixels: Vec<_> = frame
+                .enumerate_pixels()
+                .filter(|(_, _, pixel)| pixel.0 == [255, 0, 0, 255])
+                .map(|(x, y, _)| (x, y))
+                .collect();
+            assert_eq!(red_pixels, vec![position]);
+        }
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+    #[test]
     fn new_frames_are_written_read_back_and_encoded_in_order() {
         let directory = std::env::temp_dir().join(id());
         std::fs::create_dir(&directory).unwrap();
