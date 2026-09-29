@@ -27,16 +27,27 @@ fn assets(rows: &[Value], session: &str) -> Vec<Value> {
 pub(super) fn invalid_reference() -> Value {
     json!({"error":"Image is unavailable in this session. Call list_images and use an exact imageId from its result, or ask the user to attach an image. Do not guess IDs or use IDs from other sessions.","recoverable":true})
 }
-pub(super) fn owned_path(run: &Run, file: &str) -> Result<PathBuf> {
-    let state = run.app.state::<AppState>();
-    let rows = lock(&state.store)?.image_rows()?;
-    if !assets(&rows, &run.session_id)
-        .iter()
-        .any(|a| a["imageId"] == file)
-    {
+// Resolve aliases and durable IDs through the same session ownership check.
+fn resolve_session_image(reference: &str, attached: &[String], rows: &[Value], session: &str) -> Result<String> {
+    let file = if reference.starts_with("attachment_") {
+        super::resolve_attachment(reference, attached)?
+    } else { reference.to_owned() };
+    if !assets(rows, session).iter().any(|image| image["imageId"] == file) {
         return Err("Image does not belong to this session".into());
     }
-    crate::image_path(&state, file)
+    Ok(file)
+}
+pub(super) fn resolve_image(run: &Run, reference: &str) -> Result<String> {
+    let state = run.app.state::<AppState>();
+    let rows = lock(&state.store)?.image_rows()?;
+    let file = resolve_session_image(reference, &run.reference, &rows, &run.session_id)?;
+    if !crate::image_path(&state, &file)?.is_file() { return Err("Image file is missing".into()); }
+    Ok(file)
+}
+pub(super) fn owned_path(run: &Run, file: &str) -> Result<PathBuf> {
+    let state = run.app.state::<AppState>();
+    let file = resolve_image(run, file)?;
+    crate::image_path(&state, &file)
 }
 fn image_message(file: &str, bytes: Vec<u8>) -> Result<Message> {
     if bytes.len() > 20 * 1024 * 1024 {
@@ -132,7 +143,7 @@ impl Tool for ViewImage {
     type Output = Value;
     type Error = std::io::Error;
     fn description(&self) -> String {
-        "Load an image using its request-scoped attachment handle (for example attachment_1) as actual visual input on the next model turn. Requires a vision-capable model.".into()
+        "Load a current attachment handle (for example attachment_1) or an exact imageId/imageFiles value from this session history, list_images or create_images as actual visual input on the next model turn. Historical and newly generated images can be viewed without re-uploading. Requires a vision-capable model.".into()
     }
     fn parameters(&self) -> Value {
         json!({"type":"object","properties":{"image_id":{"type":"string"}},"required":["image_id"],"additionalProperties":false})
@@ -142,13 +153,10 @@ impl Tool for ViewImage {
         _: &mut ToolContext,
         args: ViewArgs,
     ) -> std::result::Result<Value, Self::Error> {
-        let image_id = match super::resolve_attachment(&args.image_id, &self.0.reference) {
+        let image_id = match resolve_image(&self.0, &args.image_id) {
             Ok(id) => id,
             Err(_) => return Ok(invalid_reference()),
         };
-        if owned_path(&self.0, &image_id).is_err() {
-            return Ok(invalid_reference());
-        }
         let mut viewed = lock(&self.0.viewed).map_err(std::io::Error::other)?;
         if !viewed.contains(&image_id) {
             if viewed.len() >= 6 {
@@ -164,7 +172,7 @@ impl Tool for ViewImage {
             .update(|o| o["viewedImageIds"] = json!(ids))
             .map_err(std::io::Error::other)?;
         Ok(
-            json!({"attachmentId":args.image_id,"status":"Image supplied as visual context on the next model turn"}),
+            json!({"imageId":image_id,"status":"Image supplied as visual context on the next model turn"}),
         )
     }
 }
@@ -253,6 +261,22 @@ mod tests {
         let image = image_message("source.png", b"\x89PNG\r\n\x1a\n".to_vec()).unwrap();
         let wire = Vec::<rig::providers::openai::completion::Message>::try_from(image).unwrap();
         assert!(serde_json::to_string(&wire).unwrap().contains("image_url"));
+    }
+    #[test]
+    fn session_images_resolve_without_new_uploads_and_reject_foreign_ids() {
+        let rows = vec![
+            json!({"sessionId":"a","imageFiles":["original.png"]}),
+            json!({"sessionId":"a","imageFiles":["generated.png"]}),
+            json!({"sessionId":"b","imageFiles":["private.png"]}),
+        ];
+        for image in ["original.png", "generated.png"] {
+            assert_eq!(resolve_session_image(image, &[], &rows, "a").unwrap(), image);
+        }
+        assert_eq!(resolve_session_image("attachment_1", &["original.png".into()], &rows, "a").unwrap(), "original.png");
+        for image in ["private.png", "missing.png", "../original.png", "attachment_1", "attachment_0", "attachment_7"] {
+            assert!(resolve_session_image(image, &[], &rows, "a").is_err());
+        }
+        assert!(resolve_session_image("attachment_1", &["private.png".into()], &rows, "a").is_err());
     }
     #[test]
     fn invalid_reference_is_recoverable_without_exposing_other_sessions() {

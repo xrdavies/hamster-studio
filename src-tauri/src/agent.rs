@@ -66,13 +66,13 @@ fn validate(args: &ImageArgs, used: usize) -> Result<()> {
 }
 fn attachment_id(index: usize) -> String { format!("attachment_{}", index + 1) }
 fn attachment_manifest(files: &[String]) -> Value {
-    json!({"attachments": files.iter().enumerate().map(|(i, _)| json!({"id": attachment_id(i)})).collect::<Vec<_>>()})
+    json!({"attachments": files.iter().enumerate().map(|(i, file)| json!({"id": attachment_id(i), "imageId":file})).collect::<Vec<_>>()})
 }
 pub(super) fn resolve_attachment(handle: &str, attached: &[String]) -> Result<String> {
     let index = handle.strip_prefix("attachment_").and_then(|n| n.parse::<usize>().ok()).and_then(|n| n.checked_sub(1)).ok_or("Unknown attachment handle")?;
     attached.get(index).cloned().ok_or("Unknown attachment handle".into())
 }
-// Reference selection is explicit and uses request-scoped handles.
+// Sources may be current attachment handles or session-owned image IDs.
 fn image_sources(args: &ImageArgs, attached: &[String]) -> Result<Vec<String>> {
     if args.source_image_ids.is_some() && args.source_image_id.is_some() {
         return Err("Use source_image_ids OR source_image_id, not both.".into());
@@ -89,7 +89,6 @@ fn image_sources(args: &ImageArgs, attached: &[String]) -> Result<Vec<String>> {
         _ => return Err("Choose output_mode: compose for one result using relevant references; variants for alternatives of the SAME task; individual for editing ONE asset in a batch. count never maps references to separate outputs.".into()),
     }
     let sources = explicit.unwrap_or_else(|| attached.iter().enumerate().map(|(i, _)| attachment_id(i)).collect());
-    for handle in &sources { resolve_attachment(handle, attached)?; }
     if sources.len() > 6 { return Err("images.referenceLimit".into()); }
     Ok(sources)
 }
@@ -114,10 +113,10 @@ impl Tool for ImageTool {
     type Output = Value;
     type Error = std::io::Error;
     fn description(&self) -> String {
-        "Create images. Use request-scoped attachment handles such as attachment_1 from the attachment manifest; never use internal image IDs. Each result is ONE image. output_mode=compose combines references into one result; variants repeats one prompt; individual edits one explicit attachment.".into()
+        "Create images. Use current attachment handles such as attachment_1, or exact imageId/imageFiles values from this session history, list_images or create_images. Reuse existing session images for follow-up edits; no re-upload is needed. Each result is ONE image. output_mode=compose combines references into one result; variants repeats one prompt; individual edits one explicit attachment.".into()
     }
     fn parameters(&self) -> Value {
-        json!({"type":"object","properties":{"output_mode":{"type":"string","enum":["compose","variants","individual"]},"prompt":{"type":"string"},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_ids":{"type":"array","items":{"type":"string","pattern":"^attachment_[1-6]$"},"maxItems":6},"source_image_id":{"type":"string","pattern":"^attachment_[1-6]$"}},"required":["prompt","count","output_mode"],"additionalProperties":false})
+        json!({"type":"object","properties":{"output_mode":{"type":"string","enum":["compose","variants","individual"]},"prompt":{"type":"string"},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_ids":{"type":"array","items":{"type":"string"},"maxItems":6},"source_image_id":{"type":"string"}},"required":["prompt","count","output_mode"],"additionalProperties":false})
     }
     async fn call(
         &self,
@@ -142,13 +141,13 @@ impl ImageTool {
             Ok(sources) => sources,
             Err(error) => return Ok(json!({"error":error,"recoverable":true})),
         };
-        let sources: Vec<String> = handles.iter().map(|h| resolve_attachment(h, &run.reference)).collect::<Result<_>>()?;
+        let sources = match handles.iter().map(|h| assets::resolve_image(run, h)).collect::<Result<Vec<_>>>() {
+            Ok(sources) => sources,
+            Err(_) => return Ok(assets::invalid_reference()),
+        };
         let source = sources.first();
         if (run.mask_file.is_some() || run.marker_file.is_some()) && sources.first() != run.reference.first() {
             return Ok(json!({"error":"The selected region belongs to the first attached image. Keep that image first in source_image_ids.","recoverable":true}));
-        }
-        for file in &sources {
-            if assets::owned_path(run, file).is_err() { return Ok(assets::invalid_reference()); }
         }
         let fingerprint = json!([run.image_provider.as_ref().map(|p| &p["id"]), run.image_model, args.prompt.trim(), sources, args.count, run.mask_file, run.marker_file]);
         if let Some(step) = lock(&run.output)?["steps"].as_array().unwrap().iter().find(|step| step["fingerprint"] == fingerprint && step["status"] == "done") {
@@ -441,7 +440,7 @@ pub async fn generate(
             let http = crate::diagnostic_http::LoggedClient { client:http, context:json!({"sessionId":session_id,"messageId":lock(&current.output)?["id"]}), retry_after:retry_after.clone(), budget:current.retry_budget.clone() };
             let client = rig::providers::openai::Client::builder().api_key(key).http_client(http)
                 .base_url(requests::url(string(&provider,"baseUrl"),"")?).build().map_err(|e|e.to_string())?.completions_api();
-            let mut preamble = format!("{}\nAttachment manifest (use these request-scoped handles; never use internal image IDs): {}\nSession instructions:\n{}",
+            let mut preamble = format!("{}\nCurrent attachment manifest (handles apply only to this request; imageId values identify session images and can be reused in later turns): {}\nSession instructions:\n{}",
                 include_str!("../prompts/image-agent.txt"), serde_json::to_string(&attachment_manifest(&reference)).unwrap(), string(&session,"systemPrompt"));
             if mask_file.is_some() { preamble.push_str("\nThe user selected a region on the FIRST attached image. create_images automatically sends its edit mask. Keep that image first; modify only the selected region according to the user request and preserve the rest. Do not claim pixel-perfect preservation."); }
             if marker_file.is_some() { preamble.push_str("\nThe user supplied a marker overlay for the FIRST attached image. create_images automatically sends the clean original as Image 1 and its annotated copy as Image 2 through standard image inputs. Keep attachment_1 first and include all region coordinates and instructions in the editing prompt. Use the marker overlay together with the coordinate instructions to locate the requested regions; do not preserve marker lines or labels in the output."); }
@@ -564,7 +563,7 @@ mod tests {
         let variants = serde_json::from_value(json!({"prompt":"Combine references", "count":3,"output_mode":"variants","source_image_ids":handles})).unwrap();
         assert_eq!(image_sources(&variants, &attached).unwrap(), handles);
         let stale: ImageArgs = serde_json::from_value(json!({"prompt":"edit", "count":1,"output_mode":"individual","source_image_ids":["old.png"]})).unwrap();
-        assert!(image_sources(&stale, &["new.png".into()]).is_err());
+        assert_eq!(image_sources(&stale, &["new.png".into()]).unwrap(), vec!["old.png"]);
     }
     #[test]
     fn duplicate_and_unknown_requests_require_session_scoped_confirmation() {
