@@ -16,6 +16,10 @@
     {
       "prefix": "dall-e-",
       "kind": "image"
+    },
+    {
+      "prefix": "grok-image-",
+      "kind": "image"
     }
   ]
 }
