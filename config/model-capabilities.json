@@ -10,7 +10,7 @@
   },
   "prefixes": [
     {
-      "prefix": "gpt-image-",
+      "prefix": "gpt-imag",
       "kind": "image"
     },
     {
