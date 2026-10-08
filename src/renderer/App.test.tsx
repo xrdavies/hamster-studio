@@ -149,11 +149,11 @@ it('isolates drafts, pending requests, errors and image retries when switching s
   expect(studio.generateImage).toHaveBeenLastCalledWith('a', 'draw', [], undefined, undefined)
   expect(studio.sendChat).toHaveBeenCalledTimes(1)
   await find(render(), Composer)!.props.onImportImage()
-  expect(studio.importImages).toHaveBeenLastCalledWith('a', 6)
+  expect(studio.importImages).toHaveBeenLastCalledWith('a', 4)
   expect(find(render(), Composer)!.props.referenceFiles).toEqual(['one.png', 'two.png'])
   studio.importImages.mockResolvedValueOnce([])
   await find(render(), Composer)!.props.onImportImage()
-  expect(studio.importImages).toHaveBeenLastCalledWith('a', 4)
+  expect(studio.importImages).toHaveBeenLastCalledWith('a', 2)
   expect(find(render(), Composer)!.props.referenceFiles).toEqual(['one.png', 'two.png'])
 })
 

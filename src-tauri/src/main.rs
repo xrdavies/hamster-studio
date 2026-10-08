@@ -16,6 +16,8 @@ use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tokio_util::sync::CancellationToken;
 
+pub(crate) const MAX_REFERENCE_IMAGES: usize = 4;
+
 struct AppState {
     store: Mutex<Store>,
     catalog: Mutex<Catalog>,
@@ -222,7 +224,7 @@ fn imported_extension(bytes: &[u8]) -> Result<&'static str> {
 #[tauri::command]
 async fn import_images(app: tauri::AppHandle, s: State<'_, AppState>, session_id: String, remaining: usize) -> Result<Vec<String>> {
     lock(&s.store)?.get("sessions", &session_id)?;
-    if remaining == 0 || remaining > 6 { return Err("images.referenceLimit".into()); }
+    if remaining == 0 || remaining > MAX_REFERENCE_IMAGES { return Err("images.referenceLimit".into()); }
     let (sender, receiver) = tokio::sync::oneshot::channel();
     app.dialog().file().add_filter("Images", &["png", "jpg", "jpeg", "webp"]).pick_files(move |paths| { let _ = sender.send(paths); });
     let Some(files) = receiver.await.map_err(|e| e.to_string())? else { return Ok(vec![]) };

@@ -89,7 +89,7 @@ fn image_sources(args: &ImageArgs, attached: &[String]) -> Result<Vec<String>> {
         _ => return Err("Choose output_mode: compose for one result using relevant references; variants for alternatives of the SAME task; individual for editing ONE asset in a batch. count never maps references to separate outputs.".into()),
     }
     let sources = explicit.unwrap_or_else(|| attached.iter().enumerate().map(|(i, _)| attachment_id(i)).collect());
-    if sources.len() > 6 { return Err("images.referenceLimit".into()); }
+    if sources.len() > crate::MAX_REFERENCE_IMAGES { return Err("images.referenceLimit".into()); }
     Ok(sources)
 }
 
@@ -113,10 +113,10 @@ impl Tool for ImageTool {
     type Output = Value;
     type Error = std::io::Error;
     fn description(&self) -> String {
-        "Create images. Use current attachment handles such as attachment_1, or exact imageId/imageFiles values from this session history, list_images or create_images. Reuse existing session images for follow-up edits; no re-upload is needed. Each result is ONE image. output_mode=compose combines references into one result; variants repeats one prompt; individual edits one explicit attachment.".into()
+        "Create images. Use current attachment handles such as attachment_1, or exact imageId/imageFiles values from this session history, list_images or create_images. Reuse existing session images for follow-up edits; no re-upload is needed. Each result is ONE image. The edit API accepts at most 4 source image inputs total; a marker overlay uses one input, so use at most 3 source references with a marker. output_mode=compose combines references into one result; variants repeats one prompt; individual edits one explicit attachment.".into()
     }
     fn parameters(&self) -> Value {
-        json!({"type":"object","properties":{"output_mode":{"type":"string","enum":["compose","variants","individual"]},"prompt":{"type":"string"},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_ids":{"type":"array","items":{"type":"string"},"maxItems":6},"source_image_id":{"type":"string"}},"required":["prompt","count","output_mode"],"additionalProperties":false})
+        json!({"type":"object","properties":{"output_mode":{"type":"string","enum":["compose","variants","individual"]},"prompt":{"type":"string"},"count":{"type":"integer","minimum":1,"maximum":3},"source_image_ids":{"type":"array","items":{"type":"string"},"maxItems":4},"source_image_id":{"type":"string"}},"required":["prompt","count","output_mode"],"additionalProperties":false})
     }
     async fn call(
         &self,
@@ -145,6 +145,9 @@ impl ImageTool {
             Ok(sources) => sources,
             Err(_) => return Ok(assets::invalid_reference()),
         };
+        if let Err(error) = requests::validate_source_images(&sources, run.marker_file.as_deref()) {
+            return Ok(json!({"error":error,"recoverable":true}));
+        }
         let source = sources.first();
         if (run.mask_file.is_some() || run.marker_file.is_some()) && sources.first() != run.reference.first() {
             return Ok(json!({"error":"The selected region belongs to the first attached image. Keep that image first in source_image_ids.","recoverable":true}));
@@ -564,6 +567,8 @@ mod tests {
         assert_eq!(image_sources(&variants, &attached).unwrap(), handles);
         let stale: ImageArgs = serde_json::from_value(json!({"prompt":"edit", "count":1,"output_mode":"individual","source_image_ids":["old.png"]})).unwrap();
         assert_eq!(image_sources(&stale, &["new.png".into()]).unwrap(), vec!["old.png"]);
+        let too_many: ImageArgs = serde_json::from_value(json!({"prompt":"batch", "count":1,"output_mode":"compose","source_image_ids":["1.png","2.png","3.png","4.png","5.png"]})).unwrap();
+        assert!(image_sources(&too_many, &[]).is_err());
     }
     #[test]
     fn duplicate_and_unknown_requests_require_session_scoped_confirmation() {

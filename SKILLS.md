@@ -84,10 +84,10 @@ Skill 是使用现有工具的创作流程。它不会新增模型能力，也�
 声明输入与能力要求：
 
 ```json
-{ "minImages": 0, "maxImages": 6, "capabilities": ["vision"] }
+{ "minImages": 0, "maxImages": 4, "capabilities": ["vision"] }
 ```
 
-上述对象放在 `requirements` 字段。常用能力为 `vision`、`image_edit`、`multi_reference`、`mask`，可声明尚未支持的工具与能力，但不会自动获得其执行权限。参考图数量范围应为 0–6。
+上述对象放在 `requirements` 字段。常用能力为 `vision`、`image_edit`、`multi_reference`、`mask`，可声明尚未支持的工具与能力，但不会自动获得其执行权限。参考图数量范围应为 0–4；使用区域标记时，标记图也计入图片服务的 4 张源图上限。
 
 发送前显示缺失输入、缺少图片模型、缺少选区以及未知工具和能力提示。用户可取消调整，或确认继续尝试；格式错误仍会阻止保存和运行。当前模型表只区分聊天/图片，工具调用、视觉和编辑能力均标为未验证，不宣称已通过。没有可用对话 Provider 或 API Key 时仍无法实际发送请求。
 

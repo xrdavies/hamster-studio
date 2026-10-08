@@ -64,7 +64,7 @@ pub async fn generate(
     resume_id: Option<String>,
 ) -> Result<Value> {
     let reference_files = reference_files.unwrap_or_default();
-    if reference_files.len() > 6 { return Err("images.referenceLimit".into()); }
+    validate_source_images(&reference_files, marker_file.as_deref())?;
     if !["chat", "image"].contains(&kind.as_str()) || text.trim().is_empty() {
         return Err("Invalid request".into());
     }
@@ -184,6 +184,12 @@ pub(crate) fn image_input_roles(references: &[String], marker: Option<&str>) -> 
     if let Some(file) = marker { inputs.insert(1, json!({"index":1,"role":"annotated_marker","file":file})); for (index, input) in inputs.iter_mut().enumerate() { input["index"] = json!(index); } }
     inputs
 }
+pub(crate) fn validate_source_images(references: &[String], marker: Option<&str>) -> Result<()> {
+    if references.len() + usize::from(marker.is_some()) > crate::MAX_REFERENCE_IMAGES {
+        return Err("images.referenceLimit".into());
+    }
+    Ok(())
+}
 async fn image_deadline<T>(duration: std::time::Duration, request: impl std::future::Future<Output = Result<T>>) -> Result<T> {
     tokio::time::timeout(duration, request).await.map_err(|_| "agent.imageTimeout".to_string())?
 }
@@ -206,6 +212,7 @@ fn validate_transparency(required: bool, bytes: &[u8]) -> Result<()> {
 async fn create_image_request(
     s: &AppState, provider: &Value, model: &str, secret: &str, prompt: &str, references: &[String], mask: Option<&str>, marker: Option<&str>, context: &Value, retry_after: &mut Option<u64>,
 ) -> Result<String> {
+    validate_source_images(references, marker)?;
     crate::validate_edit_mask(s, references, mask)?;
     if let Some(file) = marker {
         if mask.is_some() { return Err("Choose mask editing or smart markers, not both".into()); }
@@ -329,6 +336,12 @@ mod tests {
             Some("你好".into())
         );
         assert_eq!(delta(b"data: [DONE]").unwrap(), None);
+    }
+    #[test]
+    fn source_image_limit_includes_marker() {
+        assert!(validate_source_images(&vec!["1.png".into(); 4], None).is_ok());
+        assert!(validate_source_images(&vec!["1.png".into(); 3], Some("marker.png")).is_ok());
+        assert!(validate_source_images(&vec!["1.png".into(); 4], Some("marker.png")).is_err());
     }
     #[tokio::test]
     async fn image_transport_generates_edits_and_surfaces_errors() {

@@ -152,6 +152,7 @@ mod tests {
         for error in [
             "HTTP 401 timeout",
             "HTTP 400",
+            "HTTP 413: image request has too many source images (max 4)",
             "HTTP 429 insufficient quota",
             "HTTP 500 balance exhausted",
             "user cancelled",

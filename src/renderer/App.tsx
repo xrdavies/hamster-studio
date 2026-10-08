@@ -20,6 +20,7 @@ import SettingsPanel, {
 } from './components/SettingsPanel'
 
 const newId = () => crypto.randomUUID()
+const MAX_REFERENCE_IMAGES = 4
 
 export default function App() {
   const language = useLanguage()
@@ -161,7 +162,7 @@ export default function App() {
         inside && !!session && !busy && !settings && !confirm && !dropImporting.current
       setDraggingImage(available && event.type !== 'drop')
       if (event.type !== 'drop' || !available) return
-      if (event.paths.length + (references[session.id]?.length || 0) > 6) {
+      if (event.paths.length + (references[session.id]?.length || 0) > MAX_REFERENCE_IMAGES) {
         setError(t('images.referenceLimit'))
         return
       }
@@ -173,7 +174,7 @@ export default function App() {
             const file = await window.studio.importDroppedImage(targetId, path)
             setReferences((current) => ({
               ...current,
-              [targetId]: [...(current[targetId] || []), file].slice(0, 6),
+              [targetId]: [...(current[targetId] || []), file].slice(0, MAX_REFERENCE_IMAGES),
             }))
           }
         } catch (reason) {
@@ -292,6 +293,10 @@ export default function App() {
         editMask && referenceFiles.includes(editMask.file) ? editMask.mask : undefined
       const markerFile =
         editMarker && referenceFiles.includes(editMarker.file) ? editMarker.marker : undefined
+      if (markerFile && referenceFiles.length >= MAX_REFERENCE_IMAGES) {
+        setError(t('images.markerReferenceLimit'), target.id)
+        return
+      }
       if (markerFile && editMarker) {
         prompt = `${prompt}\n\n${editMarker.prompt}`
         referenceFiles = [
@@ -652,18 +657,21 @@ export default function App() {
               onImportImage={async () => {
                 const targetId = session.id
                 try {
-                  if ((references[targetId]?.length || 0) >= 6) {
+                  if ((references[targetId]?.length || 0) >= MAX_REFERENCE_IMAGES) {
                     notify(t('images.referenceLimit'))
                     return
                   }
                   const files = await window.studio.importImages(
                     targetId,
-                    6 - (references[targetId]?.length || 0),
+                    MAX_REFERENCE_IMAGES - (references[targetId]?.length || 0),
                   )
                   if (files.length)
                     setReferences((current) => ({
                       ...current,
-                      [targetId]: [...(current[targetId] || []), ...files].slice(0, 6),
+                      [targetId]: [...(current[targetId] || []), ...files].slice(
+                        0,
+                        MAX_REFERENCE_IMAGES,
+                      ),
                     }))
                 } catch (reason) {
                   setError(String(reason), targetId)

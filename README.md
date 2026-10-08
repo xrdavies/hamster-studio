@@ -35,8 +35,9 @@ Use **Enter** to send and **Shift + Enter** for a new line. Change the interface
 ## Image creation and webpage reading
 
 - **Create through conversation:** use a chat model with tool-calling support and select an image model in the composer’s image settings. Inspecting images also requires a vision-capable chat model.
-- **Add references:** select or drag in up to 6 PNG, JPEG or WebP images, each up to 10 MB. Ask to combine references or process assets separately.
+- **Add references:** select or drag in up to 4 PNG, JPEG or WebP images, each up to 10 MB. Ask to combine references or process assets separately.
 - **Edit a region:** open the brush action on a reference attachment, paint the area to change, then describe your edit. The image provider must support mask editing; preservation outside the region depends on the model.
+- **Region markers:** a smart region marker uses one additional image input, so use at most 3 reference images with a marker.
 - **Preview and export:** click a result to view it at full size, export it, or use it as a reference for another edit. Originals are preserved.
 - **Read a webpage:** provide a public URL and ask for a summary. HTML and plain text are supported; login pages, JavaScript rendering and PDFs are not.
 
