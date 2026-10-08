@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Copy, Download, RefreshCw, Pencil, X, Check } from 'lucide-react'
 import type { Message } from '../../shared/types'
+import { shouldRenderContent } from '../messageContent'
 
 export default function MessageBubble({
   message,
@@ -290,7 +291,7 @@ export default function MessageBubble({
             {t('skills.review')} · {message.skillDraft.name}
           </button>
         )}
-        {message.content && (
+        {message.content && shouldRenderContent(message) && (
           <div className="markdown">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
