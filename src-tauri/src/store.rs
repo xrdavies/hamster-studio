@@ -29,6 +29,7 @@ impl Store {
             CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS images (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, data TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, data TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS messages_session ON messages(session_id);").map_err(|e| e.to_string())?;
         let store = Self { db };
         for mut message in store.rows("messages")? {
@@ -107,12 +108,31 @@ impl Store {
         });
         let mut messages = self.rows("messages")?;
         messages.sort_by_key(|m| m["createdAt"].as_u64().unwrap_or(0));
-        Ok(json!({"providers": providers, "sessions": sessions, "messages": messages}))
+        let documents = crate::documents::public(&self.rows("documents")?);
+        Ok(json!({"providers": providers, "sessions": sessions, "messages": messages, "documents": documents}))
     }
     pub fn import_image(&self, session: &str, file: &str) -> Result<()> {
         let value = json!({"sessionId":session,"imageFiles":[file],"createdAt":now(),"content":"Imported local image"});
         self.db.execute("INSERT INTO images VALUES (?, ?, ?)", params![file, session, value.to_string()]).map_err(|e| e.to_string())?;
         Ok(())
+    }
+    // Preview images belong to the session like any other image and record their document.
+    pub fn document_preview(&self, session: &str, file: &str, document: &str) -> Result<()> {
+        let value = json!({"sessionId":session,"imageFiles":[file],"createdAt":now(),"content":"Preview of a PSD document","documentId":document});
+        self.db.execute("INSERT INTO images VALUES (?, ?, ?)", params![file, session, value.to_string()]).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    pub fn document(&self, value: &Value) -> Result<()> {
+        self.db.execute("INSERT INTO documents VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data", params![string(value,"id"), string(value,"sessionId"), value.to_string()]).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    pub fn session_documents(&self, session: &str) -> Result<Vec<Value>> {
+        Ok(self.rows("documents")?.into_iter().filter(|d| d["sessionId"] == session).collect())
+    }
+    pub fn owned_document(&self, session: &str, id: &str) -> Result<Value> {
+        let document = self.get("documents", id).map_err(|_| "Document does not belong to this session")?;
+        if document["sessionId"] != session { return Err("Document does not belong to this session".into()); }
+        Ok(document)
     }
     pub fn image_rows(&self) -> Result<Vec<Value>> {
         let mut rows = self.rows("messages")?;
@@ -249,12 +269,21 @@ mod tests {
         assert_eq!(store.get("sessions", "b").unwrap()["modelKind"], "chat");
         store.import_image("a", "local.jpg").unwrap();
         assert!(store.owns_image("a", "local.jpg").unwrap());
+        store.document(&json!({"id":"doc","sessionId":"a","file":"doc.psd","sourcePath":"/Users/me/private/poster.psd"})).unwrap();
+        store.document_preview("a", "doc-preview.png", "doc").unwrap();
+        assert!(store.owned_document("a", "doc").is_ok());
+        assert!(store.owned_document("b", "doc").is_err());
+        assert!(store.owns_image("a", "doc-preview.png").unwrap());
+        let data = store.data(&crate::catalog::Catalog::load(Path::new("/nonexistent"))).unwrap();
+        assert!(!data.to_string().contains("/Users/me/private"), "source paths stay out of renderer data");
         assert!(!store.owns_image("b", "local.jpg").unwrap());
         store.delete("providers", "p").unwrap();
         assert!(store.get("sessions", "a").is_ok());
         store.delete("sessions", "a").unwrap();
         assert!(!store.owns_image("a", "local.jpg").unwrap());
+        assert!(store.get("documents", "doc").is_err());
         assert!(store.import_image("a", "late.jpg").is_err());
+        assert!(store.document(&json!({"id":"late-doc","sessionId":"a"})).is_err());
         assert!(!store
             .message(&json!({"id":"late","sessionId":"a"}))
             .unwrap());

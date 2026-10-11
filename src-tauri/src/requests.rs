@@ -61,16 +61,19 @@ pub async fn generate(
     reference_files: Option<Vec<String>>,
     mask_file: Option<String>,
     marker_file: Option<String>,
+    document_ids: Option<Vec<String>>,
     resume_id: Option<String>,
 ) -> Result<Value> {
     let reference_files = reference_files.unwrap_or_default();
+    let document_ids = document_ids.unwrap_or_default();
     validate_source_images(&reference_files, marker_file.as_deref())?;
     if !["chat", "image"].contains(&kind.as_str()) || text.trim().is_empty() {
         return Err("Invalid request".into());
     }
     if kind == "chat" {
-        return crate::agent::generate(app, s, session_id, text, reference_files, mask_file, marker_file, resume_id).await;
+        return crate::agent::generate(app, s, session_id, text, reference_files, mask_file, marker_file, document_ids, resume_id).await;
     }
+    if !document_ids.is_empty() { return Err("documents.requiresChatModel".into()); }
     let token = tokio_util::sync::CancellationToken::new();
     {
         let mut active = lock(&s.active)?;

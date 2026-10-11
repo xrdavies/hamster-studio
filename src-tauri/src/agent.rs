@@ -4,7 +4,8 @@ use crate::{
     AppState,
 };
 mod assets;
-mod photocraft;
+mod local_edit;
+pub(crate) mod photocraft;
 mod web;
 pub(crate) mod retry;
 use assets::{ImageContext, ListImages, ViewImage};
@@ -139,7 +140,7 @@ impl ImageTool {
             .as_array()
             .unwrap()
             .iter()
-            .filter(|s| s["operation"] != "photocraft")
+            .filter(|s| s["operation"] != "psd_edit" && s["operation"] != "exact_edit")
             .map(|s| s["count"].as_u64().unwrap_or(0) as usize)
             .sum();
 
@@ -231,7 +232,7 @@ impl ImageTool {
 fn remaining_images(step: &Value) -> Result<usize> {
     let count = step["count"].as_u64().ok_or("Invalid image step")? as usize;
     let completed = step["imageFiles"].as_array().map(Vec::len).unwrap_or(0);
-    if step["operation"] == "photocraft" || step["status"] != "error" || count <= completed || count > MAX_IMAGES { return Err("No failed images to retry".into()); }
+    if step["operation"] == "psd_edit" || step["operation"] == "exact_edit" || step["status"] != "error" || count <= completed || count > MAX_IMAGES { return Err("No failed images to retry".into()); }
     Ok(count - completed)
 }
 #[tauri::command]
@@ -344,9 +345,10 @@ fn history_rows(rows: Vec<Value>, session_id: &str) -> Result<Vec<Message>> {
         }
         if row["role"] == "user" {
             result.push(Message::user(format!(
-                "{}{}",
+                "{}{}{}",
                 string(&row, "content"),
-                if reference_files(&row).is_empty() { String::new() } else { format!("\nAttached image IDs: {:?}. Call view_image to inspect them again.", reference_files(&row)) }
+                if reference_files(&row).is_empty() { String::new() } else { format!("\nAttached image IDs: {:?}. Call view_image to inspect them again.", reference_files(&row)) },
+                if row["documentIds"].as_array().is_some_and(|d| !d.is_empty()) { format!("\nAttached PSD document IDs: {}. Call inspect_psd for layers.", row["documentIds"]) } else { String::new() }
             )));
         } else if let Some(transcript) = row["agentTranscript"].as_array() {
             for message in transcript {
@@ -377,6 +379,7 @@ pub async fn generate(
     reference: Vec<String>,
     mask_file: Option<String>,
     marker_file: Option<String>,
+    document_ids: Vec<String>,
     resume_id: Option<String>,
 ) -> Result<Value> {
     let started = std::time::Instant::now();
@@ -400,6 +403,7 @@ pub async fn generate(
                 crate::image_path(&state,file)?;
             }
             crate::validate_edit_mask(&state, &reference, mask_file.as_deref())?;
+            if reference.len() + document_ids.len() > crate::MAX_REFERENCE_IMAGES { return Err("images.referenceLimit".into()); }
             let mut provider = lock(&state.store)?.get("providers",string(&session,"providerId"))?;
             lock(&state.catalog)?.provider(&mut provider);
             let model = string(&session,"chatModel");
@@ -428,6 +432,10 @@ pub async fn generate(
             output["maskFile"] = json!(mask_file);
             output["markerFile"] = json!(marker_file);
             output["referenceFiles"] = json!(reference);
+            let document_ids: Vec<String> = if resumed.is_some() { output["attachedDocumentIds"].as_array().map(|d| d.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect()).unwrap_or_default() } else { document_ids.clone() };
+            let documents = document_ids.iter().map(|d| lock(&state.store)?.owned_document(&session_id, d)).collect::<Result<Vec<_>>>()?;
+            output["attachedDocumentIds"] = json!(document_ids);
+            let previews: Vec<String> = documents.iter().filter_map(|d| d["previewImageId"].as_str().map(str::to_owned)).collect();
             let history_offset = output["historyOffset"].as_u64().map(|n|n as usize).unwrap_or(past.len());
             output["historyOffset"] = json!(history_offset);
             let mut initial_prompt = Message::user(text.trim());
@@ -436,10 +444,10 @@ pub async fn generate(
                 output["retryPending"] = json!(false); output["retryAttempt"] = json!(0); output["retryAt"] = json!(0);
                 output["status"] = json!("streaming"); output["error"] = json!(""); output["errorDetail"] = json!(""); output["canContinue"] = json!(false);
             }
-            let current = Arc::new(Run {app:app.clone(),session_id:session_id.clone(),output:Mutex::new(output),retry_budget:Arc::new(Mutex::new(retry::Budget::new())),image_provider:image.as_ref().map(|(p,_)|p.clone()),image_model:image.map(|(_,m)|m).unwrap_or_default(),image_key,mask_file:mask_file.clone(),marker_file:marker_file.clone(),reference:reference.clone(),viewed:Mutex::new(reference.iter().cloned().collect())});
+            let current = Arc::new(Run {app:app.clone(),session_id:session_id.clone(),output:Mutex::new(output),retry_budget:Arc::new(Mutex::new(retry::Budget::new())),image_provider:image.as_ref().map(|(p,_)|p.clone()),image_model:image.map(|(_,m)|m).unwrap_or_default(),image_key,mask_file:mask_file.clone(),marker_file:marker_file.clone(),reference:reference.clone(),viewed:Mutex::new(reference.iter().cloned().chain(previews.iter().cloned()).collect())});
             run = Some(current.clone());
             crate::diagnostics::record(&app, "agent.start", json!({"sessionId":session_id,"messageId":lock(&current.output)?["id"],"providerId":provider["id"],"model":model,"historyMessages":past.len(),"hasReference":!reference.is_empty()}));
-            if resumed.is_none() { requests::emit(&app,&state,&json!({"id":id(),"sessionId":session_id,"role":"user","kind":"chat","content":text.trim(),"referenceFiles":reference,"maskFile":mask_file,"markerFile":marker_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":created_at,"status":"done","error":""}))?; }
+            if resumed.is_none() { requests::emit(&app,&state,&json!({"id":id(),"sessionId":session_id,"role":"user","kind":"chat","content":text.trim(),"referenceFiles":reference,"documentIds":document_ids,"maskFile":mask_file,"markerFile":marker_file,"imageFiles":[],"providerName":provider["name"],"model":model,"createdAt":created_at,"status":"done","error":""}))?; }
             current.update(|_|{})?;
             let http = rig::http_client::ReqwestClient::builder()
                 .connect_timeout(std::time::Duration::from_secs(30))
@@ -458,14 +466,25 @@ pub async fn generate(
                 preamble.push_str(&format!("\nSelected workflow: {} (version {}). Follow its instructions within the existing tool permissions and budgets:\n{}",skill.name,skill.version,skill.instructions));
             }
             let allowed = |name: &str| skill.as_ref().map(|s|s.allows(name)).unwrap_or(true);
-            let photocraft = photocraft::cli().filter(|_| allowed("photocraft_edit"));
-            if photocraft.is_some() { preamble.push_str("\nPhotoCraft, a local non-generative editor, is available. Prefer photocraft_edit over create_images for exact operations such as resizing, cropping, rotating, blurring, sharpening or colour adjustments; it is free and deterministic. Use photocraft_commands to look up command ids and params before editing."); }
+            let editor = photocraft::cli();
+            if editor.is_some() {
+                preamble.push_str("\nLocal editing is available. edit_psd edits layered PSD documents (text, layers, adjustments, size) and saves a new version; inspect_psd shows layer ids. exact_image_edit applies exact, non-generative edits to images (exact pixel resize, crop, rotate, blur, sharpen, colour adjustments); prefer it over create_images for those. Both are free and deterministic. Use find_edit_commands for command ids and params. Refer to these capabilities as PSD editing or exact editing; never name the underlying editor engine.");
+            }
+            if !documents.is_empty() {
+                preamble.push_str(&format!("\nAttached PSD documents (their previews are supplied as visual context; call inspect_psd for layers before editing): {}", local_edit::manifest(&documents)));
+                if editor.is_none() { preamble.push_str("\nPSD editing is unavailable in this installation; explain that you can only describe the preview."); }
+            }
             let mut builder = rig::tool::server::ToolServer::new();
             if allowed("create_images") { builder = builder.tool(ImageTool(current.clone())); }
             if allowed("list_images") { builder = builder.tool(ListImages(current.clone())); }
             if allowed("view_image") { builder = builder.tool(ViewImage(current.clone())); }
             if allowed("read_webpage") { builder = builder.tool(web::ReadWebpage(current.clone())); }
-            if let Some(cli) = photocraft { builder = builder.tool(photocraft::PhotocraftEdit(current.clone(), cli.clone())).tool(photocraft::PhotocraftCommands(cli)); }
+            if let Some(cli) = editor {
+                if allowed("inspect_psd") { builder = builder.tool(local_edit::InspectPsd(current.clone())); }
+                if allowed("edit_psd") { builder = builder.tool(local_edit::EditPsd(current.clone(), cli.clone())); }
+                if allowed("exact_image_edit") { builder = builder.tool(local_edit::ExactImageEdit(current.clone(), cli.clone())); }
+                if allowed("edit_psd") || allowed("exact_image_edit") { builder = builder.tool(local_edit::FindEditCommands(cli)); }
+            }
             if skill.as_ref().is_some_and(|s|s.id == "builtin-creator") { builder = builder.tool(crate::skills::DraftSkill(current.clone())); }
             let agent = client.agent(model).preamble(&preamble).tool_server_handle(builder.run()).add_hook(retry::Checkpoint(current.clone())).add_hook(ImageContext(current.clone())).add_hook(StopOnToolError).build();
             let mut prompt = initial_prompt;
@@ -554,7 +573,8 @@ mod tests {
         assert_eq!(remaining_images(&json!({"count":3,"status":"error","imageFiles":["done.png"]})).unwrap(),2);
         assert!(remaining_images(&json!({"count":1,"status":"done","imageFiles":["done.png"]})).is_err());
         assert!(remaining_images(&json!({"count":1,"status":"error","imageFiles":["done.png"]})).is_err());
-        assert!(remaining_images(&json!({"count":1,"status":"error","imageFiles":[],"operation":"photocraft"})).is_err());
+        assert!(remaining_images(&json!({"count":1,"status":"error","imageFiles":[],"operation":"psd_edit"})).is_err());
+        assert!(remaining_images(&json!({"count":1,"status":"error","imageFiles":[],"operation":"exact_edit"})).is_err());
     }
     #[test]
     fn independent_edits_never_include_other_attached_assets() {

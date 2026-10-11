@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod agent;
+mod documents;
 mod image_export;
 mod skills;
 mod diagnostics;
@@ -75,7 +76,9 @@ fn delete_session(s: State<AppState>, id: String) -> Result<Value> {
         diagnostics::write("request.cancel", json!({"sessionId":id}));
         token.cancel()
     }
+    let documents = lock(&s.store)?.session_documents(&id)?;
     lock(&s.store)?.delete("sessions", &id)?;
+    documents::remove_session_files(&s, &documents);
     data(&s)
 }
 #[tauri::command]
@@ -427,6 +430,7 @@ fn main() {
 
             let directory = app.path().app_data_dir()?;
             std::fs::create_dir_all(directory.join("images"))?;
+            std::fs::create_dir_all(directory.join("documents"))?;
             diagnostics::init(&directory)?;
             let catalog = Catalog::load(&directory.join("model-capabilities.json"));
             let store = Store::open(&directory.join("studio.db")).map_err(std::io::Error::other)?;
@@ -466,6 +470,11 @@ fn main() {
             save_marker,
             import_images,
             import_dropped_image,
+            documents::import_dropped_document,
+            documents::import_documents,
+            documents::save_document,
+            documents::export_document_png,
+            documents::replace_original,
             export_image,
             export_images,
             agent::retry_image_step,
