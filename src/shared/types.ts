@@ -56,7 +56,7 @@ export type ImageStep = {
   count: number
   status: 'waiting' | 'running' | 'done' | 'error'
   needsConfiguration: boolean
-  operation: 'generate' | 'edit'
+  operation: 'generate' | 'edit' | 'photocraft'
   imageFiles: string[]
   error: string
   model?: string

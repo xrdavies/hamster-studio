@@ -159,6 +159,7 @@
   "ui.taskStoppedOrFailed": "任务已停止或失败",
   "ui.viewSteps": "查看执行步骤",
   "ui.editImage": "修改图片",
+  "ui.photocraftEdit": "PhotoCraft 编辑",
   "ui.generateImage": "生成图片",
   "ui.running": "执行中",
   "ui.completed": "已完成",

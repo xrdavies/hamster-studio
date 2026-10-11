@@ -159,6 +159,7 @@
   "ui.taskStoppedOrFailed": "Task stopped or failed",
   "ui.viewSteps": "View steps",
   "ui.editImage": "Edit image",
+  "ui.photocraftEdit": "PhotoCraft edit",
   "ui.generateImage": "Generate image",
   "ui.running": "Running",
   "ui.completed": "Completed",

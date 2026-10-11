@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::State;
 
-const TOOLS: &[&str] = &["create_images", "list_images", "view_image", "read_webpage"];
+const TOOLS: &[&str] = &["create_images", "list_images", "view_image", "read_webpage", "photocraft_edit"];
 const SECTIONS: &[&str] = &["Purpose", "Inputs", "Outputs", "Steps", "Acceptance", "Limits"];
 fn default_schema() -> u32 {1}
 fn validate_sections(text: &str) -> Result<()> {
@@ -98,6 +98,7 @@ pub fn preflight(skill: &Skill, image_model: bool) -> Result<Vec<String>> {
     skill.validate(skill.id == "builtin-creator")?;
     let mut warnings = Vec::new();
     if skill.allows("create_images") && !image_model {warnings.push("skills.imageModelMissing".into());}
+    if skill.allows("photocraft_edit") && crate::agent::photocraft_available().is_none() {warnings.push("Unavailable tool: photocraft_edit (PhotoCraft CLI not configured)".into());}
     for tool in &skill.tools { if !TOOLS.contains(&tool.as_str()) && tool != "draft_skill" {warnings.push(format!("Unavailable tool: {tool}"));} }
     Ok(warnings)
 }

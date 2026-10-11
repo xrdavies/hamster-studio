@@ -161,8 +161,14 @@ export default function MessageBubble({
                   {steps.map((step) => (
                     <div className="creation-step" key={step.id}>
                       <span>
-                        {t(step.operation === 'edit' ? 'ui.editImage' : 'ui.generateImage')} ×{' '}
-                        {step.count} ·{' '}
+                        {t(
+                          step.operation === 'photocraft'
+                            ? 'ui.photocraftEdit'
+                            : step.operation === 'edit'
+                              ? 'ui.editImage'
+                              : 'ui.generateImage',
+                        )}{' '}
+                        × {step.count} ·{' '}
                         {t(
                           (
                             {
@@ -181,15 +187,17 @@ export default function MessageBubble({
                           total: step.count,
                         })}
                       </p>
-                      {step.status === 'error' && step.imageFiles.length < step.count && (
-                        <button
-                          className="secondary"
-                          disabled={busy}
-                          onClick={() => onRetryStep(message, step.id)}
-                        >
-                          {t('images.retryMissing')}
-                        </button>
-                      )}
+                      {step.status === 'error' &&
+                        step.operation !== 'photocraft' &&
+                        step.imageFiles.length < step.count && (
+                          <button
+                            className="secondary"
+                            disabled={busy}
+                            onClick={() => onRetryStep(message, step.id)}
+                          >
+                            {t('images.retryMissing')}
+                          </button>
+                        )}
                       {step.dispatchState === 'unknown' && step.status === 'error' && (
                         <p className="form-error">{t('agent.unknownResult')}</p>
                       )}

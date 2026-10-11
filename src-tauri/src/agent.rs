@@ -4,6 +4,7 @@ use crate::{
     AppState,
 };
 mod assets;
+mod photocraft;
 mod web;
 pub(crate) mod retry;
 use assets::{ImageContext, ListImages, ViewImage};
@@ -14,6 +15,10 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
+
+pub(crate) fn photocraft_available() -> Option<std::path::PathBuf> {
+    photocraft::cli()
+}
 
 const MAX_IMAGES: usize = 3;
 const MAX_TURNS: usize = 6;
@@ -134,6 +139,7 @@ impl ImageTool {
             .as_array()
             .unwrap()
             .iter()
+            .filter(|s| s["operation"] != "photocraft")
             .map(|s| s["count"].as_u64().unwrap_or(0) as usize)
             .sum();
 
@@ -225,7 +231,7 @@ impl ImageTool {
 fn remaining_images(step: &Value) -> Result<usize> {
     let count = step["count"].as_u64().ok_or("Invalid image step")? as usize;
     let completed = step["imageFiles"].as_array().map(Vec::len).unwrap_or(0);
-    if step["status"] != "error" || count <= completed || count > MAX_IMAGES { return Err("No failed images to retry".into()); }
+    if step["operation"] == "photocraft" || step["status"] != "error" || count <= completed || count > MAX_IMAGES { return Err("No failed images to retry".into()); }
     Ok(count - completed)
 }
 #[tauri::command]
@@ -452,11 +458,14 @@ pub async fn generate(
                 preamble.push_str(&format!("\nSelected workflow: {} (version {}). Follow its instructions within the existing tool permissions and budgets:\n{}",skill.name,skill.version,skill.instructions));
             }
             let allowed = |name: &str| skill.as_ref().map(|s|s.allows(name)).unwrap_or(true);
+            let photocraft = photocraft::cli().filter(|_| allowed("photocraft_edit"));
+            if photocraft.is_some() { preamble.push_str("\nPhotoCraft, a local non-generative editor, is available. Prefer photocraft_edit over create_images for exact operations such as resizing, cropping, rotating, blurring, sharpening or colour adjustments; it is free and deterministic. Use photocraft_commands to look up command ids and params before editing."); }
             let mut builder = rig::tool::server::ToolServer::new();
             if allowed("create_images") { builder = builder.tool(ImageTool(current.clone())); }
             if allowed("list_images") { builder = builder.tool(ListImages(current.clone())); }
             if allowed("view_image") { builder = builder.tool(ViewImage(current.clone())); }
             if allowed("read_webpage") { builder = builder.tool(web::ReadWebpage(current.clone())); }
+            if let Some(cli) = photocraft { builder = builder.tool(photocraft::PhotocraftEdit(current.clone(), cli.clone())).tool(photocraft::PhotocraftCommands(cli)); }
             if skill.as_ref().is_some_and(|s|s.id == "builtin-creator") { builder = builder.tool(crate::skills::DraftSkill(current.clone())); }
             let agent = client.agent(model).preamble(&preamble).tool_server_handle(builder.run()).add_hook(retry::Checkpoint(current.clone())).add_hook(ImageContext(current.clone())).add_hook(StopOnToolError).build();
             let mut prompt = initial_prompt;
@@ -545,6 +554,7 @@ mod tests {
         assert_eq!(remaining_images(&json!({"count":3,"status":"error","imageFiles":["done.png"]})).unwrap(),2);
         assert!(remaining_images(&json!({"count":1,"status":"done","imageFiles":["done.png"]})).is_err());
         assert!(remaining_images(&json!({"count":1,"status":"error","imageFiles":["done.png"]})).is_err());
+        assert!(remaining_images(&json!({"count":1,"status":"error","imageFiles":[],"operation":"photocraft"})).is_err());
     }
     #[test]
     fn independent_edits_never_include_other_attached_assets() {
