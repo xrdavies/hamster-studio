@@ -48,11 +48,14 @@ fn count_layers(layers: &Value) -> usize {
     layers.as_array().map_or(0, |items| items.iter().map(|l| 1 + count_layers(&l["layers"])).sum())
 }
 
-// Renderer view of documents: private source fields removed.
+// Renderer view of documents: private source fields removed. A version can replace
+// the original when its origin document was imported from a file.
 pub(crate) fn public(rows: &[Value]) -> Vec<Value> {
+    let has_source = |row: &Value| row["sourcePath"].as_str().is_some_and(|p| !p.is_empty());
     rows.iter().map(|row| {
+        let origin = rows.iter().find(|r| r["id"] == row["originId"]).unwrap_or(row);
+        let can_replace = has_source(origin) || has_source(row);
         let mut row = row.clone();
-        let can_replace = row["sourcePath"].as_str().is_some_and(|p| !p.is_empty());
         if let Some(object) = row.as_object_mut() {
             for key in PRIVATE { object.remove(*key); }
         }
@@ -216,10 +219,11 @@ mod tests {
     use super::*;
     #[test]
     fn public_rows_hide_source_paths() {
-        let rows = public(&[json!({"id":"a","sourcePath":"/Users/me/poster.psd","sourceModified":1,"sourceSize":2}), json!({"id":"b","originId":"a"})]);
+        let rows = public(&[json!({"id":"a","originId":"a","sourcePath":"/Users/me/poster.psd","sourceModified":1,"sourceSize":2}), json!({"id":"b","originId":"a"}), json!({"id":"c","originId":"x"})]);
         assert!(!serde_json::to_string(&rows).unwrap().contains("/Users/me"));
         assert_eq!(rows[0]["canReplaceOriginal"], true);
-        assert_eq!(rows[1]["canReplaceOriginal"], false);
+        assert_eq!(rows[1]["canReplaceOriginal"], true);
+        assert_eq!(rows[2]["canReplaceOriginal"], false);
     }
     #[test]
     fn only_psd_version_1_is_accepted() {

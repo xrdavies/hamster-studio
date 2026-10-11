@@ -1,11 +1,12 @@
 import TaskStatus from './TaskStatus'
 import RegionEditor from './RegionEditor'
+import DocumentCard from './DocumentCard'
 import { translateMessage, t } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Copy, Download, RefreshCw, Pencil, X, Check } from 'lucide-react'
-import type { Message } from '../../shared/types'
+import type { Message, PsdDocument } from '../../shared/types'
 import { shouldRenderContent } from '../messageContent'
 
 export default function MessageBubble({
@@ -20,7 +21,17 @@ export default function MessageBubble({
   onReference,
   onRegenerate,
   onApprove,
+  documents,
+  onSaveDocument,
+  onExportDocumentPng,
+  onReplaceOriginal,
+  onEditDocument,
 }: {
+  documents: PsdDocument[]
+  onSaveDocument: (documentId: string) => void
+  onExportDocumentPng: (documentId: string) => void
+  onReplaceOriginal: (documentId: string) => void
+  onEditDocument: (documentId: string) => void
   onLogs: () => void
   onSkillDraft: (skill: import('../../shared/types').Skill) => void
   busy: boolean
@@ -71,6 +82,12 @@ export default function MessageBubble({
     if (preview) dialog.current?.showModal()
   }, [preview])
   const steps = message.steps || []
+  // PSD edits produce document cards, not images, so they are left out of image progress.
+  const imageSteps = steps.filter((step) => step.operation !== 'psd_edit')
+  const imageTotal = imageSteps.reduce((sum, step) => sum + step.count, 0)
+  const messageDocuments = (message.documentIds || []).flatMap((id) =>
+    documents.filter((document) => document.id === id),
+  )
   const current = steps.find((step) => step.status === 'waiting' || step.status === 'running')
   const approve = async (id: string, allow: boolean) => {
     setApproving(id)
@@ -139,11 +156,11 @@ export default function MessageBubble({
                   )}
                 </strong>
               </div>
-              {steps.length > 0 && (
+              {imageTotal > 0 && (
                 <p role="status" className="vision-context-note">
                   {t('images.batchProgress', {
                     done: message.imageFiles.length,
-                    total: steps.reduce((sum, step) => sum + step.count, 0),
+                    total: imageTotal,
                   })}
                 </p>
               )}
@@ -155,18 +172,20 @@ export default function MessageBubble({
               {steps.length > 0 && (
                 <details>
                   <summary>
-                    {t('ui.viewSteps')} · {message.imageFiles.length}/
-                    {steps.reduce((sum, step) => sum + step.count, 0)}
+                    {t('ui.viewSteps')} · {steps.filter((step) => step.status === 'done').length}/
+                    {steps.length}
                   </summary>
                   {steps.map((step) => (
                     <div className="creation-step" key={step.id}>
                       <span>
                         {t(
-                          step.operation === 'photocraft'
-                            ? 'ui.photocraftEdit'
-                            : step.operation === 'edit'
-                              ? 'ui.editImage'
-                              : 'ui.generateImage',
+                          step.operation === 'psd_edit'
+                            ? 'documents.editStep'
+                            : step.operation === 'exact_edit'
+                              ? 'documents.exactEditStep'
+                              : step.operation === 'edit'
+                                ? 'ui.editImage'
+                                : 'ui.generateImage',
                         )}{' '}
                         × {step.count} ·{' '}
                         {t(
@@ -181,14 +200,17 @@ export default function MessageBubble({
                         )}
                       </span>
                       <p>{step.prompt}</p>
-                      <p>
-                        {t('images.batchProgress', {
-                          done: step.imageFiles.length,
-                          total: step.count,
-                        })}
-                      </p>
+                      {step.operation !== 'psd_edit' && (
+                        <p>
+                          {t('images.batchProgress', {
+                            done: step.imageFiles.length,
+                            total: step.count,
+                          })}
+                        </p>
+                      )}
                       {step.status === 'error' &&
-                        step.operation !== 'photocraft' &&
+                        step.operation !== 'psd_edit' &&
+                        step.operation !== 'exact_edit' &&
                         step.imageFiles.length < step.count && (
                           <button
                             className="secondary"
@@ -331,6 +353,18 @@ export default function MessageBubble({
           </button>
         )}
         {exportStatus && <p role="status">{exportStatus}</p>}
+        {messageDocuments.map((document) => (
+          <DocumentCard
+            key={document.id}
+            document={document}
+            busy={busy}
+            onPreview={setPreview}
+            onSave={() => onSaveDocument(document.id)}
+            onExportPng={() => onExportDocumentPng(document.id)}
+            onReplaceOriginal={() => onReplaceOriginal(document.id)}
+            onEdit={() => onEditDocument(document.id)}
+          />
+        ))}
         {images.map((image, index) => (
           <div className="generated-image-wrap" key={image.file}>
             <div className="vision-context-note">

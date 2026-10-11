@@ -27,3 +27,10 @@ it('switches language, persists preference, and preserves unknown content', asyn
   expect(Object.keys(en).every((key) => /^[a-zA-Z][a-zA-Z0-9.]+$/.test(key))).toBe(true)
   vi.unstubAllGlobals()
 })
+
+it('describes PSD editing without naming the bundled editor', () => {
+  for (const dictionary of [en, zh])
+    expect(JSON.stringify(dictionary).toLowerCase()).not.toContain('photocraft')
+  for (const key of ['documents.editStep', 'documents.editFailed', 'documents.originalChanged'])
+    expect(Object.hasOwn(en, key) && Object.hasOwn(zh, key)).toBe(true)
+})

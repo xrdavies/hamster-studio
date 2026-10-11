@@ -56,7 +56,10 @@ export type ImageStep = {
   count: number
   status: 'waiting' | 'running' | 'done' | 'error'
   needsConfiguration: boolean
-  operation: 'generate' | 'edit' | 'photocraft'
+  operation: 'generate' | 'edit' | 'psd_edit' | 'exact_edit'
+  documentId?: string
+  resultDocumentId?: string
+  warnings?: string[]
   imageFiles: string[]
   error: string
   model?: string
@@ -86,6 +89,7 @@ export type Message = {
   markerPrompt?: string
   referenceFile?: string
   referenceFiles?: string[]
+  documentIds?: string[]
   steps?: ImageStep[]
   id: string
   sessionId: string
@@ -100,10 +104,27 @@ export type Message = {
   error: string
 }
 
+export type PsdDocument = {
+  id: string
+  sessionId: string
+  name: string
+  version: number
+  parentId?: string | null
+  originId: string
+  previewImageId: string
+  width: number
+  height: number
+  layerCount: number
+  warnings?: string[]
+  canReplaceOriginal: boolean
+  createdAt: number
+}
+
 export type StudioData = {
   providers: Provider[]
   sessions: StudioSession[]
   messages: Message[]
+  documents?: PsdDocument[]
 }
 
 export type StreamEvent = { requestId: string; message: Message; done: boolean }

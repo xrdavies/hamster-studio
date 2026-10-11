@@ -36,6 +36,7 @@ declare global {
         referenceFiles?: string[],
         maskFile?: string,
         markerFile?: string,
+        documentIds?: string[],
       ): Promise<StudioData>
       stopChat(sessionId: string): Promise<void>
       generateImage(
@@ -50,6 +51,14 @@ declare global {
       ): () => void
       importDroppedImage(sessionId: string, path: string): Promise<string>
       importImages(sessionId: string, remaining: number): Promise<string[]>
+      importDroppedDocument(
+        sessionId: string,
+        path: string,
+      ): Promise<import('../shared/types').PsdDocument>
+      importDocuments(sessionId: string): Promise<import('../shared/types').PsdDocument[]>
+      saveDocument(sessionId: string, documentId: string): Promise<boolean>
+      exportDocumentPng(sessionId: string, documentId: string): Promise<boolean>
+      replaceOriginal(sessionId: string, documentId: string): Promise<void>
       saveMask(file: string, data: string): Promise<string>
       saveMarker(file: string, data: string): Promise<string>
       readImage(file: string): Promise<string>

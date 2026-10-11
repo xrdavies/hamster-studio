@@ -95,8 +95,16 @@ window.studio = {
   deleteProvider: (id) => invoke('delete_provider', { id }),
   saveSession: (session) => invoke('save_session', { session }),
   deleteSession: (id) => invoke('delete_session', { id }),
-  sendChat: (sessionId, text, referenceFiles, maskFile, markerFile) =>
-    invoke('generate', { sessionId, text, kind: 'chat', referenceFiles, maskFile, markerFile }),
+  sendChat: (sessionId, text, referenceFiles, maskFile, markerFile, documentIds) =>
+    invoke('generate', {
+      sessionId,
+      text,
+      kind: 'chat',
+      referenceFiles,
+      maskFile,
+      markerFile,
+      documentIds,
+    }),
   continueAgent: (sessionId, messageId) =>
     invoke('generate', { sessionId, text: 'continue', kind: 'chat', resumeId: messageId }),
   approveImageStep: (sessionId, stepId, allow) => invoke('approve', { sessionId, stepId, allow }),
@@ -121,6 +129,13 @@ window.studio = {
   },
   importDroppedImage: (sessionId, path) => invoke('import_dropped_image', { sessionId, path }),
   importImages: (sessionId, remaining) => invoke('import_images', { sessionId, remaining }),
+  importDroppedDocument: (sessionId, path) =>
+    invoke('import_dropped_document', { sessionId, path }),
+  importDocuments: (sessionId) => invoke('import_documents', { sessionId }),
+  saveDocument: (sessionId, documentId) => invoke('save_document', { sessionId, documentId }),
+  exportDocumentPng: (sessionId, documentId) =>
+    invoke('export_document_png', { sessionId, documentId }),
+  replaceOriginal: (sessionId, documentId) => invoke('replace_original', { sessionId, documentId }),
   stopChat: (id) => invoke('stop_chat', { id }),
   saveMask: (file, data) => invoke('save_mask', { file, data }),
   saveMarker: (file, data) => invoke('save_marker', { file, data }),

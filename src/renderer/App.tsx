@@ -72,6 +72,7 @@ export default function App() {
     Record<string, { file: string; marker: string; prompt: string } | undefined>
   >({})
   const [references, setReferences] = useState<Record<string, string[]>>({})
+  const [attachedDocuments, setAttachedDocuments] = useState<Record<string, string[]>>({})
   const scrollBottom = () => {
     const el = messagesRef.current
     if (el && followBottom.current) el.scrollTop = el.scrollHeight
@@ -162,7 +163,12 @@ export default function App() {
         inside && !!session && !busy && !settings && !confirm && !dropImporting.current
       setDraggingImage(available && event.type !== 'drop')
       if (event.type !== 'drop' || !available) return
-      if (event.paths.length + (references[session.id]?.length || 0) > MAX_REFERENCE_IMAGES) {
+      if (
+        event.paths.length +
+          (references[session.id]?.length || 0) +
+          (attachedDocuments[session.id]?.length || 0) >
+        MAX_REFERENCE_IMAGES
+      ) {
         setError(t('images.referenceLimit'))
         return
       }
@@ -171,6 +177,15 @@ export default function App() {
       void (async () => {
         try {
           for (const path of event.paths) {
+            if (/\.psd$/i.test(path)) {
+              const document = await window.studio.importDroppedDocument(targetId, path)
+              setAttachedDocuments((current) => ({
+                ...current,
+                [targetId]: [...(current[targetId] || []), document.id],
+              }))
+              await refreshData()
+              continue
+            }
             const file = await window.studio.importDroppedImage(targetId, path)
             setReferences((current) => ({
               ...current,
@@ -184,7 +199,7 @@ export default function App() {
         }
       })()
     })
-  }, [session?.id, busy, settings, confirm, references])
+  }, [session?.id, busy, settings, confirm, references, attachedDocuments])
 
   const notify = (message: string) => {
     setToast(message)
@@ -285,6 +300,11 @@ export default function App() {
     ],
   ) {
     if (activeRequests.current.has(target.id)) return
+    const documentIds = attachedDocuments[target.id] || []
+    if (kind === 'image' && documentIds.length) {
+      setError(t('documents.requiresChatModel'), target.id)
+      return
+    }
     activeRequests.current.add(target.id)
     setPending((current) => ({ ...current, [target.id]: true }))
     setError('', target.id)
@@ -312,10 +332,20 @@ export default function App() {
         await window.studio.generateImage(target.id, prompt, referenceFiles, maskFile, markerFile)
       else {
         const reference = referenceFiles
-        if (reference.length)
+        if (documentIds.length)
+          await window.studio.sendChat(
+            target.id,
+            prompt,
+            reference,
+            maskFile,
+            markerFile,
+            documentIds,
+          )
+        else if (reference.length)
           await window.studio.sendChat(target.id, prompt, reference, maskFile, markerFile)
         else await window.studio.sendChat(target.id, prompt)
         setReferences((current) => ({ ...current, [target.id]: [] }))
+        setAttachedDocuments((current) => ({ ...current, [target.id]: [] }))
         setMasks((current) => ({ ...current, [target.id]: undefined }))
       }
     } catch (reason) {
@@ -562,6 +592,51 @@ export default function App() {
                   <MessageBubble
                     key={item.id}
                     message={item}
+                    documents={data.documents || []}
+                    onSaveDocument={async (documentId) => {
+                      try {
+                        if (await window.studio.saveDocument(session.id, documentId))
+                          notify(t('documents.saved'))
+                      } catch (reason) {
+                        setError(String(reason), session.id)
+                      }
+                    }}
+                    onExportDocumentPng={async (documentId) => {
+                      try {
+                        if (await window.studio.exportDocumentPng(session.id, documentId))
+                          notify(t('ui.imageExported'))
+                      } catch (reason) {
+                        setError(String(reason), session.id)
+                      }
+                    }}
+                    onReplaceOriginal={(documentId) =>
+                      askConfirm(
+                        t('documents.replaceOriginal'),
+                        t('documents.replaceNotice'),
+                        async () => {
+                          try {
+                            await window.studio.replaceOriginal(session.id, documentId)
+                            notify(t('documents.replaced'))
+                          } catch (reason) {
+                            setError(String(reason), session.id)
+                          }
+                        },
+                      )
+                    }
+                    onEditDocument={(documentId) => {
+                      if (busy) return
+                      const count =
+                        (references[session.id]?.length || 0) +
+                        (attachedDocuments[session.id]?.length || 0)
+                      if (count >= MAX_REFERENCE_IMAGES) {
+                        notify(t('images.referenceLimit'))
+                        return
+                      }
+                      setAttachedDocuments((current) => ({
+                        ...current,
+                        [session.id]: [...new Set([...(current[session.id] || []), documentId])],
+                      }))
+                    }}
                     onLogs={() => {
                       setLogRequest(item.id)
                       setEditing(null)
@@ -678,6 +753,32 @@ export default function App() {
                 }
               }}
               referenceFiles={references[session.id] || []}
+              documents={(attachedDocuments[session.id] || []).flatMap((id) =>
+                (data.documents || []).filter((document) => document.id === id),
+              )}
+              onImportDocument={async () => {
+                const targetId = session.id
+                try {
+                  const imported = await window.studio.importDocuments(targetId)
+                  if (!imported.length) return
+                  await refreshData()
+                  setAttachedDocuments((current) => ({
+                    ...current,
+                    [targetId]: [
+                      ...(current[targetId] || []),
+                      ...imported.map((document) => document.id),
+                    ],
+                  }))
+                } catch (reason) {
+                  setError(String(reason), targetId)
+                }
+              }}
+              onClearDocument={(id) =>
+                setAttachedDocuments((current) => ({
+                  ...current,
+                  [session.id]: (current[session.id] || []).filter((item) => item !== id),
+                }))
+              }
               mask={masks[session.id]}
               onMask={(value) => setMasks((current) => ({ ...current, [session.id]: value }))}
               marker={markers[session.id]}

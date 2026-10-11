@@ -13,9 +13,10 @@ import {
   Info,
   Paintbrush,
   LocateFixed,
+  Layers,
   X,
 } from 'lucide-react'
-import type { Provider, StudioSession } from '../../shared/types'
+import type { Provider, PsdDocument, StudioSession } from '../../shared/types'
 import type { ModelKind } from '../../shared/model-capabilities'
 
 type ModelChoice = { providerId: string; providerName: string; model: string; kind: ModelKind }
@@ -40,6 +41,9 @@ export default function Composer({
   onMarker,
   onClearReference,
   onImportImage,
+  documents,
+  onImportDocument,
+  onClearDocument,
 }: {
   onSkills: () => void
   providers: Provider[]
@@ -60,10 +64,15 @@ export default function Composer({
   onMarker: (value?: { file: string; marker: string; prompt: string }) => void
   onImportImage: () => Promise<void>
   onClearReference: (file: string) => void
+  documents: PsdDocument[]
+  onImportDocument: () => Promise<void>
+  onClearDocument: (id: string) => void
 }) {
   const [editing, setEditing] = useState('')
   const [marking, setMarking] = useState('')
   const [importing, setImporting] = useState(false)
+  const [importingDocument, setImportingDocument] = useState(false)
+  const [documentSrc, setDocumentSrc] = useState<Record<string, string>>({})
   const [savingImageModel, setSavingImageModel] = useState(false)
   const [imageSettingError, setImageSettingError] = useState('')
   const [showImageSettings, setShowImageSettings] = useState(false)
@@ -100,6 +109,20 @@ export default function Composer({
       active = false
     }
   }, [referenceFiles.join('|')])
+  useEffect(() => {
+    let active = true
+    void Promise.all(
+      documents.map(async (document) => [
+        document.id,
+        await window.studio.readImage(document.previewImageId).catch(() => ''),
+      ]),
+    ).then((entries) => {
+      if (active) setDocumentSrc(Object.fromEntries(entries))
+    })
+    return () => {
+      active = false
+    }
+  }, [documents.map((document) => document.id).join('|')])
   const choices = providers.flatMap((provider) => [
     ...provider.chatModels.map((model) => ({
       providerId: provider.id,
@@ -179,6 +202,19 @@ export default function Composer({
             }}
           >
             {importing ? <span className="spinner dark" /> : <ImagePlus size={16} />}
+          </button>
+          <button
+            type="button"
+            className="creation-settings-toggle composer-icon-button"
+            title={t(importingDocument ? 'documents.importing' : 'documents.attach')}
+            aria-label={t(importingDocument ? 'documents.importing' : 'documents.attach')}
+            disabled={busy || importingDocument}
+            onClick={() => {
+              setImportingDocument(true)
+              void onImportDocument().finally(() => setImportingDocument(false))
+            }}
+          >
+            {importingDocument ? <span className="spinner dark" /> : <Layers size={16} />}
           </button>
         </div>
         {showImageSettings && (
@@ -298,6 +334,24 @@ export default function Composer({
                 type="button"
                 aria-label={t('ui.removeReferenceImage')}
                 onClick={() => onClearReference(file)}
+                disabled={busy}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+          {documents.map((document) => (
+            <div className="reference-chip" key={document.id}>
+              {documentSrc[document.id] && (
+                <img src={documentSrc[document.id]} alt={t('documents.preview')} />
+              )}
+              <span className="reference-label" title={document.name}>
+                {document.name} · v{document.version}
+              </span>
+              <button
+                type="button"
+                aria-label={t('documents.remove')}
+                onClick={() => onClearDocument(document.id)}
                 disabled={busy}
               >
                 <X size={14} />
