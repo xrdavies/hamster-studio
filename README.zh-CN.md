@@ -43,23 +43,33 @@ Hamster Studio 是一款开源的桌面 AI 聊天与图片生成工具。通过 
 
 回复中断后可按提示继续；图片结果未知时，再次付费生成需要确认。
 
+## PSD 编辑
+
+- **添加 PSD**：将 `.psd` 文件拖入输入框，或点击图片按钮旁的图层按钮（PSD 不超过 512 MB，暂不支持 PSB）。Hamster Studio 会保存一份副本，原文件不会被修改。
+- **描述修改**：例如修改文字图层、隐藏或重命名图层、添加调整图层或调整画布尺寸。需要支持工具调用的聊天模型；检查结果还需要视觉能力。
+- **版本**：每次编辑都会保存一个保留图层的新版本，并以带预览的卡片显示；之前的版本仍可使用。
+- **保存结果**：可 **PSD 另存为…**、**导出 PNG** 或 **替换原文件**。替换前需要确认；若原文件在添加后被修改，则不会替换。
+- **精确编辑图片**：同一本地编辑器也可对普通图片按精确像素缩放、裁剪、旋转、模糊或调色，无需图片模型。
+
+本地编辑免费，完全在本机运行。预览由内置编辑器渲染，遇到特殊效果或缺失字体时可能与 Photoshop 有差异。编辑器无法读取的内容（例如部分智能滤镜蒙版）会在卡片上提示，编辑后的版本不会保留这些内容。
+
 ### Provider 兼容性
 
 Provider 需要支持对应功能使用的接口：模型获取使用 `/models`，聊天使用流式 `/chat/completions`，图片生成使用 `/images/generations`，参考图与局部修改使用 `/images/edits`。工具调用、视觉、多参考图和遮罩支持因服务商及模型而异。模型是否可用及调用费用由服务商决定。
 
 ## 数据与隐私
 
-- 会话和 Provider 配置存放于 Tauri 应用数据目录的 `studio.db`，生成图片存放于其中的 `images/` 子目录。
+- 会话和 Provider 配置存放于 Tauri 应用数据目录的 `studio.db`，生成图片存放于其中的 `images/` 子目录，添加的 PSD 副本及其版本存放于 `documents/` 子目录，随会话一同删除。
 - AI 请求由桌面应用直接发送到配置的 Provider，无需 Hamster Studio 账号或托管应用后端。
 - API Key 保存在系统凭据库（macOS Keychain），不回退到明文存储。
-- 图片输入和网页提取正文会发送给配置的对话模型服务商。网页读取会访问目标网站；代理 Fake-IP 解析可能将域名发送至 Cloudflare 加密 DNS。
+- 图片输入和网页提取正文会发送给配置的对话模型服务商。PSD 仅发送预览图和图层摘要（名称、类型、可见性和文字），不发送 PSD 文件及其在磁盘上的路径。网页读取会访问目标网站；代理 Fake-IP 解析可能将域名发送至 Cloudflare 加密 DNS。
 - 更新检查会连接 GitHub；项目和作者链接通过系统浏览器打开。
 
 删除 Provider 不会删除已有会话。选择新的 Provider 和模型后即可继续使用。
 
 ## 本地开发
 
-使用 **Node.js 24**、npm、Rust stable 和 Xcode Command Line Tools。项目采用 Tauri、React、TypeScript 与 Vite。
+使用 **Node.js 24**、npm、Rust stable（通过 rustup 安装）和 Xcode Command Line Tools。项目采用 Tauri、React、TypeScript 与 Vite。
 
 ```bash
 git clone https://github.com/xrdavies/hamster-studio.git
@@ -68,19 +78,22 @@ npm ci
 npm run dev
 ```
 
-| 命令                     | 用途                           |
-| ------------------------ | ------------------------------ |
-| `npm run dev`            | 启动桌面开发环境               |
-| `npm run format`         | 使用 Prettier 格式化代码和文档 |
-| `npm run format:check`   | 检查代码格式                   |
-| `npm run typecheck`      | 检查 TypeScript 类型           |
-| `npm test`               | 运行前端测试                   |
-| `npm run test:rust`      | 运行后端测试                   |
-| `npm run build:renderer` | 构建 React 前端                |
-| `npm run build:dir`      | 编译原生程序，不打包           |
-| `npm run build`          | 构建 Tauri 应用与 DMG          |
+| 命令                       | 用途                           |
+| -------------------------- | ------------------------------ |
+| `npm run dev`              | 启动桌面开发环境               |
+| `npm run format`           | 使用 Prettier 格式化代码和文档 |
+| `npm run format:check`     | 检查代码格式                   |
+| `npm run typecheck`        | 检查 TypeScript 类型           |
+| `npm test`                 | 运行前端测试                   |
+| `npm run test:rust`        | 运行后端测试                   |
+| `npm run build:renderer`   | 构建 React 前端                |
+| `npm run build:dir`        | 编译原生程序，不打包           |
+| `npm run build:photocraft` | 按固定版本构建内置 PSD 编辑器  |
+| `npm run build`            | 构建 Tauri 应用与 DMG          |
 
 应用产物位于 `src-tauri/target/release/bundle/`。翻译文案位于 `src/shared/locales/`。Agent 系统提示词位于 `src-tauri/prompts/image-agent.txt`，构建时嵌入程序。
+
+PSD 编辑使用 [PhotoCraft](https://github.com/storytold/photocraft)，以 sidecar 形式随应用打包。`src-tauri/photocraft.json` 固定其提交和 Rust 工具链版本；`npm run build:photocraft` 拉取该提交，必要时用 rustup 安装工具链，并将程序及其许可证文件写入 `src-tauri/binaries/`（已加入 gitignore）。`npm run build` 会自动执行这一步。`npm run dev` 和 `npm run test:rust` 不依赖它，此时 PSD 编辑不可用，集成测试会跳过。可设置 `HAMSTER_PHOTOCRAFT_CLI` 使用其他程序、`HAMSTER_PHOTOCRAFT_SRC` 构建本地代码，或 `HAMSTER_TEST_PSD` 用真实 PSD 运行集成测试。每周的工作流会在测试通过后提交更新固定版本的 PR。
 
 ### 发布
 
@@ -111,7 +124,7 @@ npm run release -- patch
 
 作者：**Frozen** · [X / @xrdavies](https://x.com/xrdavies)。
 
-感谢 Tauri、React、Vite、Lucide、rusqlite、react-markdown 及项目使用的其他开源组件。各依赖遵循其各自的许可证。
+感谢 Tauri、React、Vite、Lucide、rusqlite、react-markdown 及项目使用的其他开源组件。PSD 编辑由 ArtCraft 的 [PhotoCraft](https://github.com/storytold/photocraft) 提供支持（MIT 或 Apache-2.0 许可证），其许可证文件随应用分发。各依赖遵循其各自的许可证。
 
 ## 许可证
 

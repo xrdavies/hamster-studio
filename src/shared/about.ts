@@ -3,6 +3,7 @@ export const aboutLinks = {
   issues: 'https://github.com/xrdavies/hamster-studio/issues',
   releases: 'https://github.com/xrdavies/hamster-studio/releases',
   author: 'https://x.com/xrdavies',
+  photocraft: 'https://github.com/storytold/photocraft',
 } as const
 
 export function aboutUrl(key: string): string {

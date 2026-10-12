@@ -503,6 +503,18 @@ export default function SettingsPanel({
                       'ui.thanksToTauriReactViteLucideRusqliteReactMarkdownAndOtherOpenSourceProjects',
                     )}
                   </p>
+                  <p>
+                    {t('ui.psdEditingAcknowledgment')}{' '}
+                    <a
+                      href={aboutLinks.photocraft}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        void openLink('photocraft')
+                      }}
+                    >
+                      PhotoCraft ↗
+                    </a>
+                  </p>
                   <p>{t('ui.dependenciesAreDistributedUnderTheirRespectiveLicenses')}</p>
                 </details>
               </footer>

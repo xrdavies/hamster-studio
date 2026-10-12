@@ -28,9 +28,13 @@ it('switches language, persists preference, and preserves unknown content', asyn
   vi.unstubAllGlobals()
 })
 
-it('describes PSD editing without naming the bundled editor', () => {
-  for (const dictionary of [en, zh])
-    expect(JSON.stringify(dictionary).toLowerCase()).not.toContain('photocraft')
+it('names the bundled editor only in the open-source acknowledgment', () => {
+  for (const dictionary of [en, zh]) {
+    const named = Object.entries(dictionary)
+      .filter(([, value]) => value.toLowerCase().includes('photocraft'))
+      .map(([key]) => key)
+    expect(named).toEqual(['ui.psdEditingAcknowledgment'])
+  }
   for (const key of ['documents.editStep', 'documents.editFailed', 'documents.originalChanged'])
     expect(Object.hasOwn(en, key) && Object.hasOwn(zh, key)).toBe(true)
 })

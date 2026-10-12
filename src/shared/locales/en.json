@@ -101,6 +101,7 @@
   "ui.licenseMIT": "License: MIT",
   "ui.openSourceAcknowledgments": "Open-source acknowledgments",
   "ui.thanksToTauriReactViteLucideRusqliteReactMarkdownAndOtherOpenSourceProjects": "Thanks to Tauri, React, Vite, Lucide, rusqlite, react-markdown, and other open-source projects.",
+  "ui.psdEditingAcknowledgment": "PSD editing is powered by PhotoCraft by ArtCraft (MIT or Apache-2.0); its license files ship with the app.",
   "ui.dependenciesAreDistributedUnderTheirRespectiveLicenses": "Dependencies are distributed under their respective licenses.",
   "ui.enterAnAPIKeyFirst": "Enter an API key first",
   "ui.enterAnAPIKey": "Enter an API key",

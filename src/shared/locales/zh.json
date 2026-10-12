@@ -101,6 +101,7 @@
   "ui.licenseMIT": "许可证：MIT",
   "ui.openSourceAcknowledgments": "开源致谢",
   "ui.thanksToTauriReactViteLucideRusqliteReactMarkdownAndOtherOpenSourceProjects": "感谢 Tauri、React、Vite、Lucide、rusqlite、react-markdown 和其他开源项目。",
+  "ui.psdEditingAcknowledgment": "PSD 编辑由 ArtCraft 的 PhotoCraft 提供支持（MIT 或 Apache-2.0 许可证），其许可证文件随应用分发。",
   "ui.dependenciesAreDistributedUnderTheirRespectiveLicenses": "各依赖遵循其各自的许可证。",
   "ui.enterAnAPIKeyFirst": "请先填写 API Key",
   "ui.enterAnAPIKey": "请填写 API Key",

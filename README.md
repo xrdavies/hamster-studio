@@ -43,23 +43,33 @@ Use **Enter** to send and **Shift + Enter** for a new line. Change the interface
 
 Interrupted replies can offer a continuation action. Image requests with uncertain results require confirmation before another paid attempt.
 
+## PSD editing
+
+- **Attach a PSD:** drag a `.psd` file onto the composer or use the layers button next to the image button (PSD up to 512 MB; PSB is not supported). Hamster Studio keeps its own copy; your original file is not modified.
+- **Describe the edit:** for example, change a text layer, hide or rename layers, add an adjustment layer or resize the canvas. Use a chat model with tool-calling support; checking the result also requires vision.
+- **Versions:** every edit saves a new layered version shown as a card with a preview. Earlier versions stay available.
+- **Save the result:** use **Save PSD as…**, **Export PNG**, or **Replace original**, which asks for confirmation and refuses if the original changed after you attached it.
+- **Exact image edits:** the same local editor can resize to exact pixels, crop, rotate, blur or adjust colours on regular images without using an image model.
+
+Local edits are free and run entirely on your Mac. Previews are rendered by the bundled editor and may differ from Photoshop for unusual effects or missing fonts. Content the editor cannot read (for example some smart filter masks) is listed as a warning on the card and is not kept in edited versions.
+
 ### Provider compatibility
 
 Providers need the endpoints required by your workflow: `/models` for model discovery, streaming `/chat/completions` for chat, `/images/generations` for generation, and `/images/edits` for reference images and region edits. Support for tool calling, vision, multiple references and masks varies by provider and model. Model availability and usage charges are determined by your provider.
 
 ## Data and privacy
 
-- Conversations and provider configuration are stored in `studio.db` within Tauri's application data directory; generated images are stored in its `images/` subdirectory.
+- Conversations and provider configuration are stored in `studio.db` within Tauri's application data directory; generated images are stored in its `images/` subdirectory and attached PSD copies and their versions in `documents/`. They are deleted with their conversation.
 - AI requests go directly from the desktop app to your configured provider. Hamster Studio does not require an account or a hosted application backend.
 - API keys are stored in the system credential store (macOS Keychain); errors never fall back to plaintext.
-- Image inputs and extracted webpage text are sent to your configured conversation provider. Webpage reading contacts the target site; proxy Fake-IP resolution may query Cloudflare DNS over HTTPS with the hostname.
+- Image inputs and extracted webpage text are sent to your configured conversation provider. For PSDs, only a preview image and a summary of the layers (names, kinds, visibility and text) are sent; the PSD file and its location on disk are not. Webpage reading contacts the target site; proxy Fake-IP resolution may query Cloudflare DNS over HTTPS with the hostname.
 - Update checks contact GitHub. Opening project or author links launches your system browser.
 
 Deleting a provider preserves existing conversations. Select another provider and model to continue them.
 
 ## Development
 
-Use **Node.js 24**, npm, Rust stable, and Xcode Command Line Tools on macOS. The app is built with Tauri, React, TypeScript, and Vite.
+Use **Node.js 24**, npm, Rust stable (via rustup), and Xcode Command Line Tools on macOS. The app is built with Tauri, React, TypeScript, and Vite.
 
 ```bash
 git clone https://github.com/xrdavies/hamster-studio.git
@@ -68,19 +78,22 @@ npm ci
 npm run dev
 ```
 
-| Command                  | Purpose                                        |
-| ------------------------ | ---------------------------------------------- |
-| `npm run dev`            | Start the desktop app in development mode      |
-| `npm run format`         | Format source and documentation with Prettier  |
-| `npm run format:check`   | Check formatting                               |
-| `npm run typecheck`      | Check TypeScript types                         |
-| `npm test`               | Run frontend tests                             |
-| `npm run test:rust`      | Run backend tests                              |
-| `npm run build:renderer` | Build the React frontend                       |
-| `npm run build:dir`      | Compile the native executable without bundling |
-| `npm run build`          | Build the Tauri application and macOS DMG      |
+| Command                    | Purpose                                           |
+| -------------------------- | ------------------------------------------------- |
+| `npm run dev`              | Start the desktop app in development mode         |
+| `npm run format`           | Format source and documentation with Prettier     |
+| `npm run format:check`     | Check formatting                                  |
+| `npm run typecheck`        | Check TypeScript types                            |
+| `npm test`                 | Run frontend tests                                |
+| `npm run test:rust`        | Run backend tests                                 |
+| `npm run build:renderer`   | Build the React frontend                          |
+| `npm run build:dir`        | Compile the native executable without bundling    |
+| `npm run build:photocraft` | Build the bundled PSD editor at the pinned commit |
+| `npm run build`            | Build the Tauri application and macOS DMG         |
 
 Build output is written to `src-tauri/target/release/bundle/`. Translation dictionaries live in `src/shared/locales/`. The Agent system prompt lives in `src-tauri/prompts/image-agent.txt` and is embedded at compile time.
+
+PSD editing uses [PhotoCraft](https://github.com/storytold/photocraft), bundled as a sidecar. `src-tauri/photocraft.json` pins the commit and Rust toolchain; `npm run build:photocraft` fetches that commit, installs the toolchain with rustup if needed, and writes the binary and its license files to `src-tauri/binaries/` (git-ignored). `npm run build` does this automatically. `npm run dev` and `npm run test:rust` work without it; PSD editing is then unavailable and the integration tests are skipped. Set `HAMSTER_PHOTOCRAFT_CLI` to use another binary, `HAMSTER_PHOTOCRAFT_SRC` to build a local checkout, or `HAMSTER_TEST_PSD` to run the integration test against a real PSD. A weekly workflow opens a pull request that moves the pin once the tests pass.
 
 ### Release
 
@@ -111,7 +124,7 @@ For pull requests, keep changes focused, use [Conventional Commits](https://www.
 
 Created by **Frozen** · [X / @xrdavies](https://x.com/xrdavies).
 
-Thanks to Tauri, React, Vite, Lucide, rusqlite, react-markdown, and the other open-source projects used by Hamster Studio. Dependencies retain their respective licenses.
+Thanks to Tauri, React, Vite, Lucide, rusqlite, react-markdown, and the other open-source projects used by Hamster Studio. PSD editing is powered by [PhotoCraft](https://github.com/storytold/photocraft) by ArtCraft, licensed under MIT or Apache-2.0; its license files ship inside the app. Dependencies retain their respective licenses.
 
 ## License
 
