@@ -1,0 +1,76 @@
+name: Update bundled PSD editor
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+jobs:
+  update:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - name: Find latest revision
+        id: pin
+        run: |
+          set -euo pipefail
+          repo=$(node -p "require('./src-tauri/photocraft.json').repo")
+          current=$(node -p "require('./src-tauri/photocraft.json').rev")
+          latest=$(git ls-remote "$repo" HEAD | cut -f1)
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "repo=${repo%.git}" >> "$GITHUB_OUTPUT"
+          if [ "$current" = "$latest" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Update pin
+        if: steps.pin.outputs.changed == 'true'
+        env:
+          LATEST: ${{ steps.pin.outputs.latest }}
+        run: |
+          node -e 'const f="src-tauri/photocraft.json";const p=require("./"+f);p.rev=process.env.LATEST;require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
+      - name: Build and test
+        id: test
+        if: steps.pin.outputs.changed == 'true'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build:photocraft
+          HAMSTER_PHOTOCRAFT_CLI="$PWD/src-tauri/binaries/photocraft-cli-aarch64-apple-darwin" \
+            cargo test --manifest-path src-tauri/Cargo.toml --locked -- --nocapture 2>&1 | tee test.log
+          ! grep -q 'skipping: editor CLI not available' test.log
+      - name: Open pull request
+        if: steps.pin.outputs.changed == 'true' && steps.test.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT: ${{ steps.pin.outputs.current }}
+          LATEST: ${{ steps.pin.outputs.latest }}
+          REPO: ${{ steps.pin.outputs.repo }}
+        run: |
+          set -euo pipefail
+          branch="chore/psd-editor-${LATEST:0:8}"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then exit 0; fi
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          git switch -c "$branch"
+          git commit -am "chore: update bundled PSD editor to ${LATEST:0:8}"
+          git push origin "$branch"
+          gh pr create --title "chore: update bundled PSD editor to ${LATEST:0:8}" \
+            --body "Integration tests passed. Changes: $REPO/compare/$CURRENT...$LATEST"
+      - name: Report failure
+        if: steps.pin.outputs.changed == 'true' && steps.test.outcome != 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LATEST: ${{ steps.pin.outputs.latest }}
+          REPO: ${{ steps.pin.outputs.repo }}
+        run: |
+          gh issue create --title "Bundled PSD editor update to ${LATEST:0:8} failed" \
+            --body "Building or testing $REPO@$LATEST failed. See ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

@@ -18,7 +18,15 @@ jobs:
         with:
           targets: aarch64-apple-darwin
       - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: src-tauri/binaries
+          key: psd-editor-${{ hashFiles('src-tauri/photocraft.json') }}
+      - name: Build bundled PSD editor
+        run: npm run build:photocraft
       - name: Verify
+        env:
+          HAMSTER_PHOTOCRAFT_CLI: ${{ github.workspace }}/src-tauri/binaries/photocraft-cli-aarch64-apple-darwin
         run: npm run format:check && npm run typecheck && npm test && cargo test --manifest-path src-tauri/Cargo.toml --locked
       - name: Prepare signed release
         if: github.event_name == 'push'

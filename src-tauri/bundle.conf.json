@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "externalBin": ["binaries/photocraft-cli"],
+    "resources": {
+      "binaries/licenses/": "licenses/"
+    }
+  }
+}

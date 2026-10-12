@@ -12,3 +12,4 @@ src-tauri/gen/
 *.key
 *.key.pub
 src-tauri/release.conf.json
+src-tauri/binaries/
